@@ -1,4 +1,6 @@
-minute, not minute
+minute_minute
 ==================
 
-some wii u stuff from when wii u was cool, very unfinished but some stuff might be useful i guess
+doot dooo do do doot
+
+boot1 replacement based on minute, includes stuff like DRAM init and PRSH handling.
