@@ -72,6 +72,9 @@ enum {
 
 #define SERIAL_DELAY (10)
 
+void gpio_enable(u16 gpio_id, u8 val);
+void gpio_set_dir(u16 gpio_id, u8 dir);
+
 void serial_fatal();
 void serial_force_terminate();
 void serial_send_u32(u32 val);

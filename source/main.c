@@ -329,6 +329,10 @@ u32 _main(void *base)
         smc_set_on_indicator(LED_ON);
     }
 
+    serial_send_u32(pflags_val);
+    //*(u32*)0x10008008 = pflags_val;
+    //prsh_recompute_checksum();
+
     // Jump to payload...
 
     u8* test_otp = (u8*)&otp;

@@ -14,6 +14,7 @@
 #include "utils.h"
 #include "latte.h"
 #include "gpio.h"
+#include "gfx.h"
 
 #define eeprom_delay() udelay(5)
 
@@ -57,12 +58,23 @@ int seeprom_read(void *dst, int offset, int size)
     if(size & 1)
         return -1;
 
+    gpio_set_dir(GP_EEP_CLK, GPIO_DIR_OUT);
+    gpio_set_dir(GP_EEP_CS, GPIO_DIR_OUT);
+    gpio_set_dir(GP_EEP_MOSI, GPIO_DIR_OUT);
+    gpio_set_dir(GP_EEP_MISO, GPIO_DIR_IN);
+
+    gpio_enable(GP_EEP_CLK, GPIO_DIR_OUT);
+    gpio_enable(GP_EEP_CS, GPIO_DIR_OUT);
+    gpio_enable(GP_EEP_MOSI, GPIO_DIR_OUT);
+    gpio_enable(GP_EEP_MISO, GPIO_DIR_IN);
+
     clear32(LT_GPIO_OUT, BIT(GP_EEP_CLK));
     clear32(LT_GPIO_OUT, BIT(GP_EEP_CS));
     eeprom_delay();
 
     for(i = 0; i < size; ++i)
     {
+        //printf("%x\n", i);
         set32(LT_GPIO_OUT, BIT(GP_EEP_CS));
         send_bits((0x600 | (offset + i)), 11);
         recv = recv_bits(16);
