@@ -16,8 +16,8 @@ include $(DEVKITARM)/ds_rules
 # INCLUDES is a list of directories containing header files
 # SPECS is the directory containing the important build and link files
 #---------------------------------------------------------------------------------
-export TARGET		:=	minute
-export BUILD		?=	debug
+export TARGET		:=	minute_minute
+export BUILD		?=	debug_boot1
 
 R_SOURCES			:=	
 SOURCES				:=	source source/fatfs externals/inih
@@ -36,12 +36,12 @@ CFLAGS			:=	-g -std=c11 -Os \
 					-fomit-frame-pointer -fdata-sections -ffunction-sections \
 					$(ARCH)
 
-CFLAGS			+=	$(INCLUDE) -D_GNU_SOURCE -DMINUTE_HEADLESS -fno-builtin-printf -Wno-nonnull -Werror=implicit
+CFLAGS			+=	$(INCLUDE) -D_GNU_SOURCE -DMINUTE_BOOT1 -DMINUTE_HEADLESS -fno-builtin-printf -Wno-nonnull -Werror=implicit
 
 CXXFLAGS		:=	$(CFLAGS) -fno-rtti -fno-exceptions
 
-ASFLAGS			:=	-g $(ARCH)
-LDFLAGS			 =	-g --specs=../stub.specs $(ARCH) -Wl,--gc-sections,-Map,$(TARGET).map \
+ASFLAGS			:=	-g $(ARCH) -DMINUTE_BOOT1 -DMINUTE_HEADLESS
+LDFLAGS			 =	-g --specs=../stub_boot1.specs $(ARCH) -Wl,--gc-sections,-Map,$(TARGET).map \
 					-L$(DEVKITARM)/lib/gcc/arm-none-eabi/5.3.0/be -L$(DEVKITARM)/arm-none-eabi/lib/be \
 					-z max-page-size=4096
 
@@ -106,7 +106,7 @@ all: $(BUILD)
 
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
-	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile.boot1
 
 #---------------------------------------------------------------------------------
 clean:
@@ -125,8 +125,8 @@ DEPENDS		:=	$(OFILES:.o=.d)
 #---------------------------------------------------------------------------------
 ELFLOADER = $(ROOTDIR)/elfloader/elfloader.bin
 
-$(ROOTDIR)/fw.img: $(OUTPUT)-strip.elf $(ELFLOADER)
-	@python3 $(ROOTDIR)/castify.py $(ELFLOADER) $< $@ false
+$(ROOTDIR)/boot1.img: $(OUTPUT)-strip.elf $(ELFLOADER)
+	@python3 $(ROOTDIR)/castify.py $(ELFLOADER) $< $@ true
 
 $(OUTPUT)-strip.elf: $(OUTPUT).elf
 	$(STRIP) $< -o $@

@@ -20,6 +20,7 @@
 #include "nand.h"
 #include "sdcard.h"
 #include "mlc.h"
+#include "gpio.h"
 
 static u32 _alarm_frequency = 0;
 
@@ -112,6 +113,11 @@ void irq_handler(void)
         write32(LT_INTSR_AHBLT_ARM, IRQLF_SD2);
     }
 
+    // Technically it shouldn't even be here...
+    if(lt_mask & IRQLF_IOP2X) {
+        write32(LT_INTSR_AHBLT_ARM, IRQLF_IOP2X);
+    }
+
     all_mask &= ~IRQF_ALL;
     if(all_mask) {
         printf("IRQ: ALL unknown 0x%08x\n", all_mask);
@@ -120,7 +126,7 @@ void irq_handler(void)
     lt_mask &= ~IRQLF_ALL;
     if(lt_mask) {
         printf("IRQ: LT unknown 0x%08x\n", lt_mask);
-        write32(LT_INTSR_AHBALL_ARM, lt_mask);
+        write32(LT_INTSR_AHBLT_ARM, lt_mask);
     }
 }
 

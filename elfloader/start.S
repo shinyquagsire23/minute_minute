@@ -40,8 +40,9 @@ _start:
     sub r4, r4, r0
 
     @ Set up a stack
-    ldr sp, =__stack_addr
-    add sp, r4
+    ldr r3, =__stack_addr
+    add r3, r4
+    mov sp, r3
 
     @ relocate the GOT entries
     ldr r1, =__got_start

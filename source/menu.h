@@ -13,7 +13,7 @@
 #include "types.h"
 #include "console.h"
 
-bool menu_active;
+extern bool menu_active;
 
 typedef struct {
     char* text;

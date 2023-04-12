@@ -17,6 +17,7 @@
 #include "string.h"
 #include "utils.h"
 #include "memory.h"
+#include "gpio.h"
 
 #include "latte.h"
 
@@ -131,6 +132,11 @@ void sdcard_needs_discover(void)
     else
         ocr |= SD_OCR_SDHC_CAP;
     DPRINTF(2, ("sdcard: SEND_IF_COND ocr: %x\n", ocr));
+
+    // TODO remove?
+    card.sdhc_blockmode = 1;
+    card.selected = 0;
+    card.inserted = 1;
 
     int tries;
     for (tries = 100; tries > 0; tries--) {
@@ -304,6 +310,7 @@ void sdcard_needs_discover(void)
         printf("sdcard: could not enable clock for card\n");
         goto out_power;
     }
+
     return;
 
 out_clock:
@@ -450,9 +457,23 @@ int sdcard_read(u32 blk_start, u32 blk_count, void *data)
 {
     struct sdmmc_command cmd;
 
+    // TODO: wtf is this bug
+    if (!can_sdcard_dma_addr(data) && blk_count > 1) {
+        int ret = 0;
+        for (int i = 0; i < blk_count; i++)
+        {
+            ret = sdcard_read(blk_start + i, 1, data);
+            if (ret) return ret;
+            data = (void*)((intptr_t)data + SDMMC_DEFAULT_BLOCKLEN);
+        }
+        return ret;
+    }
+
 //  printf("%s(%u, %u, %p)\n", __FUNCTION__, blk_start, blk_count, data);
-    if (card.inserted == 0) {
+    if (card.inserted == 0) 
+    {
         printf("sdcard: READ: no card inserted.\n");
+        //gpio_debug_send(0xAA);
         return -1;
     }
 

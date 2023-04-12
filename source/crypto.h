@@ -129,6 +129,26 @@ typedef struct
 
 _Static_assert(sizeof(otp_t) == 0x400, "OTP size must be 0x400!");
 
+typedef struct __attribute__((packed)) {
+    u16 library_version;
+    u16 author;
+    u16 board_type;
+    u16 board_revision;
+    u16 boot_source;
+    u16 ddr3_size;
+    u16 ddr3_speed;
+    u16 ppc_clock_multiplier;
+    u16 iop_clock_multiplier;
+    u16 video_1080p;
+    u16 ddr3_vendor;
+    u16 mov_passive_reset;
+    u16 sys_pll_speed;
+    u16 sata_device;
+    u16 console_type;
+    u32 device_presence;
+    u8 reserved[32];
+} bc_t;
+
 typedef struct
 {
     u8 _empty1[18];
@@ -142,25 +162,7 @@ typedef struct
     // BoardConfig
     u32 bc_crc32;
     u16 bc_size;
-    struct __attribute__((packed)) {
-        u16 library_version;
-        u16 author;
-        u16 board_type;
-        u16 board_revision;
-        u16 boot_source;
-        u16 ddr3_size;
-        u16 ddr3_speed;
-        u16 ppc_clock_multiplier;
-        u16 iop_clock_multiplier;
-        u16 video_1080p;
-        u16 ddr3_vendor;
-        u16 mov_passive_reset;
-        u16 sys_pll_speed;
-        u16 sata_device;
-        u16 console_type;
-        u32 device_presence;
-        u8 reserved[32];
-    } bc;
+    bc_t bc;
 
     u8 drive_key[16];
     u8 factory_key[16];
@@ -235,6 +237,8 @@ void aes_set_iv(u8 *iv);
 void aes_empty_iv();
 void aes_set_key(u8 *key);
 void aes_decrypt(u8 *src, u8 *dst, u32 blocks, u8 keep_iv);
+void aes_encrypt(u8 *src, u8 *dst, u32 blocks, u8 keep_iv);
+void aes_copy(u8 *src, u8 *dst, u32 blocks);
 
 #endif
 

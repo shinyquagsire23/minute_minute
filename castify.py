@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pip3 install pycryptodome
 
 import sys, os, struct
 import __future__
@@ -15,6 +16,7 @@ no_crypto = True
 loaderfile = sys.argv[1]
 elffile = sys.argv[2]
 outfile = sys.argv[3]
+hybrid_mbr_ancast = sys.argv[4].lower() == "true"
 
 print("Building payload...\n")
 
@@ -52,6 +54,9 @@ print("Header size: 0x%X bytes." % hdrlen)
 print("Loader size: 0x%X bytes." % loaderlen)
 print("ELF size:    0x%X bytes." % elflen)
 
+if hybrid_mbr_ancast:
+    hdrlen = 0xEA000002
+
 payload = struct.pack(">IIII", hdrlen, loaderlen, elflen, 0) + hdr[16:]
 payload += loader
 payload += elf
@@ -73,7 +78,11 @@ else:
 
 h = SHA.new(payload)
 
-outdata = struct.pack(">I4xI20xI256x124xHBBIII20sI56x", 0xEFA282D9, 0x20, 0x02, hb_flags, 0x00, 0x00, 0x21, 0x02, len(payload), h.digest(), 0x02)
+if hybrid_mbr_ancast:
+    outdata = struct.pack(">I4xI20xI256x124xHBBIII15sBBBBBBBBBBBBBB49xBB", 0xEFA282D9, 0x20, 0x02, hb_flags, 0x00, 0x00, 0x21, 0x02, len(payload), bytes([0]*15), 0x01, 0x41, 0x01, 0x0B, 0xFE, 0xC2, 0xFF, 0x00, 0x00, 0x02, 0x00, 0x00, 0x40, 0x1C, 0x55, 0xAA)
+else:
+    outdata = struct.pack(">I4xI20xI256x124xHBBIII20sI56x", 0xEFA282D9, 0x20, 0x02, hb_flags, 0x00, 0x00, 0x21, 0x02, len(payload), h.digest(), 0x02)
+
 outdata += payload
 
 print("Body size:   0x%X bytes." % len(payload))
@@ -81,4 +90,6 @@ print("Body hash:   %s." % h.hexdigest())
 
 f = open(outfile, "wb")
 f.write(outdata)
+if hybrid_mbr_ancast:
+    f.write(b'\x00' * ((0x80*0x200) - len(outdata)))
 f.close()

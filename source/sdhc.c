@@ -28,6 +28,7 @@
 #include "string.h"
 #include "memory.h"
 #include "utils.h"
+#include "gpio.h"
 
 #ifdef CAN_HAZ_IRQ
 #include "irq.h"
@@ -179,9 +180,11 @@ sdhc_host_found(struct sdhc_host *hp, struct sdhc_host_params *pa, bus_space_tag
     /* Determine host capabilities. */
     caps = HREAD4(hp, SDHC_CAPABILITIES);
 
+#ifndef MINUTE_BOOT1
     /* Use DMA if the host system and the controller support it. */
     if (usedma && ISSET(caps, SDHC_DMA_SUPPORT))
         SET(hp->flags, SHF_USE_DMA);
+#endif
 
     /*
      * Determine the base clock frequency. (2.2.24)
@@ -200,7 +203,9 @@ sdhc_host_found(struct sdhc_host *hp, struct sdhc_host_params *pa, bus_space_tag
     if (hp->clkbase == 0) {
         /* The attachment driver must tell us. */
         printf("sdhc: base clock frequency unknown\n");
-        goto err;
+        //gpio_debug_send(0xAA);
+        //goto err;
+        hp->clkbase = SDHC_BASE_FREQ_KHZ(SDMMC_SDCLK_400KHZ);
     } else if (hp->clkbase < 10000 || hp->clkbase > max_clock) {
         printf("sdhc: base clock frequency out of range: %u MHz\n",
             hp->clkbase / 1000);
@@ -475,11 +480,11 @@ sdhc_wait_state(struct sdhc_host *hp, u_int32_t mask, u_int32_t value)
     u_int32_t state;
     int timeout;
 
-    for (timeout = 500; timeout > 0; timeout--) {
+    for (timeout = 500000; timeout > 0; timeout--) {
         if (((state = HREAD4(hp, SDHC_PRESENT_STATE)) & mask)
             == value)
             return 0;
-        udelay(10000);
+        udelay(10);
     }
     DPRINTF(0,("sdhc: timeout waiting for %x (state=%d)\n", value, state));
     return ETIMEDOUT;
@@ -522,6 +527,7 @@ sdhc_async_response(struct sdhc_host *hp, struct sdmmc_command *cmd)
      * is marked done for any other reason.
      */
 
+    udelay(100); // whyyyyyyyy?
     int status = sdhc_wait_intr(hp, SDHC_COMMAND_COMPLETE, cmd->c_timeout);
     if (!ISSET(status, SDHC_COMMAND_COMPLETE)) {
         cmd->c_error = ETIMEDOUT;
@@ -566,8 +572,11 @@ sdhc_async_response(struct sdhc_host *hp, struct sdmmc_command *cmd)
 void
 sdhc_exec_command(struct sdhc_host *hp, struct sdmmc_command *cmd)
 {
+    //serial_send_u32(0x1234AAAA);
     sdhc_async_command(hp, cmd);
+    //serial_send_u32(0x1234AAAB);
     sdhc_async_response(hp, cmd);
+    //serial_send_u32(0x1234AAAD);
 }
 
 int
@@ -589,7 +598,7 @@ sdhc_start_command(struct sdhc_host *hp, struct sdmmc_command *cmd)
 
     /* Fragment the data into proper blocks. */
     if (cmd->c_datalen > 0) {
-        blksize = MIN(cmd->c_datalen, cmd->c_blklen);
+        blksize = SDMMC_DEFAULT_BLOCKLEN;//MIN(cmd->c_datalen, cmd->c_blklen);
         blkcount = cmd->c_datalen / blksize;
         if (cmd->c_datalen % blksize > 0) {
             /* XXX: Split this command. (1.7.4) */
@@ -616,7 +625,7 @@ sdhc_start_command(struct sdhc_host *hp, struct sdmmc_command *cmd)
             mode |= SDHC_AUTO_CMD12_ENABLE;
         }
     }
-    if (ISSET(hp->flags, SHF_USE_DMA))
+    if (can_sdcard_dma_addr(cmd->c_data) && ISSET(hp->flags, SHF_USE_DMA))
         mode |= SDHC_DMA_ENABLE;
 
     /*
@@ -645,7 +654,8 @@ sdhc_start_command(struct sdhc_host *hp, struct sdmmc_command *cmd)
     if ((error = sdhc_wait_state(hp, SDHC_CMD_INHIBIT_MASK, 0)) != 0)
         return error;
 
-    if (ISSET(hp->flags, SHF_USE_DMA) && cmd->c_datalen > 0) {
+    if ((mode & SDHC_DMA_ENABLE) && cmd->c_datalen > 0) 
+    {
         cmd->c_resid = blkcount;
         cmd->c_buf = cmd->c_data;
 
@@ -666,8 +676,7 @@ sdhc_start_command(struct sdhc_host *hp, struct sdmmc_command *cmd)
      * of the SDHC_COMMAND register triggers the SD command. (1.5)
      */
 //  HWRITE2(hp, SDHC_TRANSFER_MODE, mode);
-    HWRITE2(hp, SDHC_BLOCK_SIZE, blksize | 7 << 12);
-    HWRITE2(hp, SDHC_BLOCK_COUNT, blkcount);
+    HWRITE2(hp, SDHC_BLOCK_SIZE, (blksize | 7 << 12) | (blkcount << 16));
     HWRITE4(hp, SDHC_ARGUMENT, cmd->c_arg);
 //  http://wiibrew.org/wiki/Reversed_Little_Endian
 //  HWRITE2(hp, SDHC_COMMAND, command);
@@ -685,7 +694,7 @@ sdhc_transfer_data(struct sdhc_host *hp, struct sdmmc_command *cmd)
     error = 0;
 
     DPRINTF(1,("resp=%#x datalen=%d\n", MMC_R1(cmd->c_resp), cmd->c_datalen));
-    if (ISSET(hp->flags, SHF_USE_DMA)) {
+    if (can_sdcard_dma_addr(cmd->c_data) && ISSET(hp->flags, SHF_USE_DMA)) {
         for(;;) {
             status = sdhc_wait_intr(hp, SDHC_TRANSFER_COMPLETE |
                     SDHC_DMA_INTERRUPT,
@@ -701,10 +710,30 @@ sdhc_transfer_data(struct sdhc_host *hp, struct sdmmc_command *cmd)
                 break;
             }
         }
-    } else
-        printf("fail.\n");
+    } else {
+        //printf("fail.\n");
 
+        if (ISSET(cmd->c_flags, SCF_CMD_READ))
+        {
+            //HWRITE2(hp, SDHC_NINTR_STATUS, SDHC_COMMAND_COMPLETE|SDHC_DMA_INTERRUPT);
+#ifdef CAN_HAZ_IRQ
+            hp->intr_status;
+#endif
 
+            u32* out_ptr = cmd->c_data;
+            for (u32 i = 0; i < cmd->c_datalen / sizeof(u32); i++)
+            {
+                sdhc_wait_state(hp, SDHC_BUFFER_READ_ENABLE, SDHC_BUFFER_READ_ENABLE); 
+
+                u32 val_raw = HREAD4(hp, SDHC_DATA);
+                *out_ptr = (val_raw >> 24) | ((val_raw >> 8) & 0xFF00) | ((val_raw << 8) & 0xFF0000) | (val_raw << 24);
+                out_ptr++;
+            }
+        }
+        else {
+            // write...
+        }
+    }
 
 #ifdef SDHC_DEBUG
     /* XXX I forgot why I wanted to know when this happens :-( */
@@ -713,8 +742,8 @@ sdhc_transfer_data(struct sdhc_host *hp, struct sdmmc_command *cmd)
         printf("sdhc: CMD52/53 error response flags %#x\n",
             MMC_R1(cmd->c_resp) & 0xff00);
 #endif
-    if (ISSET(cmd->c_flags, SCF_CMD_READ))
-            ahb_flush_from(hp->pa.wb);
+    //if (ISSET(cmd->c_flags, SCF_CMD_READ))
+    //        ahb_flush_from(hp->pa.wb);
 
     if (error != 0)
         cmd->c_error = error;
@@ -770,6 +799,7 @@ sdhc_wait_intr_debug(const char *funcname, int line, struct sdhc_host *hp, int m
             status = hp->intr_status & mask;
             break;
         }
+
         udelay(1000);
     }
 

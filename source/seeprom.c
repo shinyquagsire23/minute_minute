@@ -22,13 +22,13 @@ void send_bits(int b, int bits)
     while(bits--)
     {
         if(b & (1 << bits))
-            set32(LT_GPIO_OUT, GP_EEP_MOSI);
+            set32(LT_GPIO_OUT, BIT(GP_EEP_MOSI));
         else
-            clear32(LT_GPIO_OUT, GP_EEP_MOSI);
+            clear32(LT_GPIO_OUT, BIT(GP_EEP_MOSI));
         eeprom_delay();
-        set32(LT_GPIO_OUT, GP_EEP_CLK);
+        set32(LT_GPIO_OUT, BIT(GP_EEP_CLK));
         eeprom_delay();
-        clear32(LT_GPIO_OUT, GP_EEP_CLK);
+        clear32(LT_GPIO_OUT, BIT(GP_EEP_CLK));
         eeprom_delay();
     }
 }
@@ -39,11 +39,11 @@ int recv_bits(int bits)
     while(bits--)
     {
         res <<= 1;
-        set32(LT_GPIO_OUT, GP_EEP_CLK);
+        set32(LT_GPIO_OUT, BIT(GP_EEP_CLK));
         eeprom_delay();
-        clear32(LT_GPIO_OUT, GP_EEP_CLK);
+        clear32(LT_GPIO_OUT, BIT(GP_EEP_CLK));
         eeprom_delay();
-        res |= !!(read32(LT_GPIO_IN) & GP_EEP_MISO);
+        res |= !!(read32(LT_GPIO_IN) & BIT(GP_EEP_MISO));
     }
     return res;
 }
@@ -57,17 +57,17 @@ int seeprom_read(void *dst, int offset, int size)
     if(size & 1)
         return -1;
 
-    clear32(LT_GPIO_OUT, GP_EEP_CLK);
-    clear32(LT_GPIO_OUT, GP_EEP_CS);
+    clear32(LT_GPIO_OUT, BIT(GP_EEP_CLK));
+    clear32(LT_GPIO_OUT, BIT(GP_EEP_CS));
     eeprom_delay();
 
     for(i = 0; i < size; ++i)
     {
-        set32(LT_GPIO_OUT, GP_EEP_CS);
+        set32(LT_GPIO_OUT, BIT(GP_EEP_CS));
         send_bits((0x600 | (offset + i)), 11);
         recv = recv_bits(16);
         *ptr++ = recv;
-        clear32(LT_GPIO_OUT, GP_EEP_CS);
+        clear32(LT_GPIO_OUT, BIT(GP_EEP_CS));
         eeprom_delay();
     }
 

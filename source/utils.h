@@ -12,6 +12,24 @@
 
 #include "types.h"
 
+static inline u32 _byteswap_ulong(u32 val)
+{
+    u8 val_3 = (val >> 24) & 0xFF;
+    u8 val_2 = (val >> 16) & 0xFF;
+    u8 val_1 = (val >> 8) & 0xFF;
+    u8 val_0 = val & 0xFF;
+
+    return (val_0 << 24) | (val_1 << 16) | (val_2 << 8) | (val_3);
+}
+
+static inline u16 _byteswap_ushort(u16 val)
+{
+    u8 val_hi = val >> 8;
+    u8 val_lo = val & 0xFF;
+
+    return (val_lo << 8) | val_hi;
+}
+
 static inline u32 read32(u32 addr)
 {
     u32 data;
@@ -210,5 +228,7 @@ type *name = (type*)(((u32)(_al__##name)) + ((alignment) - (( \
     ({ __typeof__ (a) _a = (a); \
        __typeof__ (b) _b = (b); \
        _a < _b ? _a : _b; })
+
+#define BIT(n) (1<<n)
 
 #endif

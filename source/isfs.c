@@ -621,8 +621,8 @@ static void _isfsdev_fst_to_stat(const isfs_fst* fst, struct stat* st)
     st->st_rdev = st->st_dev;
     st->st_mtime = 0;
 
-    st->st_spare1 = fst->x1;
-    st->st_spare2 = fst->x3;
+    //st->st_spare1 = fst->x1;
+    //st->st_spare2 = fst->x3;
 }
 
 static int _isfsdev_stat_r(struct _reent* r, const char* file, struct stat* st)

@@ -19,13 +19,14 @@ __excstack_size = 0x40000;
 
 MEMORY {
 	sram0		: ORIGIN = 0xffff0000, LENGTH = 64K
-	mem2		: ORIGIN = 0x10100000, LENGTH = 60M
+	mem2		: ORIGIN = 0x00100000, LENGTH = 16M
 }
 
 SECTIONS
 {
 	.init :
 	{
+		*(.start)
 		*(.init)
 		*(.sram.text)
 		. = ALIGN(4);

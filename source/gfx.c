@@ -9,8 +9,64 @@
  */
 
 #include "gfx.h"
+#include "gpio.h"
 #include <stdio.h>
 
+#ifdef MINUTE_HEADLESS
+size_t gfx_get_stride(gfx_screen_t screen)
+{
+
+}
+
+size_t gfx_get_size(gfx_screen_t screen)
+{
+
+}
+
+void gfx_draw_plot(gfx_screen_t screen, int x, int y, u32 color)
+{
+
+}
+
+void gfx_clear(gfx_screen_t screen, u32 color)
+{
+
+}
+
+void gfx_draw_char(gfx_screen_t screen, char c, int x, int y, u32 color)
+{
+
+}
+
+void gfx_draw_string(gfx_screen_t screen, char* str, int x, int y, u32 color)
+{
+
+}
+
+int printf(const char* fmt, ...)
+{
+#ifdef MINUTE_BOOT1
+	return 0;
+#else
+	static char str[0x800];
+	va_list va;
+
+	va_start(va, fmt);
+	vsnprintf(str, sizeof(str), fmt, va);
+	va_end(va);
+
+	char* str_iter = str;
+	while (*str_iter)
+	{
+		serial_send(*str_iter);
+		str_iter++;
+	}
+
+    return 0;
+#endif
+}
+
+#else // MINUTE_HEADLESS
 extern const u8 msx_font[];
 
 #define CHAR_SIZE_X (8)
@@ -171,3 +227,5 @@ int printf(const char* fmt, ...)
 
     return 0;
 }
+
+#endif // !MINUTE_HEADLESS

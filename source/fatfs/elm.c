@@ -396,7 +396,7 @@ static void _ELM_fileinfo_to_stat(const TCHAR* path, const FILINFO* fi, struct s
     st->st_rdev = st->st_dev;
     st->st_size = fi->fsize;
     st->st_mtime = _ELM_filetime_to_time(fi->ftime, fi->fdate);
-    st->st_spare1 = fi->fattrib;
+    //st->st_spare1 = fi->fattrib;
 }
 
 static int _ELM_chk_mounted(int disk)

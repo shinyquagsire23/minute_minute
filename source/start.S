@@ -15,7 +15,6 @@
 .extern __bss_start
 .extern __bss_end
 .extern __stack_addr
-.globl _start
 
 .extern v_undf
 .extern v_swi
@@ -25,7 +24,8 @@
 .extern v_irq
 .extern v_fiq
 
-.section .init
+.section .start
+.globl _start
 
 _vectors:
 _start:
@@ -39,6 +39,8 @@ _start:
     ldr pc, =v_fiq
 
 .pool
+
+.section .init
 
 v_reset:
     @ Switch to System mode
@@ -82,6 +84,7 @@ done_bss:
     mov r0, r4
     ldr r1, =_main
     blx r1
+
     @ _main returned! Go to whatever address it returned...
     bx r0
 

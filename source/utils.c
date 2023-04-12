@@ -70,10 +70,10 @@ void panic(u8 v)
 {
     while(true) {
         //debug_output(v);
-        //set32(HW_GPIO1BOUT, GP_SLOTLED);
+        //set32(HW_GPIO1BOUT, BIT(GP_SLOTLED));
         //udelay(500000);
         //debug_output(0);
-        //clear32(HW_GPIO1BOUT, GP_SLOTLED);
+        //clear32(HW_GPIO1BOUT, BIT(GP_SLOTLED));
         //udelay(500000);
     }
 }

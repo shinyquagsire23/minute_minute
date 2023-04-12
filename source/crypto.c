@@ -22,9 +22,16 @@
 
 #define     AES_CMD_RESET   0
 #define     AES_CMD_DECRYPT 0x9800
+#define     AES_CMD_ENCRYPT 0x9000
+#define     AES_CMD_COPY    0x8000
 
 otp_t otp;
 seeprom_t seeprom;
+
+bc_t default_bc =
+{
+    4, 0x404D, 0x4346, 0xB, 0x4E31, 0x800, 2, 5, 2, 1, 0x5521, 0, 0xF8, 3, 1, 0, {0}
+};
 
 void crypto_read_otp(void)
 {
@@ -43,6 +50,22 @@ void crypto_read_otp(void)
 void crypto_read_seeprom(void)
 {
     seeprom_read(&seeprom, 0, sizeof(seeprom) / 2);
+
+    // Added: fallback
+    if (!seeprom.bc_size || seeprom.bc_size != 0x24)
+    {
+        memcpy(&seeprom.bc, &default_bc, sizeof(seeprom.bc));
+        seeprom.bc_size = 0x24;
+
+        for (int i = 0; i < 0x20; i++)
+        {
+            if (i && i % 0x10 == 0) {
+                printf("\n");
+            }
+            printf("%02x ", *(u8*)((u32)&seeprom.bc + i));
+        }
+        printf("\n");
+    }
 }
 
 void crypto_initialize(void)
@@ -122,6 +145,59 @@ void aes_decrypt(u8 *src, u8 *dst, u32 blocks, u8 keep_iv)
         src += this_blocks<<4;
         dst += this_blocks<<4;
         keep_iv = 1;
+    }
+
+    ahb_flush_from(WB_AES);
+    ahb_flush_to(RB_IOD);
+}
+
+void aes_encrypt(u8 *src, u8 *dst, u32 blocks, u8 keep_iv)
+{
+    dc_flushrange(src, blocks * 16);
+    dc_invalidaterange(dst, blocks * 16);
+    ahb_flush_to(RB_AES);
+
+    int this_blocks = 0;
+    while(blocks > 0) {
+        this_blocks = blocks;
+        if (this_blocks > 0x80)
+            this_blocks = 0x80;
+
+        write32(AES_SRC, dma_addr(src));
+        write32(AES_DEST, dma_addr(dst));
+
+        aes_command(AES_CMD_ENCRYPT, keep_iv, this_blocks);
+
+        blocks -= this_blocks;
+        src += this_blocks<<4;
+        dst += this_blocks<<4;
+        keep_iv = 1;
+    }
+
+    ahb_flush_from(WB_AES);
+    ahb_flush_to(RB_IOD);
+}
+
+void aes_copy(u8 *src, u8 *dst, u32 blocks)
+{
+    dc_flushrange(src, blocks * 16);
+    dc_invalidaterange(dst, blocks * 16);
+    ahb_flush_to(RB_AES);
+
+    int this_blocks = 0;
+    while(blocks > 0) {
+        this_blocks = blocks;
+        if (this_blocks > 0xFFF)
+            this_blocks = 0xFFF;
+
+        write32(AES_SRC, dma_addr(src));
+        write32(AES_DEST, dma_addr(dst));
+
+        aes_command(AES_CMD_COPY, false, this_blocks);
+
+        blocks -= this_blocks;
+        src += this_blocks<<4;
+        dst += this_blocks<<4;
     }
 
     ahb_flush_from(WB_AES);

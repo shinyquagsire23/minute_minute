@@ -297,6 +297,25 @@ u32 dma_addr(void *p)
     return addr;
 }
 
+u32 can_sdcard_dma_addr(void *p)
+{
+    return 0;
+#ifdef MINUTE_BOOT1
+    //return 0;
+#endif
+
+    u32 addr = (u32)p;
+
+    switch(addr>>20) {
+        case 0xfff:
+        case 0x0d4:
+        case 0x0dc:
+            return 0;
+    }
+    //printf("DMA to %p: address %08x\n", p, addr);
+    return 1;
+}
+
 #define SECTION             0x012
 
 #define NONBUFFERABLE       0x000
@@ -347,6 +366,7 @@ void mem_initialize(void)
     map_section(0x100, 0x100, 0xC00, WRITEBACK_CACHE | DOMAIN(0) | AP_RWUSER); // MEM2
     map_section(0xFFF, 0xFFF, 0x001, WRITEBACK_CACHE | DOMAIN(0) | AP_RWUSER); // SRAM
 
+    map_section(0x0C0, 0x0C0, 0x004, NONBUFFERABLE | DOMAIN(0) | AP_RWUSER); // MMIO (GPU)
     map_section(0x0D0, 0x0D0, 0x010, NONBUFFERABLE | DOMAIN(0) | AP_RWUSER); // MMIO
 
     set_dacr(0xFFFFFFFF); //manager access for all domains, ignore AP

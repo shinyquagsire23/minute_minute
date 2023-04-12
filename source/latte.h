@@ -11,6 +11,10 @@
 #ifndef _LATTE_H
 #define _LATTE_H
 
+#ifndef __ASSEMBLER__
+#include "types.h"
+#endif
+
 /*
  * Latte registers.
  * http://wiiubrew.org/wiki/Hardware/Latte_Registers
@@ -98,7 +102,7 @@
 #define LT_OTPCMD                     (LT_REG_BASE + 0x1EC)
 #define LT_OTPDATA                    (LT_REG_BASE + 0x1F0)
 #define LT_UNK204                     (LT_REG_BASE + 0x204)
-#define LT_ASICREV_ACR                (LT_REG_BASE + 0x214)
+#define LT_WOOD_CHIPREVID             (LT_REG_BASE + 0x214)
 #define LT_UNK224                     (LT_REG_BASE + 0x224)
 #define LT_UNK250                     (LT_REG_BASE + 0x250)
 #define LT_UNK254                     (LT_REG_BASE + 0x254)
@@ -178,7 +182,7 @@
 #define LT_I2C_INT_MASK               (LT_REG_BASE + 0x580)
 #define LT_I2C_INT_STATE              (LT_REG_BASE + 0x584)
 
-#define LT_ASICREV_CCR                (LT_REG_BASE + 0x5A0)
+#define LT_CHIPREVID                  (LT_REG_BASE + 0x5A0)
 #define LT_DEBUG                      (LT_REG_BASE + 0x5A4)
 #define LT_COMPAT_MEMCTRL_STATE       (LT_REG_BASE + 0x5B0)
 #define LT_COMPAT_AHB_STATE           (LT_REG_BASE + 0x5B4)
@@ -188,11 +192,11 @@
 #define LT_IOSTRENGTH_CTRL2           (LT_REG_BASE + 0x5C8)
 #define LT_UNK5CC                     (LT_REG_BASE + 0x5CC)
 #define LT_RESETS                     (LT_REG_BASE + 0x5E0)
-#define LT_RESETS_AHMN                (LT_REG_BASE + 0x5E4)
+#define LT_RESETS_AHMN                (LT_REG_BASE + 0x5E4) // 0x7DFF on reset
 #define LT_CLOCKGATE                  (LT_REG_BASE + 0x5E8)
 #define LT_SYSPLL_CFG                 (LT_REG_BASE + 0x5EC)
-#define LT_ABIF_CPLTL_OFFSET          (LT_REG_BASE + 0x620)
-#define LT_ABIF_CPLTL_DATA            (LT_REG_BASE + 0x624)
+#define LT_ABIF_OFFSET                (LT_REG_BASE + 0x620)
+#define LT_ABIF_DATA                  (LT_REG_BASE + 0x624)
 #define LT_UNK628                     (LT_REG_BASE + 0x628)
 #define LT_60XE_CFG                   (LT_REG_BASE + 0x640)
 #define LT_UNK660                     (LT_REG_BASE + 0x660)
@@ -227,6 +231,15 @@
 #define AES_DEST            (AES_REG_BASE + 0x008)
 #define AES_KEY             (AES_REG_BASE + 0x00C)
 #define AES_IV              (AES_REG_BASE + 0x010)
+
+// AES second
+#define AESS_REG_BASE        (0x0D120000)
+
+#define AESS_CTRL            (AESS_REG_BASE + 0x000)
+#define AESS_SRC             (AESS_REG_BASE + 0x004)
+#define AESS_DEST            (AESS_REG_BASE + 0x008)
+#define AESS_KEY             (AESS_REG_BASE + 0x00C)
+#define AESS_IV              (AESS_REG_BASE + 0x010)
 
 /*
  * SHA-1 registers.
@@ -320,19 +333,79 @@
  */
 #define AHMN_REG_BASE       (0x0D8B0800)
 
-#define AHMN_MEM0_CONFIG    (AHMN_REG_BASE + 0x000)
-#define AHMN_MEM1_CONFIG    (AHMN_REG_BASE + 0x004)
-#define AHMN_MEM2_CONFIG    (AHMN_REG_BASE + 0x008)
+#define AHMN_MEM0_CONFIG    (AHMN_REG_BASE + 0x000) // 0x08220800 on reset
+#define AHMN_MEM1_CONFIG    (AHMN_REG_BASE + 0x004) // 0x01001000 on reset
+#define AHMN_MEM2_CONFIG    (AHMN_REG_BASE + 0x008) // 0x80008000 on reset, mask 0xFF00FFFF
 #define AHMN_RDBI_MASK      (AHMN_REG_BASE + 0x00C)
-#define AHMN_ERROR_MASK     (AHMN_REG_BASE + 0x020)
+#define AHMN_ERROR_MASK     (AHMN_REG_BASE + 0x020) // cf3fffff mask
 #define AHMN_ERROR          (AHMN_REG_BASE + 0x024)
 #define AHMN_UNK40          (AHMN_REG_BASE + 0x040)
 #define AHMN_UNK44          (AHMN_REG_BASE + 0x044)
 #define AHMN_TRANSFER_STATE (AHMN_REG_BASE + 0x050)
 #define AHMN_WORKAROUND     (AHMN_REG_BASE + 0x054)
 
-#define AHMN_MEM0           (AHMN_REG_BASE + 0x100)
-#define AHMN_MEM1           (AHMN_REG_BASE + 0x200)
-#define AHMN_MEM2           (AHMN_REG_BASE + 0x400)
+#define AHMN_MEM0           (AHMN_REG_BASE + 0x100) // All 0x80000000 on reset
+#define AHMN_MEM1           (AHMN_REG_BASE + 0x200) // All 0x80000000 on reset
+#define AHMN_MEM2           (AHMN_REG_BASE + 0x400) // All 0x80000000 on reset
+
+// LT_CHIPREVID
+#define BSP_HARDWARE_VERSION_UNKNOWN                    (0x00000000)
+#define BSP_HARDWARE_VERSION_HOLLYWOOD_ENG_SAMPLE_1     (0x00000001)
+#define BSP_HARDWARE_VERSION_HOLLYWOOD_ENG_SAMPLE_2     (0x10000001)
+#define BSP_HARDWARE_VERSION_HOLLYWOOD_PROD_FOR_WII     (0x10100001)
+#define BSP_HARDWARE_VERSION_HOLLYWOOD_CORTADO          (0x10100008)
+#define BSP_HARDWARE_VERSION_HOLLYWOOD_CORTADO_ESPRESSO (0x1010000C)
+#define BSP_HARDWARE_VERSION_BOLLYWOOD                  (0x20000001)
+#define BSP_HARDWARE_VERSION_BOLLYWOOD_PROD_FOR_WII     (0x20100001)
+
+#define BSP_HARDWARE_VERSION_LATTE_A11 (0x21100000)
+#define BSP_HARDWARE_VERSION_LATTE_A12 (0x21200000)
+#define BSP_HARDWARE_VERSION_LATTE_A2X (0x22100000)
+#define BSP_HARDWARE_VERSION_LATTE_A3X (0x23100000)
+#define BSP_HARDWARE_VERSION_LATTE_A4X (0x24100000)
+#define BSP_HARDWARE_VERSION_LATTE_A5X (0x25100000)
+#define BSP_HARDWARE_VERSION_LATTE_B1X (0x26100000)
+
+#define BSP_HARDWARE_VERSION_EV   (0x10)
+#define BSP_HARDWARE_VERSION_EV_Y (0x11)
+#define BSP_HARDWARE_VERSION_CAT  (0x20)
+#define BSP_HARDWARE_VERSION_ID   (0x21)
+#define BSP_HARDWARE_VERSION_CAFE (0x28)
+#define BSP_HARDWARE_VERSION_IH   (0x29)
+
+#define NLCKB_EDRAM     (1<<26)
+#define RSTB_EDRAM      (1<<25)
+#define RSTB_AHB        (1<<24)
+#define RSTB_IOP        (1<<23)
+#define RSTB_DSP        (1<<22)
+#define RSTB_VI1        (1<<21)
+#define RSTB_VI         (1<<20)
+#define RSTB_IOPI       (1<<19)
+#define RSTB_IOMEM      (1<<18)
+#define RSTB_IODI       (1<<17)
+#define RSTB_IOEXI      (1<<16)
+#define RSTB_IOSI       (1<<15)
+#define RSTB_AI_I2S3    (1<<14)
+#define RSTB_GFX        (1<<13)
+#define RSTB_GFXTCPE    (1<<12)
+#define RSTB_MEM        (1<<11)
+#define RSTB_DIRSTB     (1<<10)
+#define RSTB_PI         (1<<9)
+#define RSTB_MEMRSTB_2  (1<<8)
+#define NLCKB_SYSPLL    (1<<7)
+#define RSTB_SYSPLL     (1<<6)
+#define SRSTB_CPU       (1<<5)
+#define RSTB_CPU        (1<<4)
+#define RSTB_DSKPLL     (1<<3)
+#define RSTB_MEMRSTB    (1<<2)
+#define CRSTB           (1<<1)
+#define RSTBINB         (1<<0)
+
+#ifndef __ASSEMBLER__
+int latte_get_wood_hw_version(u32 *pOut);
+int latte_get_latte_hw_version(u32 *pOut);
+u32 latte_get_hw_version();
+void latte_set_iop_clock_mult(u8 val);
+#endif
 
 #endif

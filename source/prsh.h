@@ -13,6 +13,12 @@
 
 #include "types.h"
 
+void prsh_reset(void);
+void prsh_init(void);
 int prsh_get_entry(const char* name, void** data, size_t* size);
+int prsh_set_entry(const char* name, void* data, size_t size);
+void prsh_recompute_checksum();
+void prsh_decrypt();
+void prsh_encrypt();
 
 #endif

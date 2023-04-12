@@ -29,6 +29,7 @@
 #define IRQ_IPC     31
 
 #define IRQL_SD2    0
+#define IRQL_IOP2X  12
 
 #define IRQF_TIMER  (1<<IRQ_TIMER)
 #define IRQF_NAND   (1<<IRQ_NAND)
@@ -41,6 +42,7 @@
 #define IRQF_IPC    (1<<IRQ_IPC)
 
 #define IRQLF_SD2   (1<<IRQL_SD2)
+#define IRQLF_IOP2X (1<<IRQL_IOP2X)
 
 #define IRQF_ALL    ( \
     IRQF_TIMER|IRQF_NAND|IRQF_GPIO1B|IRQF_GPIO1| \
@@ -48,7 +50,7 @@
     )
 
 #define IRQLF_ALL    ( \
-        IRQLF_SD2 \
+        IRQLF_SD2|IRQLF_IOP2X \
         )
 
 #define CPSR_IRQDIS 0x80

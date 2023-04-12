@@ -27,6 +27,8 @@
 #include "smc.h"
 #include "crypto.h"
 
+#ifndef MINUTE_BOOT1
+
 // TODO: how many sectors is 8gb MLC WFS?
 #define TOTAL_SECTORS (0x3A20000)
 
@@ -533,3 +535,5 @@ format_exit:
     printf("Press POWER to exit.\n");
     smc_wait_events(SMC_POWER_BUTTON);
 }
+
+#endif // MINUTE_BOOT1

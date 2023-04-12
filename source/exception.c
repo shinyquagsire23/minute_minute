@@ -12,6 +12,8 @@
 #include "gfx.h"
 #include "utils.h"
 #include "memory.h"
+#include "gpio.h"
+#include "latte.h"
 
 const char *exceptions[] = {
     "RESET", "UNDEFINED INSTR", "SWI", "INSTR ABORT", "DATA ABORT",
@@ -52,6 +54,12 @@ void exception_initialize(void)
 void exc_handler(u32 type, u32 spsr, u32 *regs)
 {
     (void) spsr;
+
+#ifdef MINUTE_BOOT1
+    serial_send_u32(0xAAAAAAFE);
+#else
+    //serial_send_u32(0xAAAAAAFD);
+#endif
 
     if (type > 8) type = 8;
     printf("Exception %d (%s):\n", type, exceptions[type]);
@@ -100,6 +108,45 @@ void exc_handler(u32 type, u32 spsr, u32 *regs)
         break;
         default: break;
     }
+
+    /*serial_send_u32(spsr);
+    serial_send_u32(get_cpsr());
+    serial_send_u32(get_cr());
+    serial_send_u32(get_ttbr());
+    serial_send_u32(get_dacr());*/
+
+#ifdef MINUTE_BOOT1
+    serial_send_u32(type);
+    serial_send_u32(pc);
+    serial_send_u32(fsr);
+    serial_send_u32((type == 4)?get_far():0x0);
+    serial_send_u32(*(u32*)(pc-4));
+    serial_send_u32(*(u32*)pc);
+    serial_send_u32(*(u32*)(pc+4));
+#endif
+
+    /*
+    serial_send_u32(*(vu32*)LT_RESETS_AHMN);
+    serial_send_u32(*(vu32*)0x0d8b0800);
+    serial_send_u32(*(vu32*)0x0d8b0804);
+    serial_send_u32(*(vu32*)0x0d8b0808);
+    serial_send_u32(0xCAFECAFE);*/
+
+    for (int i = 0; i < 0x700; i += 4)
+    {
+        //serial_send_u32(*(vu32*)(0x0d8b0900 + i));
+    }
+
+    /*
+    60 00 00 5f 
+    60 00 00 db 
+    00 05 30 ff 
+    0d 40 40 00 
+    ff ff ff ff 
+    00 00 00 01 
+    10 12 00 00 
+    00 00 00 00 
+    */
 
     if(type != 3) {
         printf("Code dump:\n");

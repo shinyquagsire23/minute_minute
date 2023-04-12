@@ -80,6 +80,7 @@ void mem_initialize(void);
 void mem_shutdown(void);
 
 u32 dma_addr(void *);
+u32 can_sdcard_dma_addr(void *p);
 
 static inline u32 get_cr(void)
 {
