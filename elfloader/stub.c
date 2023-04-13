@@ -35,7 +35,7 @@ typedef struct {
 
 void serial_send(u8 val);
 
-#define SERIAL_DELAY (500)
+#define SERIAL_DELAY (1)
 
 void gpio_debug_send(u8 val)
 {
@@ -204,7 +204,7 @@ void *_main(void *base)
 
     if (is_boot1) {
         gpio_debug_send(0x88);
-        udelay(1000000);
+        udelay(100);
     }
     
 

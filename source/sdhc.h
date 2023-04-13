@@ -43,6 +43,7 @@ struct sdhc_host {
     volatile u_int16_t intr_status;      /* soft interrupt status */
     volatile u_int16_t intr_error_status;    /* soft error status */
     int data_command;
+    int no_dma;
 
     struct sdhc_host_params pa;
 };

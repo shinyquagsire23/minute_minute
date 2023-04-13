@@ -49,7 +49,7 @@ typedef struct {
     u32 boot_count;
 
     u32 field_10;
-    u32 field_14;
+    u32 field_14; // set to 0x40000 for recovery
     u32 field_18;
     u32 field_1C;
 
@@ -72,12 +72,15 @@ typedef struct {
     u32 boot0_decrypt;
 } PACKED boot_info_t;
 
-#define PRSH_FLAG_ISSET    (0x80000000)
-#define PRSH_FLAG_RETAIL   (0x40000000) // cleared on normal boots
-#define PRSH_FLAG_20000000 (0x20000000)
-#define PRSH_FLAG_RETAIL   (0x08000000) // cleared on normal boots
-#define PRSH_FLAG_4000000  (0x04000000) // set on normal boots
-#define PRSH_FLAG_RETAIL   (0x02000000)
+#define PRSH_FLAG_ISSET             (0x80000000)
+#define PRSH_FLAG_WARM_BOOT         (0x40000000) // cleared on normal boots -- instructs MCP to not recreate mcp_launch_region, mcp_ramdisk_region, mcp_list_region, mcp_fs_cache_region
+#define PRSH_FLAG_TITLES_ON_MLC     (0x20000000) // if unset, use HFIO/"SLC emulation"
+#define PRSH_FLAG_10000000          (0x10000000) // unk
+#define PRSH_FLAG_IOS_RELAUNCH      (0x08000000) // cleared on normal boots, set on fw.img reloads
+#define PRSH_FLAG_HAS_BOOT_TIMES    (0x04000000) // set on normal boots
+#define PRSH_FLAG_RETAIL            (0x02000000) // set if /sys/config/system.xml 'dev_mode' is 0
+#define PRSH_FLAG_01000000          (0x01000000) // unk, can be read via MCP cmd
+#define PRSH_FLAG_00800000          (0x00800000) // unk, has set/clear fn in MCP
 
 static prst_entry* prst = NULL;
 static prsh_header* header = NULL;
@@ -115,9 +118,11 @@ void prsh_set_bootinfo()
 {
     if (!header) return;
 
-    if (!header->entries) {
+    /*if (!header->entries) {
         header->entries++;
-    }
+    }*/
+
+    header->entries = 1;
 
     // create boot_info
     prsh_entry* boot_info_ent = &header->entry[0];
@@ -128,7 +133,7 @@ void prsh_set_bootinfo()
 
     boot_info_t* boot_info = (boot_info_t*)0x10008000;
     boot_info->is_coldboot = 1;
-    boot_info->boot_flags = 0x80 | PRSH_FLAG_20000000 | PRSH_FLAG_RETAIL | PRSH_FLAG_4000000 | PRSH_FLAG_ISSET;//; // 0xA6000000;//
+    boot_info->boot_flags = PRSH_FLAG_ISSET | PRSH_FLAG_TITLES_ON_MLC | PRSH_FLAG_HAS_BOOT_TIMES | PRSH_FLAG_RETAIL | 0x80;//; // 0xA6000000;//
     boot_info->boot_state = 0;
     boot_info->boot_count = 1;
     boot_info->field_10 = 0; // 1?
@@ -143,6 +148,7 @@ void prsh_set_bootinfo()
     boot_info->field_34 = 0;
 
     // Dummy values
+    // TODO just get the real ones
     boot_info->boot1_main = 0x00369F6B;
     boot_info->boot1_read = 0x00297268;
     boot_info->boot1_verify = 0x0005FCFE;
@@ -230,7 +236,6 @@ void prsh_init(void)
             prsh_ent->is_set = 0x80000000;
         }
 #endif
-        prsh_set_bootinfo();
 
         // TODO: we could pass in a ram-only OTP here, maybe?
         printf("prsh: No header found, made a new one.\n");
@@ -239,15 +244,13 @@ void prsh_init(void)
         header = buffer - sizeof(u32);
         prst = (prst_entry*)&header->entry[header->total_entries];
 
-        // We want to move boot_info
-        prsh_set_bootinfo();
-
         //header->entries = 0x4;
     }
 
     initialized = true;
 
-#ifndef MINUTE_BOOT1
+#ifdef MINUTE_BOOT1
+    prsh_set_bootinfo();
     prsh_recompute_checksum();
 #endif
 
@@ -255,7 +258,7 @@ void prsh_init(void)
     printf("prsh: Header at %08x, PRST at %08x, %u entries (%u capacity):\n", header, prst, header->entries, header->total_entries);
     for (int i = 0; i < header->entries; i++) {
         printf("    %u: %s %p %x\n", i, header->entry[i].name, header->entry[i].size, header->entry[i].data);
-        prsh_dump_entry(header->entry[i].name);
+        //prsh_dump_entry(header->entry[i].name);
     }
 
 #if 0

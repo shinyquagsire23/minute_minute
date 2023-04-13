@@ -187,11 +187,19 @@ int ancast_load(ancast_ctx* ctx)
         printf("ancast: reading 0x%x bytes\n", ctx->header_size + ctx->header.body_size);
         fseek(ctx->file, 0, SEEK_SET);
 
+        int led_alternate = 0;
         for (u32 i = 0; i < ctx->header_size + ctx->header.body_size; i += 0x200)
         {
             if (i % 0x100000 == 0)
             {
                 printf("ancast: ...%08x -> %08x\n", i, (u32)ctx->load + i);
+                if (led_alternate) {
+                    smc_set_cc_indicator(LED_ON);
+                }
+                else {
+                    smc_set_on_indicator(LED_ON);
+                }
+                led_alternate = !led_alternate;
             }
 
             int count = fread(ctx->load + i, 0x200, 1, ctx->file);
@@ -201,6 +209,7 @@ int ancast_load(ancast_ctx* ctx)
                 return errno;
             }
         }
+        smc_set_on_indicator(LED_ON);
         
         printf("ancast: done reading\n");
     }
@@ -219,6 +228,7 @@ int ancast_load(ancast_ctx* ctx)
 
         memset(sdcard_dst, 0, ctx->header_size + ctx->header.body_size);
 
+        int led_alternate = 0;
         for (int i = 0; i < num_sectors; i++)
         {
             sdcard_dst = (void*)((u32)ctx->load + (i*0x200));
@@ -227,6 +237,13 @@ int ancast_load(ancast_ctx* ctx)
 #ifdef MINUTE_BOOT1
             if (i % 0x10 == 0) {
                 serial_send_u32(i);
+                if (led_alternate) {
+                    smc_set_cc_indicator(LED_ON);
+                }
+                else {
+                    smc_set_on_indicator(LED_ON);
+                }
+                led_alternate = !led_alternate;
             }
 #endif
             //serial_send_u32((u32)sdcard_dst);
@@ -237,10 +254,7 @@ int ancast_load(ancast_ctx* ctx)
             // TODO: why???
         }
 #ifdef MINUTE_BOOT1
-        serial_send_u32((u32)ctx->load);
-        serial_send_u32((u32)ctx->body);
-        serial_send_u32(*(u32*)ctx->load);
-        serial_send_u32(*(u32*)ctx->body);
+        smc_set_on_indicator(LED_ON);
 #endif
     }
 

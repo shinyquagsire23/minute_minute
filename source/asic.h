@@ -13,6 +13,9 @@
 
 #include "types.h"
 
+// "ABIF's HDP", "Host Datapath"?
+// "ABIF's SRBM", "System Register Block Manager"?
+
 int abif_reg_indir_rd_modif_wr(u32 addr, u32 wr_data, u32 size_val, u32 shift_val, u32 post_wr_read, u32 tile_id);
 u16 abif_cpl_ct_read32(u32 offset);
 u16 abif_cpl_tr_read16(u32 offset);

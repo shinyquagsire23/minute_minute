@@ -42,6 +42,7 @@ struct sdcard_ctx {
     int sdhc_blockmode;
     int selected;
     int new_card; // set to 1 everytime a new card is inserted
+    int multiple_fallback;
 
     u32 num_sectors;
     u16 rca;
@@ -137,6 +138,7 @@ void sdcard_needs_discover(void)
     card.sdhc_blockmode = 1;
     card.selected = 0;
     card.inserted = 1;
+    card.multiple_fallback = 0;
 
     int tries;
     for (tries = 100; tries > 0; tries--) {
@@ -457,8 +459,9 @@ int sdcard_read(u32 blk_start, u32 blk_count, void *data)
 {
     struct sdmmc_command cmd;
 
+retry_single:
     // TODO: wtf is this bug
-    if (!can_sdcard_dma_addr(data) && blk_count > 1) {
+    if ((!can_sdcard_dma_addr(data) || card.multiple_fallback) && blk_count > 1) { // 
         int ret = 0;
         for (int i = 0; i < blk_count; i++)
         {
@@ -510,6 +513,16 @@ int sdcard_read(u32 blk_start, u32 blk_count, void *data)
 
     if (cmd.c_error) {
         printf("sdcard: MMC_READ_BLOCK_%s failed with %d\n", blk_count > 1 ? "MULTIPLE" : "SINGLE", cmd.c_error);
+        if (blk_count > 1 && !card.multiple_fallback) {
+            printf("sdcard: trying only single blocks?\n");
+            card.multiple_fallback = 1;
+            goto retry_single; 
+        }
+        else if (blk_count <= 1 && !sdcard_host.no_dma) {
+            printf("sdcard: trying without DMA?\n");
+            sdcard_host.no_dma = 1;
+            goto retry_single;
+        }
         return -1;
     }
     if(blk_count > 1)
@@ -608,6 +621,19 @@ int sdcard_write(u32 blk_start, u32 blk_count, void *data)
 {
     struct sdmmc_command cmd;
 
+retry_single:
+    // TODO: wtf is this bug
+    if ((!can_sdcard_dma_addr(data) || card.multiple_fallback) && blk_count > 1) { // !can_sdcard_dma_addr(data) && 
+        int ret = 0;
+        for (int i = 0; i < blk_count; i++)
+        {
+            ret = sdcard_write(blk_start + i, 1, data);
+            if (ret) return ret;
+            data = (void*)((intptr_t)data + SDMMC_DEFAULT_BLOCKLEN);
+        }
+        return ret;
+    }
+
     if (card.inserted == 0) {
         printf("sdcard: WRITE: no card inserted.\n");
         return -1;
@@ -646,6 +672,16 @@ int sdcard_write(u32 blk_start, u32 blk_count, void *data)
 
     if (cmd.c_error) {
         printf("sdcard: MMC_WRITE_BLOCK_%s failed with %d\n", blk_count > 1 ? "MULTIPLE" : "SINGLE", cmd.c_error);
+        if (blk_count > 1 && !card.multiple_fallback) {
+            printf("sdcard: trying only single blocks?\n");
+            card.multiple_fallback = 1;
+            goto retry_single; 
+        }
+        else if (blk_count <= 1 && !sdcard_host.no_dma) {
+            printf("sdcard: trying without DMA?\n");
+            sdcard_host.no_dma = 1;
+            goto retry_single;
+        }
         return -1;
     }
     if(blk_count > 1)

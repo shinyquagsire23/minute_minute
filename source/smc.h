@@ -15,6 +15,7 @@
 
 #define SMC_POWER_BUTTON (0x40)
 #define SMC_EJECT_BUTTON (0x20)
+#define SMC_DISK_INSERT  (0x10)
 #define SMC_TIMER        (0x08)
 #define SMC_BT_IRQ       (0x04)
 #define SMC_WAKE0        (0x02)
@@ -24,13 +25,15 @@
 #define LED_ON    (0x1)
 #define LED_PULSE (0x2)
 
+// Writable mask: 0x07030E00 (CTRL0_POFFLG_FPOFF,CTRL0_POFFLG_4S,CTRL0_POFFLG_TMR,CTRL0_PONFLG_SYS,CTRL0_PONLG_TMR, CTRL0_UNSTBL_PWR,CTRL0_LOW_BATT,CTRL0_FLG_00000400)
 #define CTRL0_CANARY       (0x00000100) // Used by IOS-ACP when handling the rtcflag0.dat and rtcflag1.dat files.
 #define CTRL0_LOW_BATT     (0x00000200) // Set when the CMOS battery is worn off.
+#define CTRL0_FLG_00000400 (0x00000400) // Set when the CMOS battery is worn off.
 #define CTRL0_UNSTBL_PWR   (0x00000800) // Unknown. boot0 checks this before launching a recovery boot1 image.
 #define CTRL0_PONLG_TMR    (0x00010000) // Set upon a ON timer power on.
 #define CTRL0_PONFLG_SYS   (0x00020000) // Set upon a system power event.
-#define CTRL0_FLG_400000   (0x00400000)
-#define CTRL0_FLG_800000   (0x00800000)
+#define CTRL0_FLG_00400000 (0x00400000)
+#define CTRL0_FLG_00800000 (0x00800000)
 #define CTRL0_POFFLG_TMR   (0x01000000) // Set upon a OFF timer power off.
 #define CTRL0_POFFLG_4S    (0x02000000) // Set upon a 4 second power button press.
 #define CTRL0_POFFLG_FPOFF (0x04000000) // Set upon a forced power off.

@@ -301,7 +301,7 @@ u32 can_sdcard_dma_addr(void *p)
 {
     return 0;
 #ifdef MINUTE_BOOT1
-    //return 0;
+    return 0;
 #endif
 
     u32 addr = (u32)p;

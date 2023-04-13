@@ -46,6 +46,7 @@
 #include "dram.h"
 #include "smc.h"
 #include "prsh.h"
+#include "asic.h"
 
 static struct {
     int mode;
@@ -63,23 +64,30 @@ extern char sd_read_buffer[0x200];
 #ifdef MINUTE_BOOT1
 extern otp_t otp;
 
-#define PFLAG_10            (0x00000010)
-#define PFLAG_10000         (0x00010000)
-#define PON_SMC_TIMER       (0x00020000)
-#define PFLAG_40000         (0x00040000)
-#define CMPT_RETSTAT1       (0x00080000)
-#define CMPT_RETSTAT0       (0x00100000)
-#define PFLAG_DDR_SREFRESH  (0x00200000)
-#define POFF_TMR            (0x00400000)
-#define POFF_4S             (0x00800000)
-#define POFF_FORCED         (0x01000000)
-#define PON_TMR             (0x02000000)
-#define PON_SMC             (0x04000000)
-#define PON_WAKEREQ1_EVENT  (0x08000000)
-#define PON_WAKEREQ0_EVENT  (0x10000000)
-#define PON_WAKEBT_EVENT    (0x20000000)
-#define PON_EJECT_BTN       (0x40000000)
-#define PON_POWER_BTN       (0x80000000)
+#define PFLAGS_INVALID              (0x00000001)
+#define PFLAG_PON_WAKEREQ1_EVENT_SW (0x00000002)
+#define PFLAG_PON_WAKEBT_EVENT_SW   (0x00000004)
+#define PFLAG_PON_POWER_BTN_SW      (0x00000008)
+#define PFLAG_ENTER_BG_NORMAL_MODE  (0x00000010)
+#define PFLAG_PON_SMC_DISC          (0x00000200)
+#define PFLAG_PON_SYNC_BTN          (0x00000400)
+#define PFLAG_PON_RESTART           (0x00001000)
+#define PFLAG_PON_COLDBOOT          (0x00010000)
+#define PON_SMC_TIMER               (0x00020000)
+#define PFLAG_40000                 (0x00040000)
+#define CMPT_RETSTAT1               (0x00080000)
+#define CMPT_RETSTAT0               (0x00100000)
+#define PFLAG_DDR_SREFRESH          (0x00200000)
+#define POFF_TMR                    (0x00400000)
+#define POFF_4S                     (0x00800000)
+#define POFF_FORCED                 (0x01000000)
+#define PON_TMR                     (0x02000000)
+#define PON_SMC                     (0x04000000)
+#define PON_WAKEREQ1_EVENT          (0x08000000)
+#define PON_WAKEREQ0_EVENT          (0x10000000)
+#define PON_WAKEBT_EVENT            (0x20000000)
+#define PON_EJECT_BTN               (0x40000000)
+#define PON_POWER_BTN               (0x80000000)
 
 u32 _main(void *base)
 {
@@ -116,7 +124,7 @@ u32 _main(void *base)
     printf("crypto support initialized\n");
 
     serial_force_terminate();
-    udelay(500000);
+    udelay(500);
 
     // Signal binary printing
     serial_send_u32(0x55AA55AA);
@@ -124,13 +132,13 @@ u32 _main(void *base)
     serial_send_u32(0x55AA55AA);
     serial_send_u32(0x55AA55AA);
     serial_send_u32(0xBEEFCAFE);
-    udelay(500000);
+    udelay(500);
 
 
     // Show a little flourish to indicate we have code exec
     for (int i = 0; i < 5; i++)
     {
-        smc_set_cc_indicator(LED_ON);
+        
         udelay(50000);
         smc_set_on_indicator(LED_ON);
         udelay(50000);
@@ -200,7 +208,7 @@ u32 _main(void *base)
     }
 
     // Raise POFFLG_TMR, PONFLG_SYS and some unknown flags
-    smc_set_ctrl0(CTRL0_POFFLG_TMR | CTRL0_PONFLG_SYS | CTRL0_FLG_800000 | CTRL0_FLG_400000);
+    smc_set_ctrl0(CTRL0_POFFLG_TMR | CTRL0_PONFLG_SYS | CTRL0_FLG_00800000 | CTRL0_FLG_00400000);
 
     u32 rtc_ctrl1 = smc_get_ctrl1();
 
@@ -311,7 +319,7 @@ u32 _main(void *base)
     serial_send_u32(0x5D5D0003);
 
     // PON_SMC_TIMER and an unknown power flag are set
-    if (pflags_val & (PON_SMC_TIMER | PFLAG_10))
+    if (pflags_val & (PON_SMC_TIMER | PFLAG_ENTER_BG_NORMAL_MODE))
     {
         // Set DcdcPowerControl2 GPIO's state
         gpio_dcdc_pwrcnt2_set(0);
@@ -529,6 +537,9 @@ u32 _main(void *base)
         }
     }
 #endif
+
+    // 01200000 when working, 01000004 when JTAG fuses unloaded
+    //printf("UVD idk %08x\n", abif_gpu_read32(0x3D57 * 4)); 
     
     printf("Initializing MLC...\n");
     mlc_init();
@@ -578,6 +589,16 @@ u32 _main(void *base)
         smc_set_odd_power(true);
     }
 #endif
+
+#if 0
+    int gpio_test_state = 0;
+    while (1) {
+        int events = smc_get_events();
+        printf("%08x %08x %08x\n", events, smc_get_ctrl0(), smc_get_ctrl1());
+        udelay(1000*1000);
+    }
+#endif
+
     main_autoboot();
 
     printf("Unmounting SLC...\n");

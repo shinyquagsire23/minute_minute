@@ -70,7 +70,7 @@ enum {
 #define GP_ARM_DEFAULT_ON (GP_DEFAULT_ON & GP_OWNER_ARM)
 #define GP_PPC_DEFAULT_ON (GP_DEFAULT_ON & GP_OWNER_PPC)
 
-#define SERIAL_DELAY (10)
+#define SERIAL_DELAY (1)
 
 void gpio_enable(u16 gpio_id, u8 val);
 void gpio_set_dir(u16 gpio_id, u8 dir);
@@ -84,6 +84,8 @@ void gpio_dcdc_pwrcnt2_set(u8 val);
 void gpio_dcdc_pwrcnt_set(u8 val);
 void gpio_fan_set(u8 val);
 void gpio_smc_i2c_init();
+void gpio_basic_set(u16 gpio_id, u8 val);
+void gpio2_basic_set(u16 gpio_id, u8 val);
 void gpio_debug_send(u8 val);
 
 #endif

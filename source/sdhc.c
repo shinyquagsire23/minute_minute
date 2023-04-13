@@ -244,8 +244,18 @@ err:
 void
 sdhc_shutdown(struct sdhc_host *hp)
 {
+    sdhc_bus_power(hp, 0);
+
     /* XXX chip locks up if we don't disable it before reboot. */
     (void)sdhc_host_reset(hp);
+
+    // Don't leave IOS with unexpected interrupts
+    HWRITE2(hp, SDHC_NINTR_STATUS_EN, 0);
+    HWRITE2(hp, SDHC_EINTR_STATUS_EN, 0);
+    HWRITE2(hp, SDHC_NINTR_SIGNAL_EN, 0);
+    HWRITE2(hp, SDHC_EINTR_SIGNAL_EN, 0);
+
+    sdhc_soft_reset(hp, SDHC_RESET_ALL);
 }
 #endif
 
@@ -276,11 +286,11 @@ sdhc_host_reset(struct sdhc_host *hp)
     /* Enable interrupts. */
     imask =
 #ifndef LOADER
-        SDHC_CARD_REMOVAL | SDHC_CARD_INSERTION |
+        
 #endif
         SDHC_BUFFER_READ_READY | SDHC_BUFFER_WRITE_READY |
         SDHC_DMA_INTERRUPT | SDHC_BLOCK_GAP_EVENT |
-        SDHC_TRANSFER_COMPLETE | SDHC_COMMAND_COMPLETE;
+        SDHC_TRANSFER_COMPLETE | SDHC_COMMAND_COMPLETE; // SDHC_CARD_REMOVAL | SDHC_CARD_INSERTION |
 
     HWRITE2(hp, SDHC_NINTR_STATUS_EN, imask);
     HWRITE2(hp, SDHC_EINTR_STATUS_EN, SDHC_EINTR_STATUS_MASK);
@@ -527,7 +537,10 @@ sdhc_async_response(struct sdhc_host *hp, struct sdmmc_command *cmd)
      * is marked done for any other reason.
      */
 
-    udelay(100); // whyyyyyyyy?
+//#ifdef MINUTE_BOOT1
+    udelay(10); // whyyyyyyyy?
+//#endif
+
     int status = sdhc_wait_intr(hp, SDHC_COMMAND_COMPLETE, cmd->c_timeout);
     if (!ISSET(status, SDHC_COMMAND_COMPLETE)) {
         cmd->c_error = ETIMEDOUT;
@@ -625,7 +638,7 @@ sdhc_start_command(struct sdhc_host *hp, struct sdmmc_command *cmd)
             mode |= SDHC_AUTO_CMD12_ENABLE;
         }
     }
-    if (can_sdcard_dma_addr(cmd->c_data) && ISSET(hp->flags, SHF_USE_DMA))
+    if (!hp->no_dma && can_sdcard_dma_addr(cmd->c_data) && ISSET(hp->flags, SHF_USE_DMA))
         mode |= SDHC_DMA_ENABLE;
 
     /*
@@ -694,7 +707,7 @@ sdhc_transfer_data(struct sdhc_host *hp, struct sdmmc_command *cmd)
     error = 0;
 
     DPRINTF(1,("resp=%#x datalen=%d\n", MMC_R1(cmd->c_resp), cmd->c_datalen));
-    if (can_sdcard_dma_addr(cmd->c_data) && ISSET(hp->flags, SHF_USE_DMA)) {
+    if (!hp->no_dma && can_sdcard_dma_addr(cmd->c_data) && ISSET(hp->flags, SHF_USE_DMA)) {
         for(;;) {
             status = sdhc_wait_intr(hp, SDHC_TRANSFER_COMPLETE |
                     SDHC_DMA_INTERRUPT,
@@ -848,7 +861,7 @@ sdhc_intr(struct sdhc_host *hp)
 //  sdhc_dump_regs(hp);
 
     /* Find out which interrupts are pending. */
-    status = HREAD2(hp, SDHC_NINTR_STATUS);
+    status = HREAD2(hp, SDHC_NINTR_STATUS) & ~(SDHC_CARD_INSERTION);
     if (!ISSET(status, SDHC_NINTR_STATUS_MASK)) {
         DPRINTF(1, ("unknown interrupt\n"));
         return 0;

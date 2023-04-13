@@ -177,6 +177,21 @@ void gpio_smc_i2c_init()
     gpio2_enable(GP2_SMC_I2C_DAT, 1);
 }
 
+void gpio_basic_set(u16 gpio_id, u8 val)
+{
+    gpio_set_dir(gpio_id, GPIO_DIR_OUT);
+    gpio_set(gpio_id, val);
+    gpio_enable(gpio_id, 1);
+}
+
+void gpio2_basic_set(u16 gpio_id, u8 val)
+{
+    gpio2_set_dir(gpio_id, GPIO_DIR_OUT);
+    gpio2_set(gpio_id, val);
+    gpio2_enable(gpio_id, 1);
+}
+
+
 void gpio_debug_send(u8 val)
 {
     clear32(LT_GPIO_OWNER, GP_DEBUG_MASK);
