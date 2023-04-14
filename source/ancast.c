@@ -22,6 +22,7 @@
 #include "smc.h"
 #include "sdcard.h"
 #include "gpio.h"
+#include "elfldr_patch.h"
 
 #define ANCAST_MAGIC (0xEFA282D9l)
 #define ANCAST_TARGET_IOP (0x02)
@@ -413,5 +414,68 @@ u32 ancast_iop_load_from_raw_sector(int sector_idx)
     res = ancast_fini(&ctx);
     if(res) return 0;
 
+    return vector;
+}
+
+u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
+{
+    u32* patch_base = (u32*)0x100;
+    FILE* f_patch = fopen(fn_patch, "rb");
+    if(!f_patch)
+    {
+        printf("ancast: failed to open patch file %s .\n", fn_patch);
+        return 0;
+    }
+    
+    fread((void*)patch_base, 1, 0x00800000-0x100, f_patch);
+    fclose(f_patch);
+    
+    // sanity-check our patches
+    if(memcmp(patch_base, "SALTPTCH", 8))
+    {
+        printf("ancast: invalid patch magic!\n");
+        return 0;
+    }
+    if(patch_base[2] != 1)
+    {
+        printf("ancast: unknown version 0x%X\n", (unsigned int)patch_base[2]);
+        return 0;
+    }
+    
+    // load IOS image
+    u32 vector = ancast_iop_load(fn_ios);
+    if(vector == 0)
+        return 0;
+    
+    // check to be sure IOS image is 5.5.0 (todo: move this to patches somehow?)
+    u32 hash[SHA_HASH_WORDS] = {0};
+    u8 expected_hash[20] = {0x12, 0x2D, 0x17, 0x82, 0x32, 0x5C, 0x73, 0x0F, 0x0A, 
+    0x5D, 0x25, 0xEA, 0xE4, 0x91, 0xFA, 0xB4, 0xEC, 0xF2, 0x90, 0x37};
+    sha_hash((void*)0x01000000, hash, 0x200);
+    if(memcmp(hash, expected_hash, sizeof(hash)))
+    {
+        printf("ancast: IOS image is not 5.5!\n");
+        return 0;
+    }
+    
+    // find elfldr's jumpout addr and patch it
+    u32 hook_base = 0;
+    for(u32 i = 0; i < 0x1000; i += 4)
+    {
+        if(*(u32*)(vector + i) == 0xFFFF0000)
+        {
+            hook_base = vector + i;
+            break;
+        }
+    }
+    if(hook_base == 0)
+    {
+        printf("ancast: failed to find elfloader jumpout magic!\n");
+        return 0;
+    }
+    *(u32*)hook_base = 0x00800000;
+    // copy code out
+    memcpy((void*)0x00800000, elfldr_patch, sizeof(elfldr_patch));
+    
     return vector;
 }

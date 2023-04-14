@@ -551,7 +551,7 @@ u32 _main(void *base)
     mlc_ack_card();
 
     printf("Mounting SLC...\n");
-    //isfs_init();
+    isfs_init();
 
     autoboot = 1;
     autoboot_timeout_s = 0;
@@ -602,7 +602,7 @@ u32 _main(void *base)
     main_autoboot();
 
     printf("Unmounting SLC...\n");
-    //isfs_fini();
+    isfs_fini();
 
     printf("Shutting down MLC...\n");
     mlc_exit();
@@ -694,6 +694,9 @@ int main_autoboot(void)
     if(magic == 0xEFA282D9) {
         boot.vector = ancast_iop_load(autoboot_file);
     }
+    else if (magic == 0x53414C54) {
+        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", autoboot_file);
+    }
     
     if(boot.vector)
     {
@@ -760,6 +763,21 @@ void main_boot_ppc(void)
 ppc_exit:
     printf("Press POWER to exit.\n");
     smc_wait_events(SMC_POWER_BUTTON);
+}
+
+void main_quickboot_patch(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch");
+
+    if(boot.vector) {
+        boot.mode = 0;
+        menu_active = false;
+    } else {
+        printf("Failed to load IOS with patches!\n");
+        printf("Press POWER to continue.\n");
+        smc_wait_events(SMC_POWER_BUTTON);
+    }
 }
 
 void main_quickboot_fw(void)

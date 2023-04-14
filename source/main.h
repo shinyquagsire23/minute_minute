@@ -18,6 +18,7 @@
 #include "isfs.h"
 
 void main_quickboot_fw(void);
+void main_quickboot_patch(void);
 void main_boot_fw(void);
 void main_boot_ppc(void);
 void main_shutdown(void);
@@ -34,7 +35,8 @@ menu menu_main = {
     },
     1, // number of subtitles
     {
-            {"Boot 'ios.img'", &main_quickboot_fw}, // options
+            {"Patch and boot IOS", &main_quickboot_patch}, // options
+            {"Boot 'ios.img'", &main_quickboot_fw},
             {"Boot IOP firmware file", &main_boot_fw},
             {"Boot PowerPC ELF file", &main_boot_ppc},
             {"Format redNAND", &dump_format_rednand},
@@ -48,7 +50,7 @@ menu menu_main = {
             {"Credits", &main_credits},
             //{"ISFS test", &isfs_test},
     },
-    12, // number of options
+    13, // number of options
     0,
     0
 };
