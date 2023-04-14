@@ -22,6 +22,6 @@ local.properties
 
 # Project-specific
 fw.img
-source/elfldr_patch.h
+#source/elfldr_patch.h
 
 .DS_Store
