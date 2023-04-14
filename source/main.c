@@ -51,11 +51,12 @@
 static struct {
     int mode;
     u32 vector;
+    int is_patched;
 } boot = {0};
 
 bool autoboot = false;
 u32 autoboot_timeout_s = 3;
-char autoboot_file[256] = "ios.img";
+char autoboot_file[256] = "ios.patch";
 
 int main_autoboot(void);
 
@@ -552,6 +553,7 @@ u32 _main(void *base)
 
     printf("Mounting SLC...\n");
     isfs_init();
+    //isfs_test();
 
     autoboot = 1;
     autoboot_timeout_s = 0;
@@ -630,17 +632,34 @@ u32 _main(void *base)
         case 2: smc_reset(); break;
     }
 
-    u32* search = (u32*)0x01000200;
-    for (int i = 0; i < 0x1000000; i += 4) {
-        if (search[0] == 0x4F545053) {
-            if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
-                printf("OTP store at: %08x\n", (u32)search);
-                memcpy((void*)search, &otp, sizeof(otp));
-                break;
+    if (boot.is_patched)
+    {
+        u32* search = (u32*)0x20;
+        for (int i = 0; i < 0x800000; i += 4) {
+            if (search[0] == 0x4F545053) {
+                if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
+                    printf("OTP store at: %08x\n", (u32)search);
+                    memcpy((void*)search, &otp, sizeof(otp));
+                    break;
+                }
             }
+            search++;
         }
-        search++;
     }
+    else {
+        u32* search = (u32*)0x01000200;
+        for (int i = 0; i < 0x1000000; i += 4) {
+            if (search[0] == 0x4F545053) {
+                if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
+                    printf("OTP store at: %08x\n", (u32)search);
+                    memcpy((void*)search, &otp, sizeof(otp));
+                    break;
+                }
+            }
+            search++;
+        }
+    }
+    
 
 #if 0
     while (1)
@@ -655,6 +674,9 @@ u32 _main(void *base)
         }
     }
 #endif
+
+    //printf("%x\n", *(u32*)0x01000800);
+    //*(u32*)(0x010006E0) = 0xFFFFFFFF;
 
     // WiiU-Firmware-Emulator JIT bug
     void (*boot_vector)(void) = (void*)boot.vector;
@@ -695,7 +717,8 @@ int main_autoboot(void)
         boot.vector = ancast_iop_load(autoboot_file);
     }
     else if (magic == 0x53414C54) {
-        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", autoboot_file);
+        boot.vector = ancast_patch_load("ios_orig.img", autoboot_file); // slc:/sys/title/00050010/1000400a/code/fw.img
+        boot.is_patched = 1;
     }
     
     if(boot.vector)

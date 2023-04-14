@@ -463,7 +463,7 @@ int isfs_read(isfs_file* file, void* buffer, size_t size, size_t* bytes_read)
 
     size_t total = size;
 
-    void* page_buf = memalign(64, 8 * PAGE_SIZE);
+    void* page_buf = memalign(256, 8 * PAGE_SIZE);
     if(!page_buf) return -3;
 
     while(size) {

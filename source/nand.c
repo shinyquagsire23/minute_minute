@@ -186,6 +186,8 @@ void nand_read_page(u32 pageno, void *data, void *ecc) {
 }
 
 void nand_wait(void) {
+    if (!(read32(NAND_CTRL) & NAND_BUSY_MASK)) return;
+
 // power-saving IRQ wait
     while(!irq_flag) {
         u32 cookie = irq_kill();

@@ -188,8 +188,10 @@ int ancast_load(ancast_ctx* ctx)
         printf("ancast: reading 0x%x bytes\n", ctx->header_size + ctx->header.body_size);
         fseek(ctx->file, 0, SEEK_SET);
 
+        u32 total_size = ctx->header_size + ctx->header.body_size;
+#if 1
         int led_alternate = 0;
-        for (u32 i = 0; i < ctx->header_size + ctx->header.body_size; i += 0x200)
+        for (u32 i = 0; i < total_size; i += 0x10000)
         {
             if (i % 0x100000 == 0)
             {
@@ -203,13 +205,29 @@ int ancast_load(ancast_ctx* ctx)
                 led_alternate = !led_alternate;
             }
 
-            int count = fread(ctx->load + i, 0x200, 1, ctx->file);
+            u32 to_read = 0x10000;
+            if (i + to_read > total_size) {
+                to_read = total_size - i;
+                printf("%x\n", to_read);
+            }
+
+            int count = fread(ctx->load + i, to_read, 1, ctx->file);
             if(count != 1) {
                 printf("ancast: failed to read offs=%08x, %s (%d).\n", i, ctx->path, errno);
                 ancast_fini(ctx);
                 return errno;
             }
         }
+#endif
+
+#if 0
+        int count = fread(ctx->load, total_size, 1, ctx->file);
+        if(count != 1) {
+            printf("ancast: failed to read offs=%08x, %s (%d).\n", 0, ctx->path, errno);
+            ancast_fini(ctx);
+            return errno;
+        }
+#endif
         smc_set_on_indicator(LED_ON);
         
         printf("ancast: done reading\n");
@@ -259,7 +277,7 @@ int ancast_load(ancast_ctx* ctx)
 #endif
     }
 
-#if 0
+#ifndef MINUTE_BOOT1
     u32 hash[SHA_HASH_WORDS] = {0};
     sha_hash(ctx->body, hash, ctx->header.body_size);
 
@@ -454,8 +472,8 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
     sha_hash((void*)0x01000000, hash, 0x200);
     if(memcmp(hash, expected_hash, sizeof(hash)))
     {
-        printf("ancast: IOS image is not 5.5!\n");
-        return 0;
+        printf("ancast: IOS image might not be 5.5!\n");
+        //return 0;
     }
     
     // find elfldr's jumpout addr and patch it
@@ -473,6 +491,7 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
         printf("ancast: failed to find elfloader jumpout magic!\n");
         return 0;
     }
+
     *(u32*)hook_base = 0x00800000;
     // copy code out
     memcpy((void*)0x00800000, elfldr_patch, sizeof(elfldr_patch));
