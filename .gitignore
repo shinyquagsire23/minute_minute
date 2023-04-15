@@ -36,6 +36,7 @@ sdcard.img
 ios.img
 fw.img
 boot1.img
+ios_orig.img
 debug/
 debug_boot1/
 
@@ -46,5 +47,6 @@ gpu*.txt
 normal_boot.txt
 seq.txt
 cast_test.py
+fat_mnt/
 
 .DS_Store

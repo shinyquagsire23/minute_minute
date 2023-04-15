@@ -243,7 +243,7 @@ int ancast_load(ancast_ctx* ctx)
 
 #if 1
         int led_alternate = 0;
-        for (u32 i = 0; i < total_size; i += 0x10000)
+        for (u32 i = 0; i < total_size; i += 0x100000)
         {
             if (i % 0x100000 == 0)
             {
@@ -257,10 +257,9 @@ int ancast_load(ancast_ctx* ctx)
                 led_alternate = !led_alternate;
             }
 
-            u32 to_read = 0x10000;
+            u32 to_read = 0x100000;
             if (i + to_read > total_size) {
                 to_read = total_size - i;
-                printf("%x\n", to_read);
             }
 
             int count = fread(ctx->load + i, to_read, 1, ctx->file);

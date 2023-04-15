@@ -657,7 +657,7 @@ int main_autoboot(void)
         boot.vector = ancast_iop_load(autoboot_file);
     }
     else if (magic == 0x53414C54) {
-        boot.vector = ancast_patch_load("ios_orig.img", autoboot_file); // slc:/sys/title/00050010/1000400a/code/fw.img
+        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", autoboot_file); // slc:/sys/title/00050010/1000400a/code/fw.img
         boot.is_patched = 1;
     }
     
@@ -731,7 +731,7 @@ ppc_exit:
 void main_quickboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("ios_orig.img", "ios.patch"); // slc:/sys/title/00050010/1000400a/code/fw.img
+    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch"); // ios_orig.img
     boot.is_patched = 1;
 
     if(boot.vector) {

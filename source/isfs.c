@@ -470,15 +470,24 @@ int isfs_read(isfs_file* file, void* buffer, size_t size, size_t* bytes_read)
         size_t work = min(8 * PAGE_SIZE, size);
         u32 pages = ((work + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)) / PAGE_SIZE;
 
+        //...why does _isfs_read_pages just do, nothing? if this is a lower value like 1?
+        if (pages < 8) {
+            pages = 8;
+        }
+
         size_t pos = file->offset % (8 * PAGE_SIZE);
         size_t copy = (8 * PAGE_SIZE) - pos;
         if(copy > size) copy = size;
+
+        //memset(page_buf, 0, 8 * PAGE_SIZE);
 
         _isfs_read_pages(ctx, page_buf, 8 * file->cluster, pages);
 
         aes_empty_iv();
         aes_decrypt((u8*)page_buf, (u8*)page_buf, (pages * PAGE_SIZE) / 0x10, 0);
 
+        //printf("%x %x %x %x %x %x\n", file->offset, work, copy, pos, size, pages);
+        //printf("%x %x %x %x %x\n", file->offset, work, copy, size, pages);
         memcpy(buffer, page_buf + pos, copy);
 
         file->offset += copy;
