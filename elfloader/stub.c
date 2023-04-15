@@ -204,7 +204,7 @@ void *_main(void *base)
 
     if (is_boot1) {
         gpio_debug_send(0x88);
-        udelay(100);
+        udelay(10000);
     }
     
 

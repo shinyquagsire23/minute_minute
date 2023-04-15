@@ -17,6 +17,16 @@ u32 ancast_iop_load(const char* path);
 u32 ancast_ppc_load(const char* path);
 
 u32 ancast_iop_load_from_raw_sector(int sector_idx);
+u32 ancast_iop_load_from_memory(void* ancast_mem);
 u32 ancast_patch_load(const char* fn_ios, const char* fn_patch);
+
+// Used for patches on IOS boot, and the passalong magic otherwise.
+#define ALL_PURPOSE_TMP_BUF (0x00800000)
+
+#define PASSALONG_MAGIC_BOOT1 ("MINTBT01")
+
+#define ANCAST_MAGIC (0xEFA282D9l)
+#define ANCAST_TARGET_IOP (0x02)
+#define ANCAST_TARGET_PPC (0x01)
 
 #endif

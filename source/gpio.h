@@ -70,7 +70,11 @@ enum {
 #define GP_ARM_DEFAULT_ON (GP_DEFAULT_ON & GP_OWNER_ARM)
 #define GP_PPC_DEFAULT_ON (GP_DEFAULT_ON & GP_OWNER_PPC)
 
+#ifdef MINUTE_BOOT1
+#define SERIAL_DELAY (10)
+#else
 #define SERIAL_DELAY (1)
+#endif
 
 void gpio_enable(u16 gpio_id, u8 val);
 void gpio_set_dir(u16 gpio_id, u8 dir);

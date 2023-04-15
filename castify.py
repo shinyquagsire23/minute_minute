@@ -64,11 +64,14 @@ payload += elf
 print("\nBuilding ancast image...\n")
 
 hb_flags = 0x0000
+align_requirement = 0xFFF
+if hybrid_mbr_ancast:
+    align_requirement = 0xFFF
 
 payloadlen = len(payload)
-if ((payloadlen + 0xFFF) & ~0xFFF) > payloadlen:
-    print("Padding payload with 0x%X zeroes." % (((payloadlen + 0xFFF) & ~0xFFF) - payloadlen))
-    payload += b"\x00" * (((payloadlen + 0xFFF) & ~0xFFF) - payloadlen)
+if ((payloadlen + align_requirement) & ~align_requirement) > payloadlen:
+    print("Padding payload with 0x%X zeroes." % (((payloadlen + align_requirement) & ~align_requirement) - payloadlen))
+    payload += b"\x00" * (((payloadlen + align_requirement) & ~align_requirement) - payloadlen)
 
 if no_crypto:
     hb_flags |= 0b1

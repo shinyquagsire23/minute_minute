@@ -5,6 +5,13 @@
 *.elf
 *.bin
 
+# IDA pro
+*.id0
+*.id1
+*.id2
+*.nam
+*.til
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -23,5 +30,21 @@ local.properties
 # Project-specific
 fw.img
 #source/elfldr_patch.h
+
+# build artifacts
+sdcard.img
+ios.img
+fw.img
+boot1.img
+debug/
+debug_boot1/
+
+# my notes
+dram*.txt
+fat*.txt
+gpu*.txt
+normal_boot.txt
+seq.txt
+cast_test.py
 
 .DS_Store

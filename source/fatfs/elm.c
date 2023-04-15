@@ -270,13 +270,16 @@ int _ELM_open_r(struct _reent* r, void* fileStruct, const char* path, int flags,
     bool truncate = false;
     const TCHAR* p = _ELM_mbstoucs2(_ELM_realpath(path), NULL);
 
+#if !_FS_READONLY
     if (flags & O_WRONLY)
         m |= FA_WRITE;
     else if (flags & O_RDWR)
         m |= FA_READ | FA_WRITE;
     else
+#endif
         m |= FA_READ;
 
+#if !_FS_READONLY
     if (flags & O_CREAT)
     {
         if (flags & O_EXCL)
@@ -287,6 +290,7 @@ int _ELM_open_r(struct _reent* r, void* fileStruct, const char* path, int flags,
             m |= FA_OPEN_ALWAYS;
     }
     else
+#endif
     {
         if (flags & O_TRUNC)
             truncate = true;
@@ -296,11 +300,13 @@ int _ELM_open_r(struct _reent* r, void* fileStruct, const char* path, int flags,
 
     elm_error = f_open(fp, p, m);
 
+#if (_FS_MINIMIZE < 1) && (!_FS_READONLY)
     if (elm_error == FR_OK && truncate)
         elm_error = f_truncate(fp);
 
     if (elm_error == FR_OK && (flags & O_APPEND))
         elm_error = f_lseek(fp, fp->fsize);
+#endif
 
     return _ELM_errnoparse(r, (int) fp, -1);
 }
@@ -403,6 +409,7 @@ static int _ELM_chk_mounted(int disk)
 {
     if (ELM_VALID_DISK(disk))
     {
+#if !_FS_READONLY
         if (!fatfs.fs_type)
         {
             FILINFO fi;
@@ -415,7 +422,7 @@ static int _ELM_chk_mounted(int disk)
 
             f_stat(path_ptr, &fi);
         }
-
+#endif
         return fatfs.fs_type;
     }
 
@@ -693,7 +700,9 @@ int ELM_Mount(void)
     FRESULT res = FR_OK;
     char buffer[_MAX_LFN];
 
-    sprintf(buffer, "%s:", mount);
+    strcpy(buffer, mount);
+    strcat(buffer, ":");
+    //sprintf(buffer, "%s:", mount);
     res = f_mount(&fatfs, buffer, 1);
 
     if (res == FR_OK)
@@ -711,7 +720,9 @@ void ELM_Unmount(void)
 {
     char buffer[_MAX_LFN];
 
-    sprintf(buffer, "%s:", mount);
+    //sprintf(buffer, "%s:", mount);
+    strcpy(buffer, mount);
+    strcat(buffer, ":");
     RemoveDevice(buffer);
     f_mount(NULL, buffer, 1);
 }
@@ -830,6 +841,7 @@ uint32_t ELM_GetFAT(int fildes, uint32_t cluster, uint32_t* sector)
     return result;
 }
 
+#if !_FS_READONLY
 int ELM_DirEntry(int fildes, uint64_t* entry)
 {
     __handle* handle = __get_handle(fildes);
@@ -845,6 +857,7 @@ int ELM_DirEntry(int fildes, uint64_t* entry)
 
     return false;
 }
+#endif
 
 uint32_t ELM_GetSectorCount(unsigned char drive)
 {

@@ -20,5 +20,5 @@ fi
 
 echo "Writing to: $disk"
 diskutil unmountDisk $disk
-sudo dd if=sdcard.img of="$disk" status=progress
+sudo dd if=boot1.img of="$disk" status=progress
 diskutil eject $disk

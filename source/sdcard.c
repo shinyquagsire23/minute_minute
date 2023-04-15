@@ -62,7 +62,12 @@ void sdcard_attach(sdmmc_chipset_handle_t handle)
 
     if (sdhc_card_detect(card.handle)) {
         DPRINTF(1, ("card is inserted. starting init sequence.\n"));
-        sdcard_needs_discover();
+
+        for (int i = 0; i < 16; i++)
+        {
+            sdcard_needs_discover();
+            if (card.inserted) break;
+        }
     }
 }
 
@@ -620,6 +625,10 @@ int sdcard_end_write(struct sdmmc_command* cmdbuf)
 int sdcard_write(u32 blk_start, u32 blk_count, void *data)
 {
     struct sdmmc_command cmd;
+
+    if (sdcard_host.no_dma) {
+        panic(0);
+    }
 
 retry_single:
     // TODO: wtf is this bug

@@ -8,6 +8,40 @@
 / Function Configurations
 /---------------------------------------------------------------------------*/
 
+#ifdef MINUTE_BOOT1
+#define _FS_READONLY    1
+#define _FS_MINIMIZE    3
+#define _USE_STRFUNC    0
+#define _USE_FIND       0
+#define _USE_MKFS       0
+#define _USE_FASTSEEK   1
+#define _USE_LABEL      0
+#define _USE_FORWARD    0
+#define _CODE_PAGE  932
+#define _USE_LFN    0
+#define _MAX_LFN    255
+#define _LFN_UNICODE    0
+#define _STRF_ENCODE    0
+#define _FS_RPATH       0
+#define _VOLUMES    1
+#define _STR_VOLUME_ID  1
+#define _VOLUME_STRS    "SDMC"
+#define _MULTI_PARTITION    0
+#define _MIN_SS     512
+#define _MAX_SS     512
+#define _USE_TRIM   0
+#define _FS_NOFSINFO    0
+#define _FS_TINY    1
+#define _FS_NORTC   1
+#define _NORTC_MON  1
+#define _NORTC_MDAY 1
+#define _NORTC_YEAR 2015
+#define _FS_LOCK    0
+#define _FS_REENTRANT   0
+#define _FS_TIMEOUT     1000
+#define _SYNC_t         HANDLE
+#define _WORD_ACCESS    0
+#else // !MINUTE_BOOT1
 #define _FS_READONLY    0
 /* This option switches read-only configuration. (0:Read/Write or 1:Read-only)
 /  Read-only configuration removes writing API functions, f_write(), f_sync(),
@@ -273,4 +307,4 @@
 /  *2:Unaligned memory access is not supported.
 /  *3:Some compilers generate LDM/STM for mem_cpy function.
 */
-
+#endif // !MINUTE_BOOT1

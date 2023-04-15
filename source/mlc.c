@@ -61,7 +61,12 @@ void mlc_attach(sdmmc_chipset_handle_t handle)
 
     if (sdhc_card_detect(card.handle)) {
         DPRINTF(1, ("card is inserted. starting init sequence.\n"));
-        mlc_needs_discover();
+
+        for (int i = 0; i < 16; i++)
+        {
+            mlc_needs_discover();
+            if (card.inserted) break;
+        }
     }
 }
 

@@ -58,7 +58,11 @@ int sdhc_intr(struct sdhc_host *);
 #define SDHC_DMA_ADDR           0x00
 #define SDHC_BLOCK_SIZE         0x04
 #define SDHC_BLOCK_COUNT        0x06
+#ifdef MINUTE_BOOT1
+#define SDHC_BLOCK_COUNT_MAX 1
+#else
 #define SDHC_BLOCK_COUNT_MAX        512
+#endif
 #define SDHC_ARGUMENT           0x08
 #define SDHC_TRANSFER_MODE      0x0c
 #define SDHC_MULTI_BLOCK_MODE       (1<<5)

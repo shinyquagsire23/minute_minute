@@ -25,9 +25,18 @@ typedef enum {
 	GFX_ALL,
 } gfx_screen_t;
 
+void gfx_init(void);
 void gfx_draw_plot(gfx_screen_t screen, int x, int y, u32 color);
 void gfx_clear(gfx_screen_t screen, u32 color);
 void gfx_draw_string(gfx_screen_t screen, char* str, int x, int y, u32 color);
+
+#ifdef MINUTE_BOOT1
+static inline int printf(const char* fmt, ...)
+{
+    return 0;
+}
+#else
 int printf(const char* fmt, ...);
+#endif
 
 #endif

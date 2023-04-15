@@ -7,6 +7,8 @@
  *  see file COPYING or http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
  */
 
+#ifndef MINUTE_BOOT1
+
 #include "filepicker.h"
 
 #include "smc.h"
@@ -300,3 +302,5 @@ void picker_prev_jump()
 
     picker_update();
 }
+
+#endif

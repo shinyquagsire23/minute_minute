@@ -118,7 +118,7 @@ void exc_handler(u32 type, u32 spsr, u32 *regs)
 #ifdef MINUTE_BOOT1
     serial_send_u32(type);
     serial_send_u32(pc);
-    serial_send_u32(fsr);
+    serial_send_u32(regs[14]);
     serial_send_u32((type == 4)?get_far():0x0);
     serial_send_u32(*(u32*)(pc-4));
     serial_send_u32(*(u32*)pc);

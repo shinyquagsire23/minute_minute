@@ -10,9 +10,14 @@
 
 #include "gfx.h"
 #include "gpio.h"
+#include "gpu.h"
 #include <stdio.h>
 
 #ifdef MINUTE_HEADLESS
+void gfx_init(void)
+{
+}
+
 size_t gfx_get_stride(gfx_screen_t screen)
 {
 
@@ -43,11 +48,9 @@ void gfx_draw_string(gfx_screen_t screen, char* str, int x, int y, u32 color)
 
 }
 
+#ifndef MINUTE_BOOT1
 int printf(const char* fmt, ...)
 {
-#ifdef MINUTE_BOOT1
-	return 0;
-#else
 	static char str[0x800];
 	va_list va;
 
@@ -63,8 +66,8 @@ int printf(const char* fmt, ...)
 	}
 
     return 0;
-#endif
 }
+#endif
 
 #else // MINUTE_HEADLESS
 extern const u8 msx_font[];
@@ -103,6 +106,22 @@ struct {
 	},
 };
 
+static int gfx_currently_headless = 0;
+
+void gfx_init(void)
+{
+	if (!gpu_tv_primary_surface_addr()) {
+		gfx_currently_headless = 1;
+		return;
+	}
+
+	fbs[GFX_TV].ptr = gpu_tv_primary_surface_addr();
+	fbs[GFX_DRC].ptr = gpu_drc_primary_surface_addr();
+
+	gfx_clear(GFX_ALL, BLACK);
+}
+
+
 size_t gfx_get_stride(gfx_screen_t screen)
 {
 	if(screen == GFX_ALL) return 0;
@@ -130,6 +149,8 @@ void gfx_draw_plot(gfx_screen_t screen, int x, int y, u32 color)
 
 void gfx_clear(gfx_screen_t screen, u32 color)
 {
+	if (gfx_currently_headless) return;
+
 	if(screen == GFX_ALL) {
 		for(int i = 0; i < GFX_ALL; i++)
 			gfx_clear(i, color);
@@ -144,6 +165,8 @@ void gfx_clear(gfx_screen_t screen, u32 color)
 
 void gfx_draw_char(gfx_screen_t screen, char c, int x, int y, u32 color)
 {
+	if (gfx_currently_headless) return;
+
 	if(screen == GFX_ALL) {
 		for(int i = 0; i < GFX_ALL; i++)
 			gfx_draw_char(i, c, x, y, color);
@@ -172,6 +195,8 @@ void gfx_draw_char(gfx_screen_t screen, char c, int x, int y, u32 color)
 
 void gfx_draw_string(gfx_screen_t screen, char* str, int x, int y, u32 color)
 {
+	if (gfx_currently_headless) return;
+
 	if(screen == GFX_ALL) {
 		for(int i = 0; i < GFX_ALL; i++)
 			gfx_draw_string(i, str, x, y, color);
@@ -204,6 +229,13 @@ int printf(const char* fmt, ...)
 	va_start(va, fmt);
 	vsnprintf(str, sizeof(str), fmt, va);
 	va_end(va);
+
+	char* str_iter = str;
+	while (*str_iter)
+	{
+		serial_send(*str_iter);
+		str_iter++;
+	}
 
 	int lines = 0;
 	//char* last_line = str;

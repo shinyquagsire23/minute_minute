@@ -8,6 +8,8 @@
  *  see file COPYING or http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
  */
 
+#include "ancast.h"
+
 #include "types.h"
 #include "gfx.h"
 #include "utils.h"
@@ -23,10 +25,6 @@
 #include "sdcard.h"
 #include "gpio.h"
 #include "elfldr_patch.h"
-
-#define ANCAST_MAGIC (0xEFA282D9l)
-#define ANCAST_TARGET_IOP (0x02)
-#define ANCAST_TARGET_PPC (0x01)
 
 char sd_read_buffer[0x200] ALIGNED(0x20);
 
@@ -51,6 +49,7 @@ typedef struct {
     void* load;
     void* body;
     u32 sector_idx;
+    void* memory_load;
 } ancast_ctx;
 
 int ancast_fini(ancast_ctx* ctx);
@@ -147,6 +146,48 @@ int ancast_init_from_raw_sector(ancast_ctx* ctx, int sector_idx)
     return 0;
 }
 
+int ancast_init_from_memory(ancast_ctx* ctx, void* ancast_mem)
+{
+    if(!ctx) return -1;
+    memset(ctx, 0, sizeof(ancast_ctx));
+
+    ctx->path = "";
+    ctx->file = 0;
+    ctx->size = 0x80000;
+    ctx->memory_load = ancast_mem;
+
+
+    u32 magic = read32((u32) ancast_mem);
+#ifdef MINUTE_BOOT1
+    serial_send_u32(magic);
+#endif
+    if(magic != ANCAST_MAGIC) {
+        printf("SD ancast is not an ancast image (magic is 0x%08lX, expected 0x%08lX).\n", magic, ANCAST_MAGIC);
+        return -2;
+    }
+
+    u32 sig_offset = read32(((u32)ancast_mem) + 8);
+    u32 sig_type = read32(((u32)ancast_mem) + sig_offset);
+
+    u32 header_offset = 0;
+    switch(sig_type) {
+        case 0x01:
+            header_offset = 0xA0;
+            break;
+        case 0x02:
+            header_offset = 0x1A0;
+            break;
+        default:
+            printf("SD ancast has unrecognized signature type 0x%02lX.\n", sig_type);
+            return -3;
+    }
+
+    ctx->header_size = header_offset + sizeof(ancast_header);
+    memcpy(&ctx->header, (void*)(((u32)ancast_mem) + header_offset), sizeof(ancast_header));
+
+    return 0;
+}
+
 int ancast_load(ancast_ctx* ctx)
 {
     if(!ctx) return -1;
@@ -182,13 +223,24 @@ int ancast_load(ancast_ctx* ctx)
 
     ctx->body = ctx->load + ctx->header_size;
 
-#ifndef MINUTE_BOOT1
-    if (ctx->file)
+    if (ctx->memory_load)
     {
-        printf("ancast: reading 0x%x bytes\n", ctx->header_size + ctx->header.body_size);
+        u32 total_size = ctx->header_size + ctx->header.body_size;
+        memcpy(ctx->load, ctx->memory_load, total_size);
+    }
+#ifndef MINUTE_BOOT1
+    else if (ctx->file)
+    {
+        printf("ancast: reading 0x%x bytes from %s\n", ctx->header_size + ctx->header.body_size, ctx->path);
         fseek(ctx->file, 0, SEEK_SET);
 
         u32 total_size = ctx->header_size + ctx->header.body_size;
+
+#ifdef MINUTE_BOOT1
+        serial_send_u32(total_size);
+        serial_send_u32(ctx->header.body_size);
+#endif
+
 #if 1
         int led_alternate = 0;
         for (u32 i = 0; i < total_size; i += 0x10000)
@@ -232,8 +284,8 @@ int ancast_load(ancast_ctx* ctx)
         
         printf("ancast: done reading\n");
     }
-    else if (ctx->sector_idx)
 #endif
+    else if (ctx->sector_idx)
     {
         void* sdcard_dst = ctx->load;
         u32 num_sectors = ctx->header_size + ctx->header.body_size;
@@ -338,6 +390,7 @@ u32 ancast_iop_load(const char* path)
     res = ancast_load(&ctx);
     if(res) return 0;
 
+#ifndef MINUTE_BOOT1
     if(!(ctx.header.unk1 & 0b1)) {
         aes_reset();
         aes_set_key(otp.fw_ancast_key);
@@ -349,6 +402,7 @@ u32 ancast_iop_load(const char* path)
         printf("ancast: decrypting %s...\n", path);
         aes_decrypt(ctx.body, ctx.body, ctx.header.body_size / 0x10, 0);
     }
+#endif
 
     dc_flushrange(ctx.load, ctx.header_size + ctx.header.body_size);
 
@@ -435,6 +489,53 @@ u32 ancast_iop_load_from_raw_sector(int sector_idx)
     return vector;
 }
 
+u32 ancast_iop_load_from_memory(void* ancast_mem)
+{
+    int res = 0;
+    ancast_ctx ctx = {0};
+
+    res = ancast_init_from_memory(&ctx, ancast_mem);
+    if(res) return 0;
+
+    u8 target = ctx.header.device >> 4;
+    if(target != ANCAST_TARGET_IOP) {
+        printf("SD ancast is not an IOP image (target is 0x%02X, expected 0x%02X).\n", target, ANCAST_TARGET_IOP);
+        ancast_fini(&ctx);
+        return 0;
+    }
+
+    res = ancast_load(&ctx);
+    if(res) return 0;
+
+#ifndef MINUTE_BOOT1
+    if(!(ctx.header.unk1 & 0b1)) {
+        aes_reset();
+        aes_set_key(otp.fw_ancast_key);
+
+        static const u8 iv[16] = {0x91, 0xC9, 0xD0, 0x08, 0x31, 0x28, 0x51, 0xEF,
+                                  0x6B, 0x22, 0x8B, 0xF1, 0x4B, 0xAD, 0x43, 0x22};
+        aes_set_iv((u8*)iv);
+
+        printf("ancast: decrypting...\n");
+        aes_decrypt(ctx.body, ctx.body, ctx.header.body_size / 0x10, 0);
+    }
+#endif
+
+    ios_header* header = ctx.body;
+    u32 vector = (u32) ctx.body + header->header_size;
+
+#ifdef MINUTE_BOOT1
+    serial_send_u32((u32) ctx.body);
+    serial_send_u32(header->header_size);
+    serial_send_u32(vector);
+#endif
+
+    res = ancast_fini(&ctx);
+    if(res) return 0;
+
+    return vector;
+}
+
 u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
 {
     u32* patch_base = (u32*)0x100;
@@ -445,7 +546,7 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
         return 0;
     }
     
-    fread((void*)patch_base, 1, 0x00800000-0x100, f_patch);
+    fread((void*)patch_base, 1, ALL_PURPOSE_TMP_BUF-0x100, f_patch);
     fclose(f_patch);
     
     // sanity-check our patches
@@ -492,9 +593,9 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
         return 0;
     }
 
-    *(u32*)hook_base = 0x00800000;
+    *(u32*)hook_base = ALL_PURPOSE_TMP_BUF;
     // copy code out
-    memcpy((void*)0x00800000, elfldr_patch, sizeof(elfldr_patch));
+    memcpy((void*)ALL_PURPOSE_TMP_BUF, elfldr_patch, sizeof(elfldr_patch));
     
     return vector;
 }

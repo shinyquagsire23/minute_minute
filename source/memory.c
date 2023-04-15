@@ -366,8 +366,11 @@ void mem_initialize(void)
     map_section(0x100, 0x100, 0xC00, WRITEBACK_CACHE | DOMAIN(0) | AP_RWUSER); // MEM2
     map_section(0xFFF, 0xFFF, 0x001, WRITEBACK_CACHE | DOMAIN(0) | AP_RWUSER); // SRAM
 
+    map_section(0x0D4, 0x0D4, 0x001, WRITEBACK_CACHE | DOMAIN(0) | AP_RWUSER); // SRAM
+
     map_section(0x0C0, 0x0C0, 0x004, NONBUFFERABLE | DOMAIN(0) | AP_RWUSER); // MMIO (GPU)
-    map_section(0x0D0, 0x0D0, 0x010, NONBUFFERABLE | DOMAIN(0) | AP_RWUSER); // MMIO
+    map_section(0x0D0, 0x0D0, 0x004, NONBUFFERABLE | DOMAIN(0) | AP_RWUSER); // MMIO
+    map_section(0x0D8, 0x0D8, 0x008, NONBUFFERABLE | DOMAIN(0) | AP_RWUSER); // MMIO
 
     set_dacr(0xFFFFFFFF); //manager access for all domains, ignore AP
     set_ttbr((u32)__page_table); //configure translation table

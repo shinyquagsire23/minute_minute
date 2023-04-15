@@ -13,13 +13,15 @@ OUTPUT_ARCH(arm)
 EXTERN(_start)
 ENTRY(_start)
 
-__stack_size = 0x4000;
+__stack_size = 0x3000;
 __irqstack_size = 0x1000;
 __excstack_size = 0x1000;
 
 MEMORY {
-	sram0		: ORIGIN = 0xFFFF0000, LENGTH = 64K
-	sram1		: ORIGIN = 0x0D400000, LENGTH = 64K
+	sram0_0		: ORIGIN = 0xFFFF0000, LENGTH = 0x800
+	sram0_1		: ORIGIN = 0x0D410800, LENGTH = 0x7800
+	sram1_0		: ORIGIN = 0x0D400000, LENGTH = 0xE000
+	sram1_1		: ORIGIN = 0x0D40E000, LENGTH = 0x2000
 }
 
 SECTIONS
@@ -30,7 +32,7 @@ SECTIONS
 		*(.init)
 		*(.sram.text)
 		. = ALIGN(4);
-	} >sram0
+	} >sram0_0
 
 	.text :
 	{
@@ -41,7 +43,7 @@ SECTIONS
 		*(.glue_7)
 		*(.glue_7t)
 		. = ALIGN(4);
-	} >sram0
+	} >sram0_1
 
 	.rodata :
 	{
@@ -51,7 +53,7 @@ SECTIONS
 		*(.rodata.*)
 		*(.gnu.linkonce.r*)
 		. = ALIGN(4);
-	} >sram0
+	} >sram1_1
 
 	.data :
 	{
@@ -59,7 +61,7 @@ SECTIONS
 		*(.data.*)
 		*(.gnu.linkonce.d*)
 		. = ALIGN(4);
-	} >sram0
+	} >sram1_1
 
 	.bss :
 	{
@@ -70,7 +72,7 @@ SECTIONS
 		*(COMMON)
 		. = ALIGN(4);
 		__bss_end = . ;
-	} >sram1
+	} >sram1_0
 
 	.stack :
 	{
@@ -88,15 +90,15 @@ SECTIONS
 		. = ALIGN(16);
 		__excstack_addr = .;
 		. = ALIGN(4);
-	} >sram1
+	} >sram1_0
 
 	.heap :
 	{
 		__end__ = .;
 		__heap_start__ = .;
-		__heap_end__ = (ORIGIN(sram1) + LENGTH(sram1));
+		__heap_end__ = (ORIGIN(sram1_0) + LENGTH(sram1_0));
 		. = __heap_end__;
-	} >sram1
+	} >sram1_0
 
 	/DISCARD/ :
 	{

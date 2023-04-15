@@ -1,0 +1,12 @@
+ifeq ($(strip $(DEVKITPRO)),)
+$(error "Please set DEVKITPRO in your environment. export DEVKITPRO=<path to>devkitPro)
+endif
+
+include $(DEVKITARM)/base_rules
+
+GCC_VERSION := $(shell $(CC) -dumpversion)
+
+#---------------------------------------------------------------------------------
+%.elf:
+	$(SILENTMSG) linking $(notdir $@) #$(SILENTCMD)
+	$(CC)  $(LDFLAGS) $(OFILES) $(LIBPATHS) $(LIBS) -o $@

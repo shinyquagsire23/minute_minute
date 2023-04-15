@@ -286,11 +286,11 @@ sdhc_host_reset(struct sdhc_host *hp)
     /* Enable interrupts. */
     imask =
 #ifndef LOADER
-        
+        SDHC_CARD_REMOVAL | SDHC_CARD_INSERTION |
 #endif
         SDHC_BUFFER_READ_READY | SDHC_BUFFER_WRITE_READY |
         SDHC_DMA_INTERRUPT | SDHC_BLOCK_GAP_EVENT |
-        SDHC_TRANSFER_COMPLETE | SDHC_COMMAND_COMPLETE; // SDHC_CARD_REMOVAL | SDHC_CARD_INSERTION |
+        SDHC_TRANSFER_COMPLETE | SDHC_COMMAND_COMPLETE;
 
     HWRITE2(hp, SDHC_NINTR_STATUS_EN, imask);
     HWRITE2(hp, SDHC_EINTR_STATUS_EN, SDHC_EINTR_STATUS_MASK);
@@ -861,7 +861,7 @@ sdhc_intr(struct sdhc_host *hp)
 //  sdhc_dump_regs(hp);
 
     /* Find out which interrupts are pending. */
-    status = HREAD2(hp, SDHC_NINTR_STATUS) & ~(SDHC_CARD_INSERTION);
+    status = HREAD2(hp, SDHC_NINTR_STATUS);
     if (!ISSET(status, SDHC_NINTR_STATUS_MASK)) {
         DPRINTF(1, ("unknown interrupt\n"));
         return 0;

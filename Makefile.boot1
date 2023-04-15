@@ -2,11 +2,8 @@
 .SUFFIXES:
 #---------------------------------------------------------------------------------
 
-ifeq ($(strip $(DEVKITARM)),)
-$(error "Please set DEVKITARM in your environment. export DEVKITARM=<path to>devkitARM")
-endif
-
-include $(DEVKITARM)/ds_rules
+MAKEFILE_ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+include $(MAKEFILE_ROOT_DIR)/elf_rules
 
 #---------------------------------------------------------------------------------
 # TARGET is the name of the output
@@ -34,7 +31,7 @@ ARCH			:=	-march=armv5te -mcpu=arm926ej-s -marm -mthumb-interwork -mbig-endian -
 
 CFLAGS			:=	-g -std=c11 -Os \
 					-fomit-frame-pointer -fdata-sections -ffunction-sections \
-					$(ARCH)
+					$(ARCH) -nostartfiles
 
 CFLAGS			+=	$(INCLUDE) -D_GNU_SOURCE -DMINUTE_BOOT1 -DMINUTE_HEADLESS -fno-builtin-printf -Wno-nonnull -Werror=implicit
 
@@ -42,10 +39,10 @@ CXXFLAGS		:=	$(CFLAGS) -fno-rtti -fno-exceptions
 
 ASFLAGS			:=	-g $(ARCH) -DMINUTE_BOOT1 -DMINUTE_HEADLESS
 LDFLAGS			 =	-g --specs=../stub_boot1.specs $(ARCH) -Wl,--gc-sections,-Map,$(TARGET).map \
-					-L$(DEVKITARM)/lib/gcc/arm-none-eabi/5.3.0/be -L$(DEVKITARM)/arm-none-eabi/lib/be \
-					-z max-page-size=4096
+					-L$(DEVKITARM)/lib/gcc/arm-none-eabi/$(GCC_VERSION)/be -L$(DEVKITARM)/arm-none-eabi/lib/be \
+					-z max-page-size=4096 -nostartfiles
 
-LIBS			:=	
+LIBS			:=	#$(DEVKITARM)/lib/gcc/arm-none-eabi/$(GCC_VERSION)/be/libgcc.a $(DEVKITARM)/lib/gcc/arm-none-eabi/$(GCC_VERSION)/be/crti.o $(DEVKITARM)/lib/gcc/arm-none-eabi/$(GCC_VERSION)/be/crtn.o $(DEVKITARM)/lib/gcc/arm-none-eabi/$(GCC_VERSION)/be/libgcov.a
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

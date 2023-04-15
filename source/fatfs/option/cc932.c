@@ -5,7 +5,11 @@
 
 #include "../ff.h"
 
+#ifdef MINUTE_BOOT1
+#define _TINY_TABLE 1
+#else
 #define _TINY_TABLE 0
+#endif
 
 #if !_USE_LFN || _CODE_PAGE != 932
 #error This file is not needed in current configuration. Remove from the project.
