@@ -60,9 +60,11 @@
 
 int smc_read_register(u8 offset, u8* data);
 int smc_write_register(u8 offset, u8 data);
+int smc_write_register_multiple(u8 offset, u8* data, u32 count);
 int smc_mask_register(u8 offset, u8 mask, u8 val);
 
 int smc_write_raw(u8 data);
+int smc_write_raw_multiple(u8* data, u32 count);
 
 u32 smc_get_ctrl1();
 void smc_set_ctrl1(u32 val);

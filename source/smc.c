@@ -10,6 +10,9 @@
 
 #include "smc.h"
 
+#include <string.h>
+#include <malloc.h>
+
 #include "types.h"
 #include "utils.h"
 #include "i2c.h"
@@ -45,9 +48,7 @@
 // 0x21 - wifi_rst (raw)
 // 0x22 - drc_wifi_rst (raw)
 
-// 0x30 - TimerCounter
-// 0x31 - ?
-// 0x32 - ?
+// 0x30~0x32 - TimerCounter
 // 0x33~0x3F - ?                 coldboot: 0xFF
 
 // 0x40 - ProgramRevision   coldboot: 0xC5
@@ -80,12 +81,19 @@
 // 0x6F - ?                 coldboot: 0x00
 // 0x70 - ?                 coldboot: 0x00
 // 0x71 - blinks drive LED? coldboot: 0xFF
-// 0x72~0x7F - ?            coldboot: 0xFF
+// 0x72~0x76 - ?            coldboot: 0xFF
+// 0x77~0x7F - ?            coldboot: 0xFF
 
 // I think it wraps around here
 // -- it doesn't
 // 0x80~0x8C - ?            coldboot: 0x00
 // 0x8D~0x8F - ?            coldboot: 0x00
+
+// 0x74 notes
+// 0x00-0x03 = 0x05
+// 0x04-0x60 = 0x1C
+// 0x70 quickly switches from 0x0 to 0x1c
+// 0x90-0xff = 0xF4
 
 
 int smc_read_register(u8 offset, u8* data)
@@ -111,6 +119,19 @@ int smc_write_register(u8 offset, u8 data)
     return i2c_write(I2C_SLAVE_SMC, cmd, 2);
 }
 
+int smc_write_register_multiple(u8 offset, u8* data, u32 count)
+{
+    // Clock is 10000 in C2W, but 5000 in IOS...
+    i2c_init(5000, 1);
+
+    u8* tmp = malloc(count+1);
+    tmp[0] = offset;
+    memcpy(tmp+1, data, count);
+    int ret = i2c_write(I2C_SLAVE_SMC, tmp, count);
+    free(tmp);
+    return ret;
+}
+
 int smc_mask_register(u8 offset, u8 mask, u8 val)
 {
     int ret = 0;
@@ -132,6 +153,14 @@ int smc_write_raw(u8 data)
     i2c_init(5000, 1);
 
     return i2c_write(I2C_SLAVE_SMC, &data, 1);
+}
+
+int smc_write_raw_multiple(u8* data, u32 count)
+{
+    // Clock is 10000 in C2W, but 5000 in IOS...
+    i2c_init(5000, 1);
+
+    return i2c_write(I2C_SLAVE_SMC, &data, count);
 }
 
 int smc_set_notification_led(u8 val)

@@ -89,8 +89,11 @@ void intcon_smc_cmd(int argc, char** argv)
     if (argc < 2) {
 smc_usage:
         printf("Usage: smc raw <val>\n");
-        printf("       smc read <addr>\n");
+        printf("       smc read <addr> [len]\n");
+        printf("       smc readmulti <addr> <times>\n");
         printf("       smc write <addr> <val>\n");
+        printf("       smc writemulti <addr> <len>\n");
+        printf("       smc writeseq <addr> <val 1> [val 2] ...\n");
         return;
     }
 
@@ -125,6 +128,25 @@ smc_usage:
         }
         printf("\n");
     }
+    else if (!strcmp(argv[1], "readmulti")) {
+        if (argc < 4) {
+            goto smc_usage;
+        }
+        uint8_t addr = strtol(argv[2], NULL, 0);
+        uint8_t val = 0;
+        uint8_t len = strtol(argv[3], NULL, 0);
+
+        printf("read %02x:", addr);
+
+        for (int i = 0; i < len; i++) {
+            if (i % 16 == 0) {
+                printf("\n");
+            }
+            smc_read_register(addr, &val);
+            printf("%02x ", val);
+        }
+        printf("\n");
+    }
     else if (!strcmp(argv[1], "write")) {
         if (argc < 4) {
             goto smc_usage;
@@ -134,6 +156,60 @@ smc_usage:
         printf("write %02x: %02x\n", addr, val);
 
         smc_write_register(addr, val);
+    }
+    else if (!strcmp(argv[1], "writeseq")) {
+        if (argc < 4) {
+            goto smc_usage;
+        }
+        int len = argc-3;
+        uint8_t addr = strtol(argv[2], NULL, 0);
+        
+        for (int i = 0; i < len; i++) {
+            uint8_t val = strtol(argv[3+i], NULL, 0);
+            
+            smc_write_register(addr + i, val);
+        }
+    }
+    else if (!strcmp(argv[1], "writemulti")) {
+        if (argc < 4) {
+            goto smc_usage;
+        }
+        u8* tmp = malloc(argc-3);
+        for (int i = 3; i < argc; i++)
+        {
+            tmp[i-3] = strtol(argv[i], NULL, 0);
+        }
+        uint8_t addr = strtol(argv[2], NULL, 0);
+
+        smc_write_register_multiple(addr, tmp, argc-3);
+    }
+    else if (!strcmp(argv[1], "test")) {
+        if (argc < 3) {
+            goto smc_usage;
+        }
+        uint8_t val = strtol(argv[2], NULL, 0);
+        printf("test %02x\n", val);
+
+        smc_write_register(0x73, 0);
+        smc_write_register(0x74, val);
+
+        smc_read_register(0x73, &val);
+        printf("%02x\n", val);
+
+        smc_read_register(0x73, &val);
+        printf("%02x\n", val);
+
+        smc_read_register(0x73, &val);
+        printf("%02x\n", val);
+
+        smc_read_register(0x76, &val);
+        printf("%02x\n", val);
+
+        smc_read_register(0x76, &val);
+        printf("%02x\n", val);
+
+        smc_read_register(0x76, &val);
+        printf("%02x\n", val);
     }
 }
 
