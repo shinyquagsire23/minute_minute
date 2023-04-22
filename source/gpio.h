@@ -55,6 +55,8 @@ enum {
 #define GP_DEBUG_SHIFT 16
 #define GP_DEBUG_MASK 0xFF0000
 
+#define GP_DEBUG_SERIAL_MASK 0xBF0000 // bit1 is input
+
 #define GP2_SMC (BIT(GP2_SMC_I2C_CLK)|BIT(GP2_SMC_I2C_DAT))
 
 #define GP_ALL 0xFFFFFF
@@ -76,12 +78,16 @@ enum {
 #define SERIAL_DELAY (1)
 #endif
 
+extern u8 test_read_serial;
+
 void gpio_enable(u16 gpio_id, u8 val);
 void gpio_set_dir(u16 gpio_id, u8 dir);
 
 void serial_fatal();
 void serial_force_terminate();
 void serial_send_u32(u32 val);
+int serial_in_read(u8* out);
+void serial_poll();
 void serial_send(u8 val);
 
 void gpio_dcdc_pwrcnt2_set(u8 val);
@@ -91,6 +97,8 @@ void gpio_smc_i2c_init();
 void gpio_basic_set(u16 gpio_id, u8 val);
 void gpio2_basic_set(u16 gpio_id, u8 val);
 void gpio_debug_send(u8 val);
+void gpio_debug_serial_send(u8 val);
+u8 gpio_debug_serial_read();
 
 #endif
 

@@ -27,10 +27,12 @@ typedef struct {
     menu_item option[MAX_LINES - 1];
     int entries;
     int selected;
+    bool selected_showed;
     bool showed;
 } menu;
 
 void menu_init(menu* menu);
+void menu_draw();
 void menu_show();
 void menu_next_selection();
 void menu_prev_selection();

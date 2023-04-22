@@ -70,12 +70,25 @@ void console_show()
         }
     }
 
-    for(i = 0; i < lines; i++)
+    for(i = 0; i < lines; i++) {
         gfx_draw_string(GFX_DRC, console[i], console_x + CHAR_WIDTH * 2, i * CHAR_WIDTH + console_y + CHAR_WIDTH * 2, text_color);
+        if (gfx_is_currently_headless()) {
+            printf("%s\n", console[i]);
+        }
+    }
 }
 
 void console_flush()
 {
+    if (gfx_is_currently_headless())
+    {
+        /*for (int i = 0; i < lines; i++)
+        {
+            printf("\033[F");
+        }*/
+        printf("\033[2J");
+    }
+
     gfx_clear(GFX_DRC, BLACK);
     lines = 0;
 }

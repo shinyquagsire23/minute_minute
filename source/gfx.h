@@ -13,6 +13,7 @@
 
 #include "types.h"
 
+#define CHAR_WIDTH 10
 #define RED    (0xFF0000FF)
 #define GREEN  (0x00FF00FF)
 #define BLACK  (0x00000000)
@@ -26,6 +27,7 @@ typedef enum {
 } gfx_screen_t;
 
 void gfx_init(void);
+bool gfx_is_currently_headless(void);
 void gfx_draw_plot(gfx_screen_t screen, int x, int y, u32 color);
 void gfx_clear(gfx_screen_t screen, u32 color);
 void gfx_draw_string(gfx_screen_t screen, char* str, int x, int y, u32 color);

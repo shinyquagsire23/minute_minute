@@ -47,3 +47,122 @@ u32 exi0_read32(u32 addr)
 
     return val;
 }
+
+void exi1_write32(u32 addr, u32 val)
+{
+#if 0
+    write32(EXI0_CSR, 0x88);
+    write32(EXI0_DATA, 0x80000000 | addr);
+    write32(EXI0_CR, 0x35);
+    while(!(read32(EXI0_CSR) & 8));
+
+    write32(EXI0_CSR, 0x88);
+    write32(EXI0_DATA, val);
+    write32(EXI0_CR, 0x35);
+    while(!(read32(EXI0_CSR) & 8));
+
+    write32(EXI0_CSR, 0);
+
+    write32(EXI0_CSR, 0x108);
+    write32(EXI0_DATA, 0x80000000 | addr);
+    write32(EXI0_CR, 0x35);
+    while(!(read32(EXI0_CSR) & 8));
+
+    write32(EXI0_CSR, 0x108);
+    write32(EXI0_DATA, val);
+    write32(EXI0_CR, 0x35);
+    while(!(read32(EXI0_CSR) & 8));
+
+    write32(EXI0_CSR, 0);
+
+    write32(EXI0_CSR, 0x208);
+    write32(EXI0_DATA, 0x80000000 | addr);
+    write32(EXI0_CR, 0x35);
+    while(!(read32(EXI0_CSR) & 8));
+
+    write32(EXI0_CSR, 0x208);
+    write32(EXI0_DATA, val);
+    write32(EXI0_CR, 0x35);
+    while(!(read32(EXI0_CSR) & 8));
+
+    write32(EXI0_CSR, 0);
+
+
+
+    write32(EXI1_CSR, 0x88);
+    write32(EXI1_DATA, 0x80000000 | addr);
+    write32(EXI1_CR, 0x35);
+    while(!(read32(EXI1_CSR) & 8));
+
+    write32(EXI1_CSR, 0x88);
+    write32(EXI1_DATA, val);
+    write32(EXI1_CR, 0x35);
+    while(!(read32(EXI1_CSR) & 8));
+
+    write32(EXI1_CSR, 0);
+
+    write32(EXI1_CSR, 0x108);
+    write32(EXI1_DATA, 0x80000000 | addr);
+    write32(EXI1_CR, 0x35);
+    while(!(read32(EXI1_CSR) & 8));
+
+    write32(EXI1_CSR, 0x108);
+    write32(EXI1_DATA, val);
+    write32(EXI1_CR, 0x35);
+    while(!(read32(EXI1_CSR) & 8));
+
+    write32(EXI1_CSR, 0);
+
+    write32(EXI1_CSR, 0x208);
+    write32(EXI1_DATA, 0x80000000 | addr);
+    write32(EXI1_CR, 0x35);
+    while(!(read32(EXI1_CSR) & 8));
+
+    write32(EXI1_CSR, 0x208);
+    write32(EXI1_DATA, val);
+    write32(EXI1_CR, 0x35);
+    while(!(read32(EXI1_CSR) & 8));
+
+    write32(EXI1_CSR, 0);
+
+
+
+
+
+    write32(EXI2_CSR, 0x88);
+    write32(EXI2_DATA, 0x80000000 | addr);
+    write32(EXI2_CR, 0x35);
+    while(!(read32(EXI2_CSR) & 8));
+
+    write32(EXI2_CSR, 0x88);
+    write32(EXI2_DATA, val);
+    write32(EXI2_CR, 0x35);
+    while(!(read32(EXI2_CSR) & 8));
+
+    write32(EXI2_CSR, 0);
+
+    write32(EXI2_CSR, 0x108);
+    write32(EXI2_DATA, 0x80000000 | addr);
+    write32(EXI2_CR, 0x35);
+    while(!(read32(EXI2_CSR) & 8));
+
+    write32(EXI2_CSR, 0x108);
+    write32(EXI2_DATA, val);
+    write32(EXI2_CR, 0x35);
+    while(!(read32(EXI2_CSR) & 8));
+
+    write32(EXI2_CSR, 0);
+
+    write32(EXI2_CSR, 0x208);
+    write32(EXI2_DATA, 0x80000000 | addr);
+    write32(EXI2_CR, 0x35);
+    while(!(read32(EXI2_CSR) & 8));
+
+    write32(EXI2_CSR, 0x208);
+    write32(EXI2_DATA, val);
+    write32(EXI2_CR, 0x35);
+    while(!(read32(EXI2_CSR) & 8));
+
+    write32(EXI2_CSR, 0);
+#endif
+}

@@ -15,7 +15,6 @@
 //TODO: TV screen defaults?
 #define CONSOLE_WIDTH 839
 #define CONSOLE_HEIGHT 465
-#define CHAR_WIDTH 10
 #define MAX_LINES 44
 #define MAX_LINE_LENGTH 100
 #define CONSOLE_X 10

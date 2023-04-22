@@ -48,6 +48,7 @@
 #include "prsh.h"
 #include "asic.h"
 #include "gpu.h"
+#include "exi.h"
 
 static struct {
     int mode;
@@ -59,10 +60,13 @@ bool autoboot = false;
 u32 autoboot_timeout_s = 3;
 char autoboot_file[256] = "ios.patch";
 int main_loaded_from_boot1 = 0;
+int main_is_de_Fused = 0;
 
 int main_autoboot(void);
 
 extern char sd_read_buffer[0x200];
+
+void silly_tests();
 
 #ifdef MINUTE_BOOT1
 extern otp_t otp;
@@ -149,15 +153,15 @@ u32 _main(void *base)
     u32 rtc_ctrl0 = smc_get_ctrl0();
     serial_send_u32(rtc_ctrl0);
 
-    u32 debug_val = read32(LT_DEBUG);
+    u32 syscfg1_val = read32(LT_SYSCFG1);
     u32 pflags_val = 0;
 
     // Check if the CMPT_RETSTAT0 flag is raised
-    if (debug_val & 0x04)
+    if (syscfg1_val & 0x04)
         pflags_val = CMPT_RETSTAT0;
 
     // Check if the CMPT_RETSTAT1 flag is raised
-    if (debug_val & 0x08)
+    if (syscfg1_val & 0x08)
         pflags_val |= CMPT_RETSTAT1;
 
     // Check if the POFFLG_FPOFF flag is raised
@@ -291,7 +295,7 @@ u32 _main(void *base)
     serial_send_u32(0x4D454D30); // MEM0
 
     // Clear all MEM0
-   // memset(0x08000000, 0, 0x002E0000);
+    memset(0x08000000, 0, 0x002E0000);
 
     // Standby Mode boot doesn't need to upclock
     if (!(pflags_val & PON_SMC_TIMER))
@@ -427,6 +431,8 @@ u32 _main(void *base)
         memset((char*)ALL_PURPOSE_TMP_BUF, 0, 8);
     }
 
+    write32(LT_SRNPROT, 0x7BF);
+
     // Signal normal printing
     serial_send_u32(0x55AA55AA);
     serial_send_u32(0x55AA55AA);
@@ -467,17 +473,29 @@ u32 _main(void *base)
 
     minini_init();
 
-    FILE* otp_file = fopen("sdmc:/otp.bin", "rb");
-    if (otp_file)
+    crypto_check_de_Fused();
+
+    if (crypto_otp_is_de_Fused)
     {
-        fread(&otp, sizeof(otp), 1, otp_file);
-        fclose(otp_file);
+        printf("Console is de_Fused! Loading sdmc:/otp.bin...\n");
+        FILE* otp_file = fopen("sdmc:/otp.bin", "rb");
+        if (otp_file)
+        {
+            fread(&otp, sizeof(otp), 1, otp_file);
+            fclose(otp_file);
+        }
     }
 
     gpu_test();
+
+    for (int i = 0; i < 0x214; i+= 4) {
+        printf("%08x: %08x\n", LT_REG_BASE + i, read32(LT_REG_BASE + i));
+    }
     
     printf("Initializing MLC...\n");
     mlc_init();
+
+    silly_tests();
 
     if(mlc_check_card() == SDMMC_NO_CARD) {
         printf("Error while initializing MLC.\n");
@@ -489,13 +507,11 @@ u32 _main(void *base)
     isfs_init();
     //isfs_test();
 
-    if (main_loaded_from_boot1) {
+    // Triple press opens menu
+    if (main_loaded_from_boot1 && !(smc_get_events() & SMC_POWER_BUTTON)) {
         main_autoboot();
     }
     else {
-        //autoboot = 1;
-        //autoboot_timeout_s = 0;
-
         // Prompt user to skip autoboot, time = 0 will skip this.
         if(autoboot)
         {
@@ -531,15 +547,6 @@ u32 _main(void *base)
             smc_set_odd_power(true);
         }
     }
-
-#if 0
-    int gpio_test_state = 0;
-    while (1) {
-        int events = smc_get_events();
-        printf("%08x %08x %08x\n", events, smc_get_ctrl0(), smc_get_ctrl1());
-        udelay(1000*1000);
-    }
-#endif    
 
     printf("Unmounting SLC...\n");
     isfs_fini();
@@ -599,24 +606,7 @@ u32 _main(void *base)
             search++;
         }
     }
-    
 
-#if 0
-    while (1)
-    {
-        printf("\nOTP:\n");
-        for (int i = 0; i < 0x400; i += 4)
-        {
-            if (i && i % 16 == 0) {
-                printf("\n");
-            }
-            printf("%08x", *(u32*)(((u32)&otp) + i));
-        }
-    }
-#endif
-
-    //printf("%x\n", *(u32*)0x01000800);
-    //*(u32*)(0x010006E0) = 0xFFFFFFFF;
 
     // WiiU-Firmware-Emulator JIT bug
     void (*boot_vector)(void) = (void*)boot.vector;
@@ -848,5 +838,70 @@ void main_credits(void)
 
     console_show();
     smc_wait_events(SMC_POWER_BUTTON);
+}
+
+void silly_tests()
+{
+#if 0
+    //00c9401b read32(0x0d8001e4)
+    while (1) {
+        char serial_input[256];
+        //smc_set_cc_indicator(LED_ON);
+        u8 input = smc_get_events();
+
+        serial_poll();
+        int amt = serial_in_read(serial_input);
+        if (amt) {
+            printf("%s", serial_input);
+        }
+
+        
+        //printf("\n%02x %02x\n", test_read_serial, input);
+        //udelay(1000*1000);
+    }
+#endif
+
+    //printf("%x\n", read32(LT_SYSCFG1));
+    
+#if 0
+    set32(LT_MEMIRR, 1<<6);
+
+    printf("%08x\n", read32(LT_DBGBUSRD));
+    
+    while (1)
+    {
+#if 0
+        for (int j = 0; j < 0x10000; j++)
+        {
+            for (int i = 0; i < 0x2; i++)
+            {
+                write32(LT_DBGPORT, (0<<9) | (i<<15) | 0 | (0<<13) | (0<<12) | (j<<16)); //| (1<<25) // 
+                printf("%02x %04x: %08x\n", i, j, read32(LT_DBGBUSRD));
+            }
+        }
+#endif
+        
+
+        //write32(LT_DBGPORT, (1<<9) | (22<<1) | 0 | (0<<13) | (1<<12) | (22<<14)); //| (1<<25)
+        //printf("asdf\n");
+        //printf("%08x\n", read32(LT_DBGPORT));
+        
+        //write32(LT_DBGBUSRD, 0);
+
+        //printf("%x\n", read32(LT_SYSCFG1));
+
+        for (int i = 0; i < 32; i++)
+        {
+            //gpio2_basic_set(i, 0);
+        }
+        printf("asdf\n");
+        udelay(1000*1000);
+        for (int i = 0; i < 32; i++)
+        {
+            //gpio2_basic_set(i, 1);
+        }
+        udelay(1000*1000);
+    }
+#endif
 }
 #endif // !MINUTE_BOOT1

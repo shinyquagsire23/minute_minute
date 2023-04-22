@@ -15,5 +15,6 @@
 
 void exi0_write32(u32 addr, u32 val);
 u32 exi0_read32(u32 addr);
+void exi1_write32(u32 addr, u32 val);
 
 #endif // _EXI_H

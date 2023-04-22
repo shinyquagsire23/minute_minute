@@ -11,6 +11,7 @@
 #include "gpio.h"
 #include "latte.h"
 #include "utils.h"
+#include <string.h>
 
 void serial_fatal()
 {
@@ -44,16 +45,16 @@ void serial_fatal()
 
 void serial_force_terminate()
 {
-    gpio_debug_send(0x0F);
+    gpio_debug_serial_send(0x0F);
     udelay(SERIAL_DELAY);
 
-    gpio_debug_send(0x8F);
+    gpio_debug_serial_send(0x8F);
     udelay(SERIAL_DELAY * 2);
 
-    gpio_debug_send(0x0F);
+    gpio_debug_serial_send(0x0F);
     udelay(SERIAL_DELAY);
 
-    gpio_debug_send(0x00);
+    gpio_debug_serial_send(0x00);
     udelay(SERIAL_DELAY);
 }
 
@@ -68,25 +69,53 @@ void serial_send_u32(u32 val)
     }
 }
 
+u8 serial_buffer[256];
+u16 serial_len = 0;
+
+u8 test_read_serial = 0;
+
+int serial_in_read(u8* out) {
+    memset(out, 0, sizeof(serial_buffer));
+    memcpy(out, serial_buffer, serial_len);
+    out[255] = 0;
+
+    u16 read_len = serial_len;
+    serial_len = 0;
+
+    return read_len;
+}
+
+void serial_poll()
+{
+    serial_send(0);
+}
+
 void serial_send(u8 val)
 {
+    u8 read_val = 0;
     for (int j = 7; j >= 0; j--)
     {
         u8 bit = (val & (1<<j)) ? 1 : 0;
-        gpio_debug_send(0);
+        gpio_debug_serial_send(0);
         udelay(SERIAL_DELAY);
-        gpio_debug_send(bit);
+        gpio_debug_serial_send(bit);
         udelay(SERIAL_DELAY);
-        gpio_debug_send(0x80 | bit);
+        gpio_debug_serial_send(0x80 | bit);
         udelay(SERIAL_DELAY);
-        gpio_debug_send(0x0 | bit);
+        read_val <<= 1;
+        read_val |= gpio_debug_serial_read();
+        gpio_debug_serial_send(0x0 | bit);
         udelay(SERIAL_DELAY);
     }
 
+    if (read_val && serial_len < sizeof(serial_buffer)) {
+        serial_buffer[serial_len++] = read_val;
+    }
+
     u8 bit = (val & 1) ? 1 : 0;
-    gpio_debug_send(0x80 | bit);
+    gpio_debug_serial_send(0x80 | bit);
     udelay(SERIAL_DELAY);
-    gpio_debug_send(0x0 | bit);
+    gpio_debug_serial_send(0x0 | bit);
     udelay(SERIAL_DELAY);
 
     serial_force_terminate();
@@ -191,7 +220,6 @@ void gpio2_basic_set(u16 gpio_id, u8 val)
     gpio2_enable(gpio_id, 1);
 }
 
-
 void gpio_debug_send(u8 val)
 {
     clear32(LT_GPIO_OWNER, GP_DEBUG_MASK);
@@ -200,4 +228,23 @@ void gpio_debug_send(u8 val)
 
     mask32(LT_GPIO_OUT, GP_DEBUG_MASK, (val << GP_DEBUG_SHIFT));
     udelay(1);
+}
+
+void gpio_debug_serial_send(u8 val)
+{
+    clear32(LT_GPIO_OWNER, GP_DEBUG_MASK);
+    set32(LT_GPIO_ENABLE, GP_DEBUG_MASK); // Enable
+    set32(LT_GPIO_DIR, GP_DEBUG_SERIAL_MASK); // Direction = Out
+
+    mask32(LT_GPIO_OUT, GP_DEBUG_SERIAL_MASK, (val << GP_DEBUG_SHIFT));
+    udelay(1);
+}
+
+u8 gpio_debug_serial_read()
+{
+    clear32(LT_GPIO_OWNER, GP_DEBUG_MASK);
+    set32(LT_GPIO_ENABLE, GP_DEBUG_MASK); // Enable
+    set32(LT_GPIO_DIR, GP_DEBUG_SERIAL_MASK); // Direction = Out
+
+    return (read32(LT_GPIO_IN) >> (GP_DEBUG_SHIFT+6)) & 1;
 }

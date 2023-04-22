@@ -585,11 +585,17 @@ sdhc_async_response(struct sdhc_host *hp, struct sdmmc_command *cmd)
 void
 sdhc_exec_command(struct sdhc_host *hp, struct sdmmc_command *cmd)
 {
+#ifdef CAN_HAZ_IRQ
+    u32 cookie = irq_kill();
+#endif
     //serial_send_u32(0x1234AAAA);
     sdhc_async_command(hp, cmd);
     //serial_send_u32(0x1234AAAB);
     sdhc_async_response(hp, cmd);
     //serial_send_u32(0x1234AAAD);
+#ifdef CAN_HAZ_IRQ
+    irq_restore(cookie);
+#endif
 }
 
 int
@@ -689,7 +695,7 @@ sdhc_start_command(struct sdhc_host *hp, struct sdmmc_command *cmd)
      * of the SDHC_COMMAND register triggers the SD command. (1.5)
      */
 //  HWRITE2(hp, SDHC_TRANSFER_MODE, mode);
-    HWRITE2(hp, SDHC_BLOCK_SIZE, (blksize | 7 << 12) | (blkcount << 16));
+    HWRITE4(hp, SDHC_BLOCK_SIZE, (blksize | 7 << 12) | (blkcount << 16));
     HWRITE4(hp, SDHC_ARGUMENT, cmd->c_arg);
 //  http://wiibrew.org/wiki/Reversed_Little_Endian
 //  HWRITE2(hp, SDHC_COMMAND, command);
@@ -713,7 +719,7 @@ sdhc_transfer_data(struct sdhc_host *hp, struct sdmmc_command *cmd)
                     SDHC_DMA_INTERRUPT,
                     SDHC_TRANSFER_TIMEOUT);
             if (!status) {
-                printf("DMA timeout %08x\n", status);
+                printf("DMA timeout? %08x %08x %04x\n", status, *(u32*)cmd->c_data, HREAD2(hp, SDHC_BLOCK_COUNT));
                 error = ETIMEDOUT;
                 break;
             }
@@ -744,7 +750,15 @@ sdhc_transfer_data(struct sdhc_host *hp, struct sdmmc_command *cmd)
             }
         }
         else {
-            // write...
+            u32* in_ptr = cmd->c_data;
+            for (u32 i = 0; i < cmd->c_datalen / sizeof(u32); i++)
+            {
+                sdhc_wait_state(hp, SDHC_BUFFER_WRITE_ENABLE, SDHC_BUFFER_WRITE_ENABLE); 
+
+                u32 val_raw = *in_ptr;
+                HWRITE4(hp, SDHC_DATA, (val_raw >> 24) | ((val_raw >> 8) & 0xFF00) | ((val_raw << 8) & 0xFF0000) | (val_raw << 24));
+                in_ptr++;
+            }
         }
     }
 
@@ -804,7 +818,7 @@ sdhc_wait_intr_debug(const char *funcname, int line, struct sdhc_host *hp, int m
 
     for (; timo > 0; timo--) {
 #ifdef CAN_HAZ_IRQ
-        if((get_cpsr() & 0b11111) == 0b10010)
+        if((get_cpsr() & 0b11111) == 0b10010 || (get_cpsr() & 0b11111) == 0b11111)
 #endif
             sdhc_intr(hp); // seems backwards but ok
 
@@ -912,6 +926,13 @@ sdhc_intr(struct sdhc_host *hp)
         // addresses and because we require the target
         // buffer to be contiguous
         HWRITE4(hp, SDHC_DMA_ADDR, HREAD4(hp, SDHC_DMA_ADDR));
+
+        hp->intr_status |= SDHC_DMA_INTERRUPT;
+    }
+
+    // HACK: controller isn't setting this??
+    if (!HREAD2(hp, SDHC_BLOCK_COUNT)) {
+        hp->intr_status |= SDHC_TRANSFER_COMPLETE;
     }
 
     /* Service SD card interrupts. */

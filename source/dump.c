@@ -88,15 +88,22 @@ void dump_seeprom_otp()
 {
     gfx_clear(GFX_ALL, BLACK);
 
-    FILE* f_otp = fopen("sdmc:/otp.bin", "wb");
+    char* otp_path = "sdmc:/otp.bin";
+    if (crypto_otp_is_de_Fused) {
+        otp_path = "sdmc:/de_Fuse_otp.bin";
+    }
+
+    printf("Dumping OTP to `%s`...\n", otp_path);
+    FILE* f_otp = fopen(otp_path, "wb");
     if(!f_otp)
     {
-        printf("Failed to open sdmc:/otp.bin.\n");
+        printf("Failed to open `%s`.\n", otp_path);
         goto ret;
     }
     fwrite(&otp, 1, sizeof(otp_t), f_otp);
     fclose(f_otp);
 
+    printf("Dumping SEEPROM to `sdmc:/seeprom.bin`...\n");
     FILE* f_eep = fopen("sdmc:/seeprom.bin", "wb");
     if(!f_eep)
     {

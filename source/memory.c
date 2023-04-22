@@ -269,12 +269,12 @@ void mem_protect(int enable, void *start, void *end)
 
 void mem_setswap(int enable)
 {
-    u32 d = read32(LT_MEMIRR);
+    u32 d = read32(LT_SRNPROT);
 
     if((d & 0x20) && !enable)
-        write32(LT_MEMIRR, d & ~0x20);
+        write32(LT_SRNPROT, d & ~0x20);
     if((!(d & 0x20)) && enable)
-        write32(LT_MEMIRR, d | 0x20);
+        write32(LT_SRNPROT, d | 0x20);
 }
 
 #ifndef LOADER
@@ -286,7 +286,7 @@ u32 dma_addr(void *p)
         case 0xfff:
         case 0x0d4:
         case 0x0dc:
-            if(read32(LT_MEMIRR) & 0x20) {
+            if(read32(LT_SRNPROT) & 0x20) {
                 addr ^= 0x10000;
             }
             addr &= 0x0001FFFF;
@@ -299,7 +299,10 @@ u32 dma_addr(void *p)
 
 u32 can_sdcard_dma_addr(void *p)
 {
-    return 0;
+    // Unaligned
+    if ((u32)p & 0x1F) {
+        return 0;
+    }
 #ifdef MINUTE_BOOT1
     return 0;
 #endif

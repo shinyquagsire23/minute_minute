@@ -27,6 +27,7 @@
 
 otp_t otp;
 seeprom_t seeprom;
+int crypto_otp_is_de_Fused = 0;
 
 bc_t default_bc =
 {
@@ -66,6 +67,47 @@ void crypto_read_seeprom(void)
         }
         printf("\n");
     }
+}
+
+int crypto_check_de_Fused()
+{
+    if (crypto_otp_is_de_Fused) {
+        return crypto_otp_is_de_Fused;
+    }
+
+    int has_jtag = 0;
+    int bytes_loaded = 0x3FF;
+
+    crypto_otp_is_de_Fused = 0;
+    u8* otp_iter = ((u8*)&otp) + sizeof(otp) - 2;
+    while (!(*otp_iter))
+    {
+        otp_iter--;
+        if (--bytes_loaded <= 0) {
+            break;
+        }
+    }
+
+    if (!otp.jtag_status) {
+        has_jtag = 1;
+    }
+
+    printf("crypto: ~0x%03x bytes of OTP loaded; JTAG is %s (%08x)\n", bytes_loaded, has_jtag ? "enabled" : "disabled", otp.jtag_status);
+
+    otp_iter = ((u8*)&otp);
+    for (int i = 0; i < bytes_loaded; i++)
+    {
+        if (i && i % 16 == 0) {
+            printf("\n");
+        }
+        printf("%02x ", *otp_iter++);
+    }
+    printf("\n");
+
+    if (bytes_loaded <= 0x90) {
+        crypto_otp_is_de_Fused = 1;
+    }
+    return crypto_otp_is_de_Fused;
 }
 
 void crypto_initialize(void)

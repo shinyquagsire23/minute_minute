@@ -12,6 +12,7 @@
 #include "gpio.h"
 #include "gpu.h"
 #include <stdio.h>
+#include <string.h>
 
 #ifdef MINUTE_HEADLESS
 void gfx_init(void)
@@ -121,6 +122,10 @@ void gfx_init(void)
 	gfx_clear(GFX_ALL, BLACK);
 }
 
+bool gfx_is_currently_headless(void)
+{
+	return gfx_currently_headless;
+}
 
 size_t gfx_get_stride(gfx_screen_t screen)
 {
@@ -238,13 +243,13 @@ int printf(const char* fmt, ...)
 	}
 
 	int lines = 0;
-	//char* last_line = str;
+	char* last_line = str;
 	for(int k = 0; str[k]; k++)
 	{
 		if(str[k] == '\n')
 		{
 			lines += 10;
-			//last_line = &str[k + 1];
+			last_line = &str[k + 1];
 		}
 	}
 
@@ -252,8 +257,14 @@ int printf(const char* fmt, ...)
 		if(fbs[i].current_y + lines >= fbs[i].height - 20)
 			gfx_clear(i, BLACK);
 
-		gfx_draw_string(i, str, /* current_x */ 10, fbs[i].current_y, WHITE);
-		//current_x += strlen(last_line);
+		gfx_draw_string(i, str, fbs[i].current_x, fbs[i].current_y, WHITE);
+		if (!lines) {
+			fbs[i].current_x += ((strlen(last_line)-1) * CHAR_WIDTH);
+		}
+		else {
+			fbs[i].current_x = 10;
+		}
+
 		fbs[i].current_y += lines;
 	}
 

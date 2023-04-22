@@ -204,19 +204,19 @@ void *_main(void *base)
 
     if (is_boot1) {
         gpio_debug_send(0x88);
-        udelay(10000);
+        udelay(50000);
     }
     
 
     /*while (1) {
-        debug_send(0x88);
+        gpio_debug_send(0x88);
         udelay(250000);
-        debug_send(0x0);
+        gpio_debug_send(0x0);
         udelay(250000);
     }*/
 
 #if 0
-    crypto_read_otp();
+    //crypto_read_otp();
 
     while (1) {
         //gpio_debug_send(0xFF);
@@ -244,7 +244,7 @@ void *_main(void *base)
         serial_send(0x55);
         serial_send(0xAA);
 
-        for (int i = 0; i < 0x10; i++)
+        /*for (int i = 0; i < 0x10; i++)
         {
             serial_send(otp[i]);
         }
@@ -257,7 +257,7 @@ void *_main(void *base)
 
         while (1) {
             udelay(1);
-        }
+        }*/
     }
 #endif
 

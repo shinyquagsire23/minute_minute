@@ -13,6 +13,7 @@
 #include "utils.h"
 #include "gfx.h"
 #include "console.h"
+#include "gpio.h"
 #include <stdio.h>
 
 #include "smc.h"
@@ -36,31 +37,92 @@ int menu_get_state()
 
 void menu_init(menu* new_menu)
 {
+    char serial_tmp[256];
+    int serial_len = 0;
     menu_set_state(0); // Set state to in-menu.
 
-    int i = 0;
-    char item_buffer[100] = {0};
     __menu = new_menu;
-    console_init();
     __menu->selected = 0;
     __menu->showed = 0;
-    console_add_text(__menu->title);
-    console_add_text("");
+    __menu->selected_showed = 0;
+    menu_draw();
 
-    for (i = 0; i < __menu->subtitles; i++)
-        console_add_text(__menu->subtitle[i]);
-
-    console_add_text("");
-
-    for(i = 0; i < __menu->entries; i++)
-    {
-        sprintf(item_buffer, " %s", __menu->option[i].text);
-        console_add_text(item_buffer);
-    }
+    int parsing_escape_code = 0;
+    int parsing_csi = 0;
 
     while(menu_active)
     {
         menu_show();
+
+        serial_poll();
+        serial_len = serial_in_read(serial_tmp);
+        for (int i = 0; i < serial_len; i++) {
+            if (parsing_csi) {
+                if (parsing_csi == 1 && serial_tmp[i] >= '0' && serial_tmp <= '1') {
+                    parsing_csi++;
+                    continue;
+                }
+                else if (serial_tmp[i] == 'A') {
+                    menu_prev_selection();
+                    parsing_csi = 0;
+                    continue;
+                }
+                else if (serial_tmp[i] == 'B') {
+                    menu_next_selection();
+                    parsing_csi = 0;
+                    continue;
+                }
+                else if (serial_tmp[i] == 'C') {
+                    menu_next_jump();
+                    parsing_csi = 0;
+                    continue;
+                }
+                else if (serial_tmp[i] == 'D') {
+                    menu_prev_jump();
+                    parsing_csi = 0;
+                    continue;
+                }
+            }
+            else if (parsing_escape_code)
+            {
+                if (parsing_escape_code == 1 && serial_tmp[i] == '[') {
+                    parsing_csi = 1;
+                    parsing_escape_code = 0;
+                    continue;
+                }
+                
+                parsing_escape_code++;
+            }
+            else {
+                switch (serial_tmp[i])
+                {
+                case '\033':
+                    parsing_escape_code = 1;
+                    break;
+                case 'W':
+                case 'w':
+                    menu_prev_selection();
+                    break;
+                case 'S':
+                case 's':
+                    menu_next_selection();
+                    break;
+                case 'A':
+                case 'a':
+                    menu_prev_jump();
+                    break;
+                case 'D':
+                case 'd':
+                    menu_next_jump();
+                    break;
+                case '\n':
+                case '\r':
+                case ' ':
+                    menu_select();
+                    break;
+                }
+            }
+        }
 
         u8 input = smc_get_events();
 
@@ -68,6 +130,34 @@ void menu_init(menu* new_menu)
 
         if(input & SMC_EJECT_BUTTON) menu_select();
         if(input & SMC_POWER_BUTTON) menu_next_selection();
+    }
+}
+
+void menu_draw()
+{
+    char item_buffer[100] = {0};
+
+    console_init();
+    console_add_text(__menu->title);
+    console_add_text("");
+
+    for (int i = 0; i < __menu->subtitles; i++) {
+        console_add_text(__menu->subtitle[i]);
+    }
+
+    console_add_text("");
+
+    for(int i = 0; i < __menu->entries; i++)
+    {
+        char selected_char = ' ';
+        if (gfx_is_currently_headless()) {
+            if (i == __menu->selected) {
+                selected_char = '>';
+            }
+        }
+
+        sprintf(item_buffer, "%c%s", selected_char, __menu->option[i].text);
+        console_add_text(item_buffer);
     }
 }
 
@@ -82,8 +172,14 @@ void menu_show()
     }
 
     // Update cursor.
-    for(i = 0; i < __menu->entries; i++)
+    for(i = 0; i < __menu->entries; i++) {
         gfx_draw_string(GFX_DRC, i == __menu->selected ? ">" : " ", x + CHAR_WIDTH, (i+3+__menu->subtitles) * CHAR_WIDTH + y + CHAR_WIDTH * 2, GREEN);
+    }
+    if (gfx_is_currently_headless() && !__menu->selected_showed) {
+        menu_draw();
+        console_show();
+        __menu->selected_showed = 1;
+    }
 }
 
 void menu_next_selection()
@@ -92,6 +188,7 @@ void menu_next_selection()
         __menu->selected++;
     else
         __menu->selected = 0;
+    __menu->selected_showed = 0;
 }
 
 void menu_prev_selection()
@@ -100,6 +197,7 @@ void menu_prev_selection()
         __menu->selected--;
     else
         __menu->selected = __menu->entries - 1;
+    __menu->selected_showed = 0;
 }
 
 void menu_next_jump()
@@ -108,6 +206,7 @@ void menu_next_jump()
         __menu->selected += 5;
     else
         __menu->selected = __menu->entries - 1;
+    __menu->selected_showed = 0;
 }
 
 void menu_prev_jump()
@@ -116,6 +215,7 @@ void menu_prev_jump()
         __menu->selected -= 5;
     else
         __menu->selected = 0;
+    __menu->selected_showed = 0;
 }
 
 
