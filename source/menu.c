@@ -58,7 +58,7 @@ void menu_init(menu* new_menu)
         serial_len = serial_in_read(serial_tmp);
         for (int i = 0; i < serial_len; i++) {
             if (parsing_csi) {
-                if (parsing_csi == 1 && serial_tmp[i] >= '0' && serial_tmp <= '1') {
+                if (parsing_csi == 1 && serial_tmp[i] >= '0' && serial_tmp[i] <= '1') {
                     parsing_csi++;
                     continue;
                 }

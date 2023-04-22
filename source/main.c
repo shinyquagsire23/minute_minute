@@ -49,6 +49,7 @@
 #include "asic.h"
 #include "gpu.h"
 #include "exi.h"
+#include "interactive_console.h"
 
 static struct {
     int mode;
@@ -421,6 +422,34 @@ fat_fail:
 }
 #else // MINUTE_BOOT1
 
+menu menu_main = {
+    "minute", // title
+    {
+            "Main menu", // subtitles
+    },
+    1, // number of subtitles
+    {
+            {"Patch and boot IOS", &main_quickboot_patch}, // options
+            {"Boot 'ios.img'", &main_quickboot_fw},
+            {"Boot IOP firmware file", &main_boot_fw},
+            {"Boot PowerPC ELF file", &main_boot_ppc},
+            {"Format redNAND", &dump_format_rednand},
+            {"Dump SEEPROM & OTP", &dump_seeprom_otp},
+            {"Dump factory log", &dump_factory_log},
+            {"Display crash log", &main_get_crash},
+            {"Clear crash log", &main_reset_crash},
+            {"Interactive debug console", &main_interactive_console},
+            {"Restart minute", &main_reload},
+            {"Hardware reset", &main_reset},
+            {"Power off", &main_shutdown},
+            {"Credits", &main_credits},
+            //{"ISFS test", &isfs_test},
+    },
+    13, // number of options
+    0,
+    0
+};
+
 u32 _main(void *base)
 {
     (void)base;
@@ -488,10 +517,6 @@ u32 _main(void *base)
 
     gpu_test();
 
-    for (int i = 0; i < 0x214; i+= 4) {
-        printf("%08x: %08x\n", LT_REG_BASE + i, read32(LT_REG_BASE + i));
-    }
-    
     printf("Initializing MLC...\n");
     mlc_init();
 
@@ -838,6 +863,12 @@ void main_credits(void)
 
     console_show();
     smc_wait_events(SMC_POWER_BUTTON);
+}
+
+void main_interactive_console(void)
+{
+    intcon_init();
+    intcon_show();
 }
 
 void silly_tests()

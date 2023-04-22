@@ -25,13 +25,13 @@
 // 0x0D - ?    coldboot: 0x00
 // 0x0E - ?    coldboot: 0x00
 // 0x0F - ?    coldboot: 0x00
-// 0x10 - ON LED_ON (OFF LED_OFF?)
-// 0x11 - ON LED_ON?
-// 0x12 - ON LED_OFF
-// 0x13 - ON LED_PULSE
-// 0x14 - CC LED_OFF
-// 0x15 - CC LED_ON
-// 0x16 - CC LED_PULSE
+// 0x10 - ON LED_ON (OFF LED_OFF?) NotificationLED: 0xa0
+// 0x11 - ON LED_ON?    
+// 0x12 - ON LED_OFF    NotificationLED: 0x88
+// 0x13 - ON LED_PULSE  NotificationLED: 0xB0
+// 0x14 - CC LED_OFF    NotificationLED: 0x82
+// 0x15 - CC LED_ON     NotificationLED: 0x82
+// 0x16 - CC LED_PULSE  NotificationLED: 0x83
 // 0x17 - ?
 // 0x18 - ?
 // 0x19 - ?
@@ -83,7 +83,8 @@
 // 0x72~0x7F - ?            coldboot: 0xFF
 
 // I think it wraps around here
-// 0x80~0x8C - ?            coldboot: 0xFF
+// -- it doesn't
+// 0x80~0x8C - ?            coldboot: 0x00
 // 0x8D~0x8F - ?            coldboot: 0x00
 
 
