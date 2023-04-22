@@ -134,6 +134,11 @@ int smc_write_raw(u8 data)
     return i2c_write(I2C_SLAVE_SMC, &data, 1);
 }
 
+int smc_set_notification_led(u8 val)
+{
+    smc_write_register(SMCREG_NOTIFICATION_LED, val);
+}
+
 int smc_set_odd_power(bool enable)
 {
     u8 cmd = 0x01;

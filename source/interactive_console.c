@@ -133,7 +133,7 @@ smc_usage:
         uint8_t val = strtol(argv[3], NULL, 0);
         printf("write %02x: %02x\n", addr, val);
 
-        smc_write_register(addr, &val);
+        smc_write_register(addr, val);
     }
 }
 

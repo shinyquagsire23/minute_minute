@@ -249,10 +249,10 @@ int ancast_load(ancast_ctx* ctx)
             {
                 printf("ancast: ...%08x -> %08x\n", i, (u32)ctx->load + i);
                 if (led_alternate) {
-                    smc_set_cc_indicator(LED_ON);
+                    smc_set_notification_led(LEDRAW_BLUE);
                 }
                 else {
-                    smc_set_on_indicator(LED_ON);
+                    smc_set_notification_led(LEDRAW_PURPLE);
                 }
                 led_alternate = !led_alternate;
             }
@@ -279,7 +279,7 @@ int ancast_load(ancast_ctx* ctx)
             return errno;
         }
 #endif
-        smc_set_on_indicator(LED_ON);
+        smc_set_notification_led(LEDRAW_PURPLE);
         
         printf("ancast: done reading\n");
     }
@@ -308,10 +308,10 @@ int ancast_load(ancast_ctx* ctx)
             if (i % 0x10 == 0) {
                 serial_send_u32(i);
                 if (led_alternate) {
-                    smc_set_cc_indicator(LED_ON);
+                    smc_set_notification_led(LEDRAW_BLUE);
                 }
                 else {
-                    smc_set_on_indicator(LED_ON);
+                    smc_set_notification_led(LEDRAW_PURPLE);
                 }
                 led_alternate = !led_alternate;
             }
@@ -324,7 +324,7 @@ int ancast_load(ancast_ctx* ctx)
             // TODO: why???
         }
 #ifdef MINUTE_BOOT1
-        smc_set_on_indicator(LED_ON);
+        smc_set_notification_led(LEDRAW_PURPLE);
 #endif
     }
 

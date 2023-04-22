@@ -143,10 +143,18 @@ u32 _main(void *base)
     // Show a little flourish to indicate we have code exec
     for (int i = 0; i < 5; i++)
     {
-        smc_set_cc_indicator(LED_ON);
-        udelay(50000);
-        smc_set_on_indicator(LED_ON);
-        udelay(50000);
+        smc_set_notification_led(LEDRAW_RED);
+        udelay(10000);
+        smc_set_notification_led(LEDRAW_ORANGE);
+        udelay(10000);
+        smc_set_notification_led(LEDRAW_YELLOW);
+        udelay(10000);
+        smc_set_notification_led(LEDRAW_NOTGREEN);
+        udelay(10000);
+        smc_set_notification_led(LEDRAW_BLUE);
+        udelay(10000);
+        smc_set_notification_led(LEDRAW_PURPLE);
+        udelay(10000);
     }
 
     // 0x00020721 on extra cold booting (fresh from power plug)
@@ -242,7 +250,8 @@ u32 _main(void *base)
     else
     {
         // Pulse the ONIndicator
-        smc_set_on_indicator(LED_PULSE);
+        //smc_set_on_indicator(LED_PULSE);
+        smc_set_notification_led(LEDRAW_PURPLE_PULSE);
     }
 
     serial_send_u32(0x4D454D32); // MEM2
@@ -335,7 +344,8 @@ u32 _main(void *base)
         // Set DcdcPowerControl2 GPIO's state
         gpio_dcdc_pwrcnt2_set(1);
 
-        smc_set_on_indicator(LED_ON);
+        //smc_set_on_indicator(LED_ON);
+        smc_set_notification_led(LEDRAW_PURPLE);
     }
 
     serial_send_u32(pflags_val);
@@ -382,7 +392,7 @@ fat_fail:
         boot.mode = 0;
         menu_active = false;
     } else {
-        smc_set_cc_indicator(LED_PULSE);
+        smc_set_notification_led(LEDRAW_ORANGE_PULSE);
         while (1) {
             serial_send_u32(0xF00FAAAA);
             serial_send(sd_read_buffer[0]);
@@ -407,7 +417,7 @@ fat_fail:
                 printf("Vectoring to 0x%08lX...\n", boot.vector);
             } else {
                 printf("No vector address, hanging!\n");
-                smc_set_cc_indicator(LED_PULSE);
+                smc_set_notification_led(LEDRAW_ORANGE_PULSE);
                 panic(0);
             }
             break;

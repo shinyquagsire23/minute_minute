@@ -25,6 +25,26 @@
 #define LED_ON    (0x1)
 #define LED_PULSE (0x2)
 
+#define LEDRAW_BLUE_EN       (0x20)
+#define LEDRAW_BLUE_PULSE_EN    (0x10)
+#define LEDRAW_RED_EN        (0x08)
+#define LEDRAW_RED_PULSE_EN     (0x04)
+#define LEDRAW_YELLOW_EN     (0x02)
+#define LEDRAW_YELLOW_PULSE_EN  (0x01)
+
+#define LEDRAW_RED           (LEDRAW_RED_EN)
+#define LEDRAW_BLUE          (LEDRAW_BLUE_EN)
+#define LEDRAW_YELLOW        (LEDRAW_YELLOW_EN)
+#define LEDRAW_PURPLE        (LEDRAW_BLUE_EN | LEDRAW_RED_EN)
+#define LEDRAW_ORANGE        (LEDRAW_RED_EN | LEDRAW_YELLOW_EN)
+#define LEDRAW_NOTGREEN      (LEDRAW_BLUE_EN | LEDRAW_YELLOW_EN)
+
+#define LEDRAW_BLUE_PULSE    (LEDRAW_BLUE | LEDRAW_BLUE_PULSE_EN)
+#define LEDRAW_PURPLE_PULSE  (LEDRAW_PURPLE | LEDRAW_BLUE_PULSE_EN | LEDRAW_RED_PULSE_EN)
+#define LEDRAW_ORANGE_PULSE   (LEDRAW_ORANGE | LEDRAW_RED_PULSE_EN | LEDRAW_YELLOW_PULSE_EN)
+
+#define SMCREG_NOTIFICATION_LED (0x44)
+
 // Writable mask: 0x07030E00 (CTRL0_POFFLG_FPOFF,CTRL0_POFFLG_4S,CTRL0_POFFLG_TMR,CTRL0_PONFLG_SYS,CTRL0_PONLG_TMR, CTRL0_UNSTBL_PWR,CTRL0_LOW_BATT,CTRL0_FLG_00000400)
 #define CTRL0_CANARY       (0x00000100) // Used by IOS-ACP when handling the rtcflag0.dat and rtcflag1.dat files.
 #define CTRL0_LOW_BATT     (0x00000200) // Set when the CMOS battery is worn off.
@@ -51,6 +71,7 @@ void smc_set_ctrl0(u32 val);
 u8 smc_get_events(void);
 u8 smc_wait_events(u8 mask);
 
+int smc_set_notification_led(u8 val);
 int smc_set_odd_power(bool enable);
 int smc_eject_request();
 int smc_set_cc_indicator(int state);
