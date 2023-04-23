@@ -21,6 +21,7 @@
 #include "sdcard.h"
 #include "mlc.h"
 #include "nand.h"
+#include "main.h"
 
 #include "ff.h"
 
@@ -34,6 +35,32 @@
 
 extern seeprom_t seeprom;
 extern otp_t otp;
+
+menu menu_dump = {
+    "minute", // title
+    {
+            "Backup and Restore", // subtitles
+    },
+    1, // number of subtitles
+    {
+            {"Format redNAND", &dump_format_rednand},
+            {"Dump SEEPROM & OTP", &dump_seeprom_otp},
+            {"Dump SLC.RAW", &dump_slc_raw},
+            {"Dump SLCCMPT.RAW", &dump_slccmpt_raw},
+            {"Dump factory log", &dump_factory_log},
+            {"Restore SLC.RAW", &dump_restore_slc_raw},
+            {"Restore SLCCMPT.RAW", &dump_restore_slccmpt_raw},
+            {"Return to Main Menu", &menu_close},
+    },
+    8, // number of options
+    0,
+    0
+};
+
+void dump_menu_show()
+{
+    menu_init(&menu_dump);
+}
 
 void dump_factory_log()
 {
@@ -80,6 +107,7 @@ void dump_factory_log()
 close_ret:
     if(f_log) fclose(f_log);
 
+    smc_get_events(); // Eat all existing events
     printf("Press POWER or EJECT to return...\n");
     smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
 }
@@ -115,6 +143,7 @@ void dump_seeprom_otp()
 
     printf("\nDone!\n");
 ret:
+    smc_get_events(); // Eat all existing events
     printf("Press POWER or EJECT to return...\n");
     smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
 }
@@ -254,7 +283,7 @@ int _dump_slc_raw(u32 bank)
         }
 
         if((i % 0x100) == 0) {
-            printf("%s-RAW: Page 0x%05lX completed\n", name, page_base);
+            printf("%s-RAW: Page 0x%05lX / 0x%05lX completed\n", name, page_base, PAGES_PER_ITERATION * TOTAL_ITERATIONS);
         }
     }
 
@@ -264,6 +293,127 @@ int _dump_slc_raw(u32 bank)
         return -5;
     }
 
+    return 0;
+
+    #undef PAGES_PER_ITERATION
+    #undef TOTAL_ITERATIONS
+}
+
+int _dump_restore_slc_raw(u32 bank)
+{
+    #define PAGES_PER_ITERATION (0x10)
+    #define TOTAL_ITERATIONS (NAND_MAX_PAGE / PAGES_PER_ITERATION)
+
+    static u8 page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(64);
+    static u8 ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(128);
+
+    static u8 file_buf[PAGES_PER_ITERATION][PAGE_SIZE + PAGE_SPARE_SIZE];
+
+    sdcard_ack_card();
+    if(sdcard_check_card() != SDMMC_INSERTED) {
+        printf("SD card is not initialized.\n");
+        return -1;
+    }
+
+    const char* name = NULL;
+    switch(bank) {
+        case NAND_BANK_SLC: name = "SLC"; break;
+        case NAND_BANK_SLCCMPT: name = "SLCCMPT"; break;
+        default: return -2;
+    }
+
+    char path[64] = {0};
+    sprintf(path, "%s.RAW", name);
+
+    // Make sure the user is dedicated (and require a difficult button press)
+    smc_get_events(); // Eat all existing events
+    printf("Write sdmc:/%s to %s?\n", path, name);
+    printf("[POWER] No | [EJECT] Yes...\n");
+    u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+    if(input & SMC_POWER_BUTTON) return 0;
+
+    FIL file = {0}; FRESULT fres = 0; UINT btx = 0;
+    fres = f_open(&file, path, FA_READ);
+    if(fres != FR_OK) {
+        printf("Failed to open %s (%d).\n", path, fres);
+        return -3;
+    }
+
+    u64 nand_file_size_expected = NAND_MAX_PAGE * (PAGE_SIZE + PAGE_SPARE_SIZE);
+    u64 nand_file_size = f_size(&file);
+    if (nand_file_size != nand_file_size_expected) {
+        printf("Invalid file size! Expected 0x%llx, got 0x%llx.\n", nand_file_size_expected, nand_file_size);
+        return -3;
+    }
+
+    printf("Initializing %s...\n", name);
+    nand_initialize(bank);
+
+    // I tried to do this in-line with the programming, but it just ended up as all FF?
+    // So there's some kind of delay required idk
+    printf("Erasing...\n");
+    for(u32 i = 0; i < TOTAL_ITERATIONS; i++)
+    {
+        u32 page_base = i * PAGES_PER_ITERATION;
+        for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
+        {
+            nand_erase_block(page_base + page);
+            nand_wait();
+
+            // This might not be optional? Bug?
+            nand_read_page(page_base + page, page_buf, ecc_buf);
+            nand_wait();
+        }
+
+        if((i % 0x100) == 0) {
+            printf("%s-RAW: Page 0x%05lX / 0x%05lX erased\n", name, page_base, PAGES_PER_ITERATION * TOTAL_ITERATIONS);
+        }
+    }
+
+    printf("Programming...\n");
+
+    for(u32 i = 0; i < TOTAL_ITERATIONS; i++)
+    {
+        fres = f_read(&file, file_buf, sizeof(file_buf), &btx);
+        if(fres != FR_OK || btx != sizeof(file_buf)) {
+            f_close(&file);
+            printf("Failed to read %s (%d).\n", path, fres);
+            return -4;
+        }
+
+        u32 page_base = i * PAGES_PER_ITERATION;
+        for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
+        {
+            memcpy(page_buf, file_buf[page], PAGE_SIZE + PAGE_SPARE_SIZE);
+            memcpy(ecc_buf, file_buf[page] + PAGE_SIZE, PAGE_SPARE_SIZE);
+            memcpy(ecc_buf+PAGE_SPARE_SIZE, ecc_buf+PAGE_SPARE_SIZE-0x10, 0x10);
+
+            if (!memcmp(file_buf[page], 0xFF, PAGE_SIZE + PAGE_SPARE_SIZE)) {
+                
+            }
+            else {
+                
+                //nand_correct(page_base + page, page_buf, ecc_buf);
+                nand_write_page(page_base + page, page_buf, ecc_buf);
+                nand_wait();
+
+                // This might not be optional? Bug?
+                nand_read_page(page_base + page, page_buf, ecc_buf);
+                nand_wait();
+                nand_correct(page_base + page, page_buf, ecc_buf);
+            }
+        }
+
+        if((i % 0x100) == 0) {
+            printf("%s-RAW: Page 0x%05lX / 0x%05lX completed\n", name, page_base, PAGES_PER_ITERATION * TOTAL_ITERATIONS);
+        }
+    }
+
+    fres = f_close(&file);
+    if(fres != FR_OK) {
+        printf("Failed to close %s (%d).\n", path, fres);
+        return -5;
+    }
     return 0;
 
     #undef PAGES_PER_ITERATION
@@ -382,6 +532,7 @@ int _dump_partition_rednand(void)
     // Already partitioned, so ask about repartitioning
     if(part2[0x4] == 0xAE && part3[0x4] == 0xAE && part4[0x4] == 0xAE)
     {
+        smc_get_events(); // Eat all existing events
         printf("Repartition SD card?\n");
         printf("[POWER] No | [EJECT] Yes...\n");
         u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
@@ -412,6 +563,7 @@ int _dump_partition_rednand(void)
     printf("SLC:     0x%08lX->0x%08lX\n", slc_base, slc_base + slc_sectors);
     printf("SLCCMPT: 0x%08lX->0x%08lX\n", slccmpt_base, slccmpt_base + slc_sectors);
 
+    smc_get_events(); // Eat all existing events
     printf("[POWER] Exit | [EJECT] Continue...\n");
     u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
     if(input & SMC_POWER_BUTTON) return 1;
@@ -481,6 +633,83 @@ void dump_slc(void)
     }
 
 slc_exit:
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER to exit.\n");
+    smc_wait_events(SMC_POWER_BUTTON);
+}
+
+void dump_slc_raw()
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Dumping SLC.RAW...\n");
+
+    res = _dump_slc_raw(NAND_BANK_SLC);
+    if(res) {
+        printf("Failed to dump SLC.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER to exit.\n");
+    smc_wait_events(SMC_POWER_BUTTON);
+}
+
+void dump_slccmpt_raw()
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Dumping SLCCMPT.RAW...\n");
+
+    res = _dump_slc_raw(NAND_BANK_SLCCMPT);
+    if(res) {
+        printf("Failed to dump SLCCMPT.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER to exit.\n");
+    smc_wait_events(SMC_POWER_BUTTON);
+}
+
+void dump_restore_slc_raw()
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Restoring SLC.RAW...\n");
+
+    res = _dump_restore_slc_raw(NAND_BANK_SLC);
+    if(res) {
+        printf("Failed to restore SLC.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER to exit.\n");
+    smc_wait_events(SMC_POWER_BUTTON);
+}
+
+void dump_restore_slccmpt_raw()
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Restoring SLCCMPT.RAW...\n");
+
+    res = _dump_restore_slc_raw(NAND_BANK_SLCCMPT);
+    if(res) {
+        printf("Failed to restore SLCCMPT.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    smc_get_events(); // Eat all existing events
     printf("Press POWER to exit.\n");
     smc_wait_events(SMC_POWER_BUTTON);
 }
@@ -507,6 +736,7 @@ void dump_format_rednand(void)
         goto format_exit;
     }
 
+    smc_get_events(); // Eat all existing events
     printf("Dump SLC/SLCCMPT-RAW images? These are useful for sysNAND restore.\n");
     printf("[POWER] Skip | [EJECT] Dump...\n");
     u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
@@ -539,6 +769,7 @@ void dump_format_rednand(void)
     }
 
 format_exit:
+    smc_get_events(); // Eat all existing events
     printf("Press POWER to exit.\n");
     smc_wait_events(SMC_POWER_BUTTON);
 }

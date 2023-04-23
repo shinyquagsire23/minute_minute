@@ -23,8 +23,8 @@
 #include "types.h"
 
 //#define NAND_DEBUG  1
-//#define NAND_SUPPORT_WRITE 1
-//#define NAND_SUPPORT_ERASE 1
+#define NAND_SUPPORT_WRITE 1
+#define NAND_SUPPORT_ERASE 1
 
 #ifdef NAND_DEBUG
 #   define  NAND_debug(f, arg...) printf("NAND: " f, ##arg);
@@ -202,12 +202,14 @@ void nand_write_page(u32 pageno, void *data, void *ecc) {
     irq_flag = 0;
     NAND_debug("nand_write_page(%u, %p, %p)\n", pageno, data, ecc);
 
-// this is a safety check to prevent you from accidentally wiping out boot1 or boot2.
+#if 0
+    // this is a safety check to prevent you from accidentally wiping out boot1 or boot2.
     if ((pageno < nand_min_page) || (pageno >= NAND_MAX_PAGE)) {
         printf("Error: nand_write to page %d forbidden\n", pageno);
         return;
     }
-    if (((s32)data) != -1) dc_flushrange(data, PAGE_SIZE);
+#endif
+    if (((s32)data) != -1) dc_flushrange(data, PAGE_SIZE + PAGE_SPARE_SIZE);
     if (((s32)ecc) != -1)  dc_flushrange(ecc, PAGE_SPARE_SIZE);
     ahb_flush_to(RB_FLA);
     __nand_set_address(0, pageno);
@@ -223,11 +225,13 @@ void nand_erase_block(u32 pageno) {
     irq_flag = 0;
     NAND_debug("nand_erase_block(%d)\n", pageno);
 
-// this is a safety check to prevent you from accidentally wiping out boot1 or boot2.
+#if 0
+    // this is a safety check to prevent you from accidentally wiping out boot1 or boot2.
     if ((pageno < nand_min_page) || (pageno >= NAND_MAX_PAGE)) {
         printf("Error: nand_erase to page %d forbidden\n", pageno);
         return;
     }
+#endif
     __nand_set_address(0, pageno);
     nand_send_command(NAND_ERASE_PRE, 0x1c, 0, 0);
     __nand_wait();

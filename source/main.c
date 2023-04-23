@@ -390,7 +390,7 @@ fat_fail:
     serial_send_u32(0x5D5D0004);
     if(boot.vector) {
         boot.mode = 0;
-        menu_active = false;
+        menu_close();
     } else {
         smc_set_notification_led(LEDRAW_ORANGE_PULSE);
         while (1) {
@@ -443,19 +443,17 @@ menu menu_main = {
             {"Boot 'ios.img'", &main_quickboot_fw},
             {"Boot IOP firmware file", &main_boot_fw},
             {"Boot PowerPC ELF file", &main_boot_ppc},
-            {"Format redNAND", &dump_format_rednand},
-            {"Dump SEEPROM & OTP", &dump_seeprom_otp},
-            {"Dump factory log", &dump_factory_log},
+            {"Backup and Restore", &dump_menu_show},
+            {"Interactive debug console", &main_interactive_console},
             {"Display crash log", &main_get_crash},
             {"Clear crash log", &main_reset_crash},
-            {"Interactive debug console", &main_interactive_console},
             {"Restart minute", &main_reload},
             {"Hardware reset", &main_reset},
             {"Power off", &main_shutdown},
             {"Credits", &main_credits},
             //{"ISFS test", &isfs_test},
     },
-    13, // number of options
+    12, // number of options
     0,
     0
 };
@@ -543,7 +541,8 @@ u32 _main(void *base)
     //isfs_test();
 
     // Triple press opens menu
-    if (main_loaded_from_boot1 && !(smc_get_events() & SMC_POWER_BUTTON)) {
+    // TODO remove the && 0
+    if (main_loaded_from_boot1 && !(smc_get_events() & SMC_POWER_BUTTON) && 0) {
         main_autoboot();
     }
     else {
@@ -708,7 +707,7 @@ void main_reload(void)
 
     if(boot.vector) {
         boot.mode = 0;
-        menu_active = false;
+        menu_close();
     } else {
         printf("Failed to load fw.img!\n");
         printf("Press POWER to continue.\n");
@@ -721,7 +720,7 @@ void main_shutdown(void)
     gfx_clear(GFX_ALL, BLACK);
 
     boot.mode = 1;
-    menu_active = false;
+    menu_close();
 }
 
 void main_reset(void)
@@ -729,7 +728,7 @@ void main_reset(void)
     gfx_clear(GFX_ALL, BLACK);
 
     boot.mode = 2;
-    menu_active = false;
+    menu_close();
 }
 
 void main_boot_ppc(void)
@@ -761,7 +760,7 @@ void main_quickboot_patch(void)
 
     if(boot.vector) {
         boot.mode = 0;
-        menu_active = false;
+        menu_close();
     } else {
         printf("Failed to load IOS with patches!\n");
         printf("Press POWER to continue.\n");
@@ -777,7 +776,7 @@ void main_quickboot_fw(void)
 
     if(boot.vector) {
         boot.mode = 0;
-        menu_active = false;
+        menu_close();
     } else {
         printf("Failed to load 'ios.img'!\n");
         printf("Press POWER to continue.\n");
@@ -796,7 +795,7 @@ void main_boot_fw(void)
 
     if(boot.vector) {
         boot.mode = 0;
-        menu_active = false;
+        menu_close();
     } else {
         printf("Failed to load '%s'!\n", path);
         printf("Press POWER to continue.\n");

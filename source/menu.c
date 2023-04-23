@@ -41,6 +41,8 @@ void menu_init(menu* new_menu)
     int serial_len = 0;
     menu_set_state(0); // Set state to in-menu.
 
+    smc_get_events(); // Eat all existing events
+
     __menu = new_menu;
     __menu->selected = 0;
     __menu->showed = 0;
@@ -49,6 +51,8 @@ void menu_init(menu* new_menu)
 
     int parsing_escape_code = 0;
     int parsing_csi = 0;
+
+    menu_active = true;
 
     while(menu_active)
     {
@@ -227,14 +231,18 @@ void menu_select()
         menu_set_state(1); // Set menu state to in callback.
         __menu->option[__menu->selected].callback();
         menu_set_state(0); // Return to in-menu state.
-        menu_init(menu_chain[--opened_menus]);
+        if (opened_menus >= 1) {
+            menu_init(menu_chain[--opened_menus]);
+        }
     }
 }
 
 void menu_close()
 {
-    if(opened_menus > 0)
-        menu_init(menu_chain[--opened_menus]);
+    menu_active = false;
+    if (opened_menus >= 1) {
+        --opened_menus;
+    }
 }
 
 void menu_reset()
