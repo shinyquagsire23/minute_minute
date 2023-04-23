@@ -79,6 +79,20 @@ void intcon_backspace()
     intcon_dirty = 1;
 }
 
+void intcon_delete()
+{
+    char tmp[INTCON_COMMAND_MAX_LEN+1];
+    if (intcon_current_command_cursor_idx >= INTCON_COMMAND_MAX_LEN) {
+        intcon_current_command_cursor_idx = INTCON_COMMAND_MAX_LEN-1;
+        return;
+    }
+    memcpy(tmp, intcon_current_command, intcon_current_command_cursor_idx);
+    memcpy(tmp + intcon_current_command_cursor_idx, intcon_current_command + intcon_current_command_cursor_idx + 1, 254-intcon_current_command_cursor_idx);
+
+    memcpy(intcon_current_command, tmp, INTCON_COMMAND_MAX_LEN);
+    intcon_dirty = 1;
+}
+
 void intcon_show_help(void)
 {
     printf("Valid commands: exit, quit, reset, restart, shutdown, smc, help, ?\n");
@@ -310,9 +324,12 @@ void intcon_draw(void)
 
 void intcon_show(void)
 {
+    char serial_number_tmp[256];
     char serial_tmp[256];
     int serial_len = 0;
 
+    int serial_number_tmp_len = 0;
+    int parsing_csi_num = 0;
     int parsing_csi = 0;
     int parsing_escape_code = 0;
 
@@ -326,7 +343,10 @@ void intcon_show(void)
         serial_len = serial_in_read(serial_tmp);
         for (int i = 0; i < serial_len; i++) {
             if (parsing_csi) {
-                if (parsing_csi == 1 && serial_tmp[i] >= '0' && serial_tmp[i] <= '1') {
+                //printf("%c", serial_tmp);
+                if (serial_tmp[i] >= '0' && serial_tmp[i] <= '9') {
+                    serial_number_tmp[serial_number_tmp_len++] = serial_tmp[i];
+                    parsing_csi_num = atoi(serial_number_tmp);
                     parsing_csi++;
                     continue;
                 }
@@ -349,7 +369,6 @@ void intcon_show(void)
                             memset(intcon_current_command, 0, INTCON_COMMAND_MAX_LEN);
                             intcon_current_command_cursor_idx = 0;
                         }
-                        
                     }
                     intcon_dirty = 1;
                     parsing_csi = 0;
@@ -372,7 +391,6 @@ void intcon_show(void)
                         }
                     }
 
-                    
                     intcon_dirty = 1;
                     parsing_csi = 0;
                     continue;
@@ -401,6 +419,19 @@ void intcon_show(void)
                     parsing_csi = 0;
                     continue;
                 }
+                else if (serial_tmp[i] == '~') {
+                    //printf("%u\n", parsing_csi_num);
+                    if (parsing_csi_num == 3) {
+                        intcon_delete();
+                    }
+                    parsing_csi = 0;
+                    continue;
+                }
+                else {
+                    printf("\n\nunk CSI? [%u%c\n", parsing_csi_num, serial_tmp[i]);
+                    parsing_csi = 0;
+                    continue;
+                }
             }
             else if (parsing_escape_code)
             {
@@ -417,6 +448,8 @@ void intcon_show(void)
                 {
                 case '\033':
                     parsing_escape_code = 1;
+                    memset(serial_number_tmp, 0, sizeof(serial_number_tmp));
+                    serial_number_tmp_len = 0;
                     break;
                 case '\b':
                     intcon_backspace();
