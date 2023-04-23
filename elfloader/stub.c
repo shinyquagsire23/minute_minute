@@ -215,7 +215,7 @@ void *_main(void *base)
         udelay(250000);
     }*/
 
-#if 0
+#if BOOT1_BRUTEFORCE
     //crypto_read_otp();
 
     while (1) {
@@ -244,7 +244,7 @@ void *_main(void *base)
         serial_send(0x55);
         serial_send(0xAA);
 
-        /*for (int i = 0; i < 0x10; i++)
+        for (int i = 0; i < 0x10; i++)
         {
             serial_send(otp[i]);
         }
@@ -257,7 +257,7 @@ void *_main(void *base)
 
         while (1) {
             udelay(1);
-        }*/
+        }
     }
 #endif
 
