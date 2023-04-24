@@ -335,7 +335,6 @@ int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
     unsigned int v9; // r4
     u16 v10; // r1
     int v11; // r0
-    int v14; // [sp+4h] [bp-B4h]
     int v15; // [sp+8h] [bp-B0h]
     u16 recen1; // [sp+12h] [bp-A6h]
     u16 recen0; // [sp+16h] [bp-A2h]
@@ -411,12 +410,11 @@ int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
             ddr_seq_tcl = 11;
         }
 
-        v14 = seeprom.bc.ddr3_size;
         v15 = dram_remove_memory_compat_mode(mode);
         if ( v15 )
             goto LABEL_35;
-        write16(0xD8B4200, 4);
-        read16(0xD8B4200);
+        write16(MEM_COMPAT, 4);
+        read16(MEM_COMPAT);
         if (mode & DRAM_MODE_20)
         {
             memset(&pllCfg2, 0, sizeof(pllCfg2));
@@ -426,10 +424,10 @@ int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
 LABEL_36:
                 v15 = v5;
 LABEL_35:
-                write16(0xD8B42CC, 0xB);
-                write16(0xD8B42CE, 0xAFF);
-                write16(0xD8B42CC, 0xE);
-                write16(0xD8B42CE, 0x1222);
+                write16(MEM_EDRAM_REFRESH_CTRL, 0xB);
+                write16(MEM_EDRAM_REFRESH_VAL, 0xAFF);
+                write16(MEM_EDRAM_REFRESH_CTRL, 0xE);
+                write16(MEM_EDRAM_REFRESH_VAL, 0x1222);
                 return v15;
             }
             if ( !pllCfg2.operational )
@@ -444,12 +442,12 @@ LABEL_35:
             if ( v5 )
                 goto LABEL_36;
         }
-        write16(0xD8B4200, 0);
-        read16(0xD8B4200);
+        write16(MEM_COMPAT, 0); // c2w sets this to 4
+        read16(MEM_COMPAT);
         ddr_seq_write16(DDR_SEQ_SYNC, 0);
         ddr_seq_write16(DDR_SEQ_RSTB, (mode & DRAM_MODE_SREFRESH) != 0);      // DDR_SREFRESH
         ddr_seq_write16(DDR_SEQ_CKEEN, 0);
-        write16(0xD8B4226, 0);
+        write16(MEM_REFRESH_FLAG, 0);
         ddr_seq_write16(DDR_SEQ_MADJL, ddr_seq_madj | (ddr_seq_madj << 8));
         ddr_seq_write16(DDR_SEQ_MADJH, ddr_seq_madj | (ddr_seq_madj << 8));
         ddr_seq_sadj = (_sadj | (_sadj << 8)) & 0xFFFF;
@@ -463,11 +461,11 @@ LABEL_35:
         udelay(2);
         ddr_seq_write16(DDR_SEQ_PAD1, 0x20B);
         ddr_seq_write16(DDR_SEQ_PAD0, 0x8040);
-        read16(0xD8B42C4);
-        read16(0xD8B4300);
+        read16(MEM_SEQ_REG_VAL);
+        read16(MEM_SEQ0_REG_VAL);
         udelay(2);
         ddr_seq_write16(DDR_SEQ_SYNC, 0);
-        write16(0xD8B42B6, 0xEFF);
+        write16(MEM_ARB_MISC, 0xEFF);
         if (!(mode & DRAM_MODE_CCBOOT))
         {
             write16(0xD8B4600, 0x5555);
@@ -531,41 +529,41 @@ LABEL_35:
             read16(0xD8B44E8);
             read16(0xD8B44EA);
         }
-        write16(0xD8B4268, 8);
-        write16(0xD8B426A, 12);
-        write16(0xD8B426C, 24);
-        write16(0xD8B4280, 6);
-        write16(0xD8B4282, 6);
-        write16(0xD8B42BA, 8);
-        write16(0xD8B426E, 4);
-        write16(0xD8B4270, 4);
-        write16(0xD8B4272, 4);
-        write16(0xD8B4274, 4);
-        write16(0xD8B4276, 4);
-        write16(0xD8B4278, 5);
-        write16(0xD8B427A, 4);
-        write16(0xD8B427C, 4);
-        write16(0xD8B427E, 4);
-        set16(0xD8B4306, 1u);
-        write16(0xD8B42A6, 16);
-        write16(0xD8B4218, 0x3FF);
-        write16(0xD8B421A, 0x7FFF);
-        write16(0xD8B421C, 7);
-        write16(0xD8B4216, 5);
-        write16(0xD8B4210, 4);
-        write16(0xD8B4212, 5);
-        write16(0xD8B4214, 3);
-        if ( v14 == 0x1000 )
+        write16(MEM_SEQRD_HWM, 8);
+        write16(MEM_SEQWR_HWM, 12);
+        write16(MEM_SEQCMD_HWM, 24);
+        write16(MEM_ARB_MAXWR, 6);
+        write16(MEM_ARB_MINRD, 6);
+        write16(MEM_WRMUX, 8);
+        write16(MEM_CPUAHM_WR_T, 4);
+        write16(MEM_ACC_WR_T, 4);
+        write16(MEM_DMAAHM0_WR_T, 4);
+        write16(MEM_DMAAHM1_WR_T, 4);
+        write16(MEM_PI_WR_T, 4);
+        write16(MEM_PE_WR_T, 5);
+        write16(MEM_IO_WR_T, 4);
+        write16(MEM_DSP_WR_T, 4);
+        write16(MEM_ACC_WR_T, 4);
+        set16(MEM_UNK_306, 1u);
+        write16(MEM_RDPR_PI, 16);
+        write16(MEM_COLMSK, 0x3FF);
+        write16(MEM_ROWMSK, 0x7FFF);
+        write16(MEM_BANKMSK, 7);
+        write16(MEM_RANKSEL, 5);
+        write16(MEM_COLSEL, 4);
+        write16(MEM_ROWSEL, 5);
+        write16(MEM_BANKSEL, 3);
+        if ( seeprom.bc.ddr3_size == 0x1000 )
         {
             ddr_seq_write16(DDR_SEQ_RANK2, 1);
-            v7 = 0xD000;
+            v7 = 0xD000; // 3GB
         }
         else
         {
             ddr_seq_write16(DDR_SEQ_RANK2, 0);
-            v7 = 0x9000;
+            v7 = 0x9000; // 2GB
         }
-        write16(0xD8B42D6, v7);
+        write16(MEM_CAFE_DDR_RANGE_TOP, v7);
         ddr_seq_write16(DDR_SEQ_TCL, ddr_seq_tcl - 1);
         ddr_seq_write16(DDR_SEQ_TWL, ddr_seq_twl - 2);
         ddr_seq_write16(DDR_SEQ_TRFC, 239);
@@ -607,11 +605,11 @@ LABEL_35:
         ddr_seq_write16(DDR_SEQ_IDLEST, 18);
 
         if ( ddr_seq_tcl == 11 )
-          v16 = 0x1D70;
+          v16 = 0x1D70; // used in c2w
         else
           v16 = 0x1D30;
         if ( ddr_seq_twl == 8 )
-          v17 = 0x8018;
+          v17 = 0x8018; // used in c2w
         else
           v17 = 0x8008;
 
@@ -651,90 +649,90 @@ LABEL_35:
         }
         if (!(mode & DRAM_MODE_10))
         {
-            write16(0xD8B42C0, v17);
-            write16(0xD8B42C2, 34);
-            write16(0xD8B42C2, 35);
-            write16(0xD8B42C2, 34);
-            write16(0xD8B42C2, 36);
-            write16(0xD8B42C2, 37);
-            write16(0xD8B42C2, 36);
-            write16(0xD8B42D0, v17);
-            write16(0xD8B42D2, 34);
-            write16(0xD8B42D2, 35);
-            write16(0xD8B42D2, 34);
-            write16(0xD8B42D2, 36);
-            write16(0xD8B42D2, 37);
-            write16(0xD8B42D2, 36);
-            write16(0xD8B42C0, 0xC000);
-            write16(0xD8B42C2, 34);
-            write16(0xD8B42C2, 35);
-            write16(0xD8B42C2, 34);
-            write16(0xD8B42C2, 36);
-            write16(0xD8B42C2, 37);
-            write16(0xD8B42C2, 36);
-            write16(0xD8B42D0, 0xC000);
-            write16(0xD8B42D2, 34);
-            write16(0xD8B42D2, 35);
-            write16(0xD8B42D2, 34);
-            write16(0xD8B42D2, 36);
-            write16(0xD8B42D2, 37);
-            write16(0xD8B42D2, 36);
-            write16(0xD8B42C0, 0x4040);
-            write16(0xD8B42C2, 34);
-            write16(0xD8B42C2, 35);
-            write16(0xD8B42C2, 34);
-            write16(0xD8B42C2, 36);
-            write16(0xD8B42C2, 37);
-            write16(0xD8B42C2, 36);
-            write16(0xD8B42D0, 0x4040);
-            write16(0xD8B42D2, 34);
-            write16(0xD8B42D2, 35);
-            write16(0xD8B42D2, 34);
-            write16(0xD8B42D2, 36);
-            write16(0xD8B42D2, 37);
-            write16(0xD8B42D2, 36);
-            write16(0xD8B42C0, v16);
-            write16(0xD8B42C2, 34);
-            write16(0xD8B42C2, 35);
-            write16(0xD8B42C2, 34);
-            write16(0xD8B42C2, 36);
-            write16(0xD8B42C2, 37);
-            write16(0xD8B42C2, 36);
-            write16(0xD8B42D0, v16);
-            write16(0xD8B42D2, 34);
-            write16(0xD8B42D2, 35);
-            write16(0xD8B42D2, 34);
-            write16(0xD8B42D2, 36);
-            write16(0xD8B42D2, 37);
-            write16(0xD8B42D2, 36);
-            write16(0xD8B42C0, 0xFFFF);
-            write16(0xD8B42C2, 0x10);
-            write16(0xD8B42C2, 17);
-            write16(0xD8B42C2, 0x10);
-            write16(0xD8B42D0, 0xFFFF);
-            write16(0xD8B42D2, 0x10);
-            write16(0xD8B42D2, 17);
-            write16(0xD8B42D2, 0x10);
+            write16(MEM_ARB_EXADDR, v17);
+            write16(MEM_ARB_EXCMD, 34);
+            write16(MEM_ARB_EXCMD, 35);
+            write16(MEM_ARB_EXCMD, 34);
+            write16(MEM_ARB_EXCMD, 36);
+            write16(MEM_ARB_EXCMD, 37);
+            write16(MEM_ARB_EXCMD, 36);
+            write16(MEM_UNK_2D0, v17); // c2w omits these regs
+            write16(MEM_UNK_2D2, 34);
+            write16(MEM_UNK_2D2, 35);
+            write16(MEM_UNK_2D2, 34);
+            write16(MEM_UNK_2D2, 36);
+            write16(MEM_UNK_2D2, 37);
+            write16(MEM_UNK_2D2, 36);
+            write16(MEM_ARB_EXADDR, 0xC000);
+            write16(MEM_ARB_EXCMD, 34);
+            write16(MEM_ARB_EXCMD, 35);
+            write16(MEM_ARB_EXCMD, 34);
+            write16(MEM_ARB_EXCMD, 36);
+            write16(MEM_ARB_EXCMD, 37);
+            write16(MEM_ARB_EXCMD, 36);
+            write16(MEM_UNK_2D0, 0xC000);
+            write16(MEM_UNK_2D2, 34);
+            write16(MEM_UNK_2D2, 35);
+            write16(MEM_UNK_2D2, 34);
+            write16(MEM_UNK_2D2, 36);
+            write16(MEM_UNK_2D2, 37);
+            write16(MEM_UNK_2D2, 36);
+            write16(MEM_ARB_EXADDR, 0x4040);
+            write16(MEM_ARB_EXCMD, 34);
+            write16(MEM_ARB_EXCMD, 35);
+            write16(MEM_ARB_EXCMD, 34);
+            write16(MEM_ARB_EXCMD, 36);
+            write16(MEM_ARB_EXCMD, 37);
+            write16(MEM_ARB_EXCMD, 36);
+            write16(MEM_UNK_2D0, 0x4040);
+            write16(MEM_UNK_2D2, 34);
+            write16(MEM_UNK_2D2, 35);
+            write16(MEM_UNK_2D2, 34);
+            write16(MEM_UNK_2D2, 36);
+            write16(MEM_UNK_2D2, 37);
+            write16(MEM_UNK_2D2, 36);
+            write16(MEM_ARB_EXADDR, v16);
+            write16(MEM_ARB_EXCMD, 34);
+            write16(MEM_ARB_EXCMD, 35);
+            write16(MEM_ARB_EXCMD, 34);
+            write16(MEM_ARB_EXCMD, 36);
+            write16(MEM_ARB_EXCMD, 37);
+            write16(MEM_ARB_EXCMD, 36);
+            write16(MEM_UNK_2D0, v16);
+            write16(MEM_UNK_2D2, 34);
+            write16(MEM_UNK_2D2, 35);
+            write16(MEM_UNK_2D2, 34);
+            write16(MEM_UNK_2D2, 36);
+            write16(MEM_UNK_2D2, 37);
+            write16(MEM_UNK_2D2, 36);
+            write16(MEM_ARB_EXADDR, 0xFFFF);
+            write16(MEM_ARB_EXCMD, 0x10);
+            write16(MEM_ARB_EXCMD, 17);
+            write16(MEM_ARB_EXCMD, 0x10);
+            write16(MEM_UNK_2D0, 0xFFFF);
+            write16(MEM_UNK_2D2, 0x10);
+            write16(MEM_UNK_2D2, 17);
+            write16(MEM_UNK_2D2, 0x10);
             udelay(2);
-            write16(0xD8B42C0, 0xFFFF);
-            write16(0xD8B42C2, 32);
-            write16(0xD8B42C2, 33);
-            write16(0xD8B42C2, 32);
-            write16(0xD8B42D0, 0xFFFF);
-            write16(0xD8B42D2, 32);
-            write16(0xD8B42D2, 33);
-            write16(0xD8B42D2, 32);
-            write16(0xD8B42C0, 0xFFFF);
-            write16(0xD8B42C2, 2);
-            write16(0xD8B42C2, 3);
-            write16(0xD8B42C2, 2);
-            write16(0xD8B42D0, 0xFFFF);
-            write16(0xD8B42D2, 2);
-            write16(0xD8B42D2, 3);
-            write16(0xD8B42D2, 2);
+            write16(MEM_ARB_EXADDR, 0xFFFF);
+            write16(MEM_ARB_EXCMD, 32);
+            write16(MEM_ARB_EXCMD, 33);
+            write16(MEM_ARB_EXCMD, 32);
+            write16(MEM_UNK_2D0, 0xFFFF);
+            write16(MEM_UNK_2D2, 32);
+            write16(MEM_UNK_2D2, 33);
+            write16(MEM_UNK_2D2, 32);
+            write16(MEM_ARB_EXADDR, 0xFFFF);
+            write16(MEM_ARB_EXCMD, 2);
+            write16(MEM_ARB_EXCMD, 3);
+            write16(MEM_ARB_EXCMD, 2);
+            write16(MEM_UNK_2D0, 0xFFFF);
+            write16(MEM_UNK_2D2, 2);
+            write16(MEM_UNK_2D2, 3);
+            write16(MEM_UNK_2D2, 2);
         }
         v11 = 2000000u / v19;
-        write16(0xD8B4226, ((7800000u / v11) >> 1) - 1);
+        write16(MEM_REFRESH_FLAG, ((7800000u / v11) >> 1) - 1);
         goto LABEL_35;
     }
     return v15;
@@ -807,10 +805,10 @@ int init_br_pll_cfg_from_regs(bsp_pll_cfg *pOut)
 
 void ddr_seq_write16(u16 seqAddr, u16 seqVal)
 {
-    write16(0xD8B42C6, seqAddr);
-    write16(0xD8B42C4, seqVal);
-    write16(0xD8B4302, seqAddr);
-    write16(0xD8B4300, seqVal);
+    write16(MEM_SEQ_REG_ADDR, seqAddr);
+    write16(MEM_SEQ_REG_VAL, seqVal);
+    write16(MEM_SEQ0_REG_ADDR, seqAddr);
+    write16(MEM_SEQ0_REG_VAL, seqVal);
 }
 
 int mem_clocks_related_3__2___MCP_HWSetMEM2SelfRefreshMode(u16 mode)
@@ -826,7 +824,7 @@ int mem_clocks_related_3__2___MCP_HWSetMEM2SelfRefreshMode(u16 mode)
     {
         if ( v4.operational && (read32(LT_RESETS_COMPAT) & RSTB_MEM) != 0 )
         {
-            write16(0xD8B4226, 0);
+            write16(MEM_REFRESH_FLAG, 0);
             ddr_seq_write16(DDR_SEQ_CKEEN, 1);
             ddr_seq_write16(DDR_SEQ_CKEDYN, 0);
             ddr_seq_write16(DDR_SEQ_CKESR, 1);
@@ -846,10 +844,10 @@ int mem_clocks_related_3__1__mcpEdramCafeEnableRefresh(u16 mode)
     result = dram_remove_memory_compat_mode(mode);
     if ( !result )
     {
-        write16(0xD8B42CC, 0xB);
-        write16(0xD8B42CE, 0xAFF);
-        write16(0xD8B42CC, 0xE);
-        write16(0xD8B42CE, 0x1222);
+        write16(MEM_EDRAM_REFRESH_CTRL, 0xB);
+        write16(MEM_EDRAM_REFRESH_VAL, 0xAFF);
+        write16(MEM_EDRAM_REFRESH_CTRL, 0xE);
+        write16(MEM_EDRAM_REFRESH_VAL, 0x1222);
     }
     return result;
 }
