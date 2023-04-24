@@ -30,6 +30,26 @@ static inline u16 _byteswap_ushort(u16 val)
     return (val_lo << 8) | val_hi;
 }
 
+static inline u32 read32_unaligned(u8* pData)
+{
+    u8 val_3 = pData[3];
+    u8 val_2 = pData[2];
+    u8 val_1 = pData[1];
+    u8 val_0 = pData[0];
+
+    return (val_0 << 24) | (val_1 << 16) | (val_2 << 8) | (val_3);
+}
+
+static inline u32 read32le_unaligned(u8* pData)
+{
+    u8 val_3 = pData[0];
+    u8 val_2 = pData[1];
+    u8 val_1 = pData[2];
+    u8 val_0 = pData[3];
+
+    return (val_0 << 24) | (val_1 << 16) | (val_2 << 8) | (val_3);
+}
+
 static inline u32 read32(u32 addr)
 {
     u32 data;

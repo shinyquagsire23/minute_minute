@@ -25,6 +25,8 @@ int opened_menus = 0;
 bool menu_active = true;
 int _menu_state = -1;
 
+void main_interactive_console(void);
+
 void menu_set_state(int state)
 {
     _menu_state = state;
@@ -61,8 +63,9 @@ void menu_init(menu* new_menu)
         serial_poll();
         serial_len = serial_in_read(serial_tmp);
         for (int i = 0; i < serial_len; i++) {
+            if (serial_tmp[i] == 0) continue;
             if (parsing_csi) {
-                if (parsing_csi == 1 && serial_tmp[i] >= '0' && serial_tmp[i] <= '1') {
+                if (serial_tmp[i] >= '0' && serial_tmp[i] <= '9') {
                     parsing_csi++;
                     continue;
                 }
@@ -83,6 +86,10 @@ void menu_init(menu* new_menu)
                 }
                 else if (serial_tmp[i] == 'D') {
                     menu_prev_jump();
+                    parsing_csi = 0;
+                    continue;
+                }
+                else {
                     parsing_csi = 0;
                     continue;
                 }
@@ -123,6 +130,16 @@ void menu_init(menu* new_menu)
                 case '\r':
                 case ' ':
                     menu_select();
+                    break;
+
+                // Kinda hacky but whatever.
+                case '\\':
+                    for (int j = 0; j < __menu->entries; j++) {
+                        if (__menu->option[j].callback == main_interactive_console) {
+                            __menu->selected = j;
+                            menu_select();
+                        }
+                    }
                     break;
                 }
             }
@@ -247,5 +264,6 @@ void menu_close()
 
 void menu_reset()
 {
+    menu_active = false;
     opened_menus = 0;
 }

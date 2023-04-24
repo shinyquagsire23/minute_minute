@@ -10,14 +10,20 @@
 
 #include "interactive_console.h"
 
+#ifndef MINUTE_BOOT1
+
 #include <string.h>
 #include <malloc.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "gpio.h"
 #include "smc.h"
 #include "console.h"
 #include "gfx.h"
 #include "main.h"
+#include "ancast.h"
+#include "utils.h"
+#include "sha.h"
 
 #define INTCON_HISTORY_DEPTH (64)
 #define INTCON_COMMAND_MAX_LEN (256)
@@ -227,6 +233,123 @@ smc_usage:
     }
 }
 
+void intcon_upload()
+{
+    u8 serial_tmp[256];
+    u8 last_12[12];
+    int serial_len = 0;
+    int serial_idx = 0;
+    int serial_remainder;
+    u32 transfer_len;
+    u32 bytes_left;
+    int is_synced = 0;
+    u8* out_iter;
+    FILE* f_fw;
+
+    const u8 magic_upld[13] = {0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0x50, 0x4C, 0x44, 0x0a};
+    const u8 magic_sync[8] = {0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA};
+
+    serial_allow_zeros();
+    for (int i = 0; i < sizeof(magic_upld); i++) {
+        serial_send(magic_upld[i]);
+    }
+
+    out_iter = (u8*)ALL_PURPOSE_TMP_BUF;
+
+    memset(last_12, 0, sizeof(last_12));
+    int attempts = 5000;
+    while(--attempts)
+    {
+        udelay(1000);
+
+        serial_poll();
+        serial_len = serial_in_read(serial_tmp);
+        serial_idx = 0;
+
+        for (int i = 0; i < serial_len; i++) {
+            serial_idx++;
+            memmove(last_12, last_12+1, 11);
+            last_12[11] = serial_tmp[i];
+
+            if (!memcmp(last_12, magic_sync, 8)) {
+                is_synced = 1;
+                break;
+            }
+        }
+        if (is_synced) break;
+    }
+
+    if (attempts <= 0) {
+        goto fail;
+    }
+
+    const char* fpath = "sdmc:/fw.img";
+    f_fw = fopen(fpath, "wb");
+    if(!f_fw)
+    {
+        printf("Failed to open `%s` for writing.\n", fpath);
+        goto fail;
+    }
+
+    serial_remainder = serial_len-serial_idx;
+    transfer_len = read32_unaligned(last_12+8);
+    bytes_left = transfer_len;
+    //printf("Transferring 0x%08x bytes (%x)\n", transfer_len, serial_remainder);
+
+    if (bytes_left < serial_remainder) {
+        memcpy(out_iter, serial_tmp+serial_idx, bytes_left);
+        bytes_left = 0;
+        goto done;
+    }
+
+    if (serial_remainder)
+    {
+        memcpy(out_iter, serial_tmp+serial_idx, serial_remainder);
+        out_iter += serial_remainder;
+        bytes_left -= serial_remainder;
+    }
+
+    while (1)
+    {
+        for (int i = 0; i < 128; i++)
+        {
+            serial_poll();
+        }
+        serial_len = serial_in_read(serial_tmp);
+
+        if (serial_len > bytes_left) {
+            serial_len = bytes_left;
+        }
+
+        //printf("%x %x\n", bytes_left, serial_len);
+
+        memcpy(out_iter, serial_tmp, serial_len);
+        out_iter += serial_len;
+        bytes_left -= serial_len;
+        if (bytes_left <= 0) {
+            break;
+        }
+    }
+
+    fwrite((u8*)ALL_PURPOSE_TMP_BUF, transfer_len, 1, f_fw);
+
+done:
+    serial_disallow_zeros();
+    printf("Transfer complete!\n");
+    u32 hash[SHA_HASH_WORDS] = {0};
+    sha_hash((void*)ALL_PURPOSE_TMP_BUF, hash, transfer_len);
+
+    printf("sha1:   %08lX%08lX%08lX%08lX%08lX\n", hash[0], hash[1], hash[2], hash[3], hash[4]);
+    fclose(f_fw);
+
+    main_reload();
+    return;
+fail:
+    serial_disallow_zeros();
+    printf("Transfer failed.\n");
+    fclose(f_fw);
+}
+
 void intcon_handle_cmd(const char* pCmd)
 {
     char cmd[INTCON_COMMAND_MAX_LEN];
@@ -265,6 +388,10 @@ void intcon_handle_cmd(const char* pCmd)
     }
     else if (!strcmp(cmd, "shutdown")) {
         main_shutdown();
+        intcon_active = 0;
+    }
+    else if (!strcmp(cmd, "up") || !strcmp(cmd, "upload")) {
+        intcon_upload();
         intcon_active = 0;
     }
     else if (!strcmp(cmd, "smc")) {
@@ -339,11 +466,14 @@ void intcon_show(void)
     {
         intcon_draw();
 
+        serial_disallow_zeros();
         serial_poll();
         serial_len = serial_in_read(serial_tmp);
         for (int i = 0; i < serial_len; i++) {
+            if (serial_tmp[i] == 0) continue;
             if (parsing_csi) {
                 //printf("%c", serial_tmp);
+                
                 if (serial_tmp[i] >= '0' && serial_tmp[i] <= '9') {
                     serial_number_tmp[serial_number_tmp_len++] = serial_tmp[i];
                     parsing_csi_num = atoi(serial_number_tmp);
@@ -472,3 +602,5 @@ void intcon_show(void)
         //if(input & SMC_POWER_BUTTON) menu_next_selection();
     }
 }
+
+#endif // MINUTE_BOOT1

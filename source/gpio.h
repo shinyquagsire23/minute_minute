@@ -88,6 +88,8 @@ void serial_force_terminate();
 void serial_send_u32(u32 val);
 int serial_in_read(u8* out);
 void serial_poll();
+void serial_allow_zeros();
+void serial_disallow_zeros();
 void serial_send(u8 val);
 
 void gpio_dcdc_pwrcnt2_set(u8 val);

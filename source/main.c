@@ -390,7 +390,7 @@ fat_fail:
     serial_send_u32(0x5D5D0004);
     if(boot.vector) {
         boot.mode = 0;
-        menu_close();
+        menu_reset();
     } else {
         smc_set_notification_led(LEDRAW_ORANGE_PULSE);
         while (1) {
@@ -543,7 +543,16 @@ u32 _main(void *base)
     // Triple press opens menu
     // TODO remove the && 0
     if (main_loaded_from_boot1 && !(smc_get_events() & SMC_POWER_BUTTON) && 0) {
-        main_autoboot();
+        //main_autoboot();
+        printf("Showing menu...\n");
+
+        smc_get_events();
+        smc_set_odd_power(false);
+
+        menu_init(&menu_main);
+
+        smc_get_events();
+        smc_set_odd_power(true);
     }
     else {
         // Prompt user to skip autoboot, time = 0 will skip this.
@@ -707,7 +716,7 @@ void main_reload(void)
 
     if(boot.vector) {
         boot.mode = 0;
-        menu_close();
+        menu_reset();
     } else {
         printf("Failed to load fw.img!\n");
         printf("Press POWER to continue.\n");
@@ -720,7 +729,7 @@ void main_shutdown(void)
     gfx_clear(GFX_ALL, BLACK);
 
     boot.mode = 1;
-    menu_close();
+    menu_reset();
 }
 
 void main_reset(void)
@@ -728,7 +737,7 @@ void main_reset(void)
     gfx_clear(GFX_ALL, BLACK);
 
     boot.mode = 2;
-    menu_close();
+    menu_reset();
 }
 
 void main_boot_ppc(void)
@@ -760,7 +769,7 @@ void main_quickboot_patch(void)
 
     if(boot.vector) {
         boot.mode = 0;
-        menu_close();
+        menu_reset();
     } else {
         printf("Failed to load IOS with patches!\n");
         printf("Press POWER to continue.\n");
@@ -776,7 +785,7 @@ void main_quickboot_fw(void)
 
     if(boot.vector) {
         boot.mode = 0;
-        menu_close();
+        menu_reset();
     } else {
         printf("Failed to load 'ios.img'!\n");
         printf("Press POWER to continue.\n");
@@ -795,7 +804,7 @@ void main_boot_fw(void)
 
     if(boot.vector) {
         boot.mode = 0;
-        menu_close();
+        menu_reset();
     } else {
         printf("Failed to load '%s'!\n", path);
         printf("Press POWER to continue.\n");

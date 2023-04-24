@@ -71,6 +71,7 @@ void serial_send_u32(u32 val)
 
 u8 serial_buffer[256];
 u16 serial_len = 0;
+static u8 _serial_allow_zeros = 0;
 
 u8 test_read_serial = 0;
 
@@ -88,6 +89,16 @@ int serial_in_read(u8* out) {
 void serial_poll()
 {
     serial_send(0);
+}
+
+void serial_allow_zeros()
+{
+    _serial_allow_zeros = 1;
+}
+
+void serial_disallow_zeros()
+{
+    _serial_allow_zeros = 0;
 }
 
 void serial_send(u8 val)
@@ -108,7 +119,7 @@ void serial_send(u8 val)
         udelay(SERIAL_DELAY);
     }
 
-    if (read_val && serial_len < sizeof(serial_buffer)) {
+    if ((read_val || _serial_allow_zeros) && serial_len < sizeof(serial_buffer)-1) {
         serial_buffer[serial_len++] = read_val;
     }
 
