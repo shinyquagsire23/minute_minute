@@ -55,6 +55,7 @@ static struct {
     int mode;
     u32 vector;
     int is_patched;
+    int needs_otp;
 } boot = {0};
 
 bool autoboot = false;
@@ -620,36 +621,38 @@ u32 _main(void *base)
         case 2: smc_reset(); break;
     }
 
-    if (boot.is_patched)
+    if (boot.needs_otp)
     {
-        printf("Searching for OTP store in patch...\n");
-        u32* search = (u32*)0x20;
-        for (int i = 0; i < 0x800000; i += 4) {
-            if (search[0] == 0x4F545053) {
-                if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
-                    printf("OTP store at: %08x\n", (u32)search);
-                    memcpy((void*)search, &otp, sizeof(otp));
-                    break;
+        if (boot.is_patched)
+        {
+            printf("Searching for OTP store in patch...\n");
+            u32* search = (u32*)0x20;
+            for (int i = 0; i < 0x800000; i += 4) {
+                if (search[0] == 0x4F545053) {
+                    if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
+                        printf("OTP store at: %08x\n", (u32)search);
+                        memcpy((void*)search, &otp, sizeof(otp));
+                        break;
+                    }
                 }
+                search++;
             }
-            search++;
+        }
+        else {
+            printf("Searching for OTP store in IOS...\n");
+            u32* search = (u32*)0x01000200;
+            for (int i = 0; i < 0x1000000; i += 4) {
+                if (search[0] == 0x4F545053) {
+                    if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
+                        printf("OTP store at: %08x\n", (u32)search);
+                        memcpy((void*)search, &otp, sizeof(otp));
+                        break;
+                    }
+                }
+                search++;
+            }
         }
     }
-    else {
-        printf("Searching for OTP store in IOS...\n");
-        u32* search = (u32*)0x01000200;
-        for (int i = 0; i < 0x1000000; i += 4) {
-            if (search[0] == 0x4F545053) {
-                if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
-                    printf("OTP store at: %08x\n", (u32)search);
-                    memcpy((void*)search, &otp, sizeof(otp));
-                    break;
-                }
-            }
-            search++;
-        }
-    }
-
 
     // WiiU-Firmware-Emulator JIT bug
     void (*boot_vector)(void) = (void*)boot.vector;
@@ -684,6 +687,8 @@ int main_autoboot(void)
     u32 magic;
     fread(&magic, 1, sizeof(magic), f);
     fclose(f);
+
+    boot.needs_otp = 1;
     
     // Ancast image.
     if(magic == 0xEFA282D9) {
@@ -713,6 +718,7 @@ void main_reload(void)
     gfx_clear(GFX_ALL, BLACK);
 
     boot.vector = ancast_iop_load("fw.img");
+    boot.needs_otp = 0;
 
     if(boot.vector) {
         boot.mode = 0;
@@ -766,6 +772,7 @@ void main_quickboot_patch(void)
     gfx_clear(GFX_ALL, BLACK);
     boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch"); // ios_orig.img
     boot.is_patched = 1;
+    boot.needs_otp = 1;
 
     if(boot.vector) {
         boot.mode = 0;
@@ -782,6 +789,7 @@ void main_quickboot_fw(void)
     gfx_clear(GFX_ALL, BLACK);
 
     boot.vector = ancast_iop_load("ios.img");
+    boot.needs_otp = 1;
 
     if(boot.vector) {
         boot.mode = 0;
@@ -801,6 +809,7 @@ void main_boot_fw(void)
     pick_file("sdmc:", false, path);
 
     boot.vector = ancast_iop_load(path);
+    boot.needs_otp = 1;
 
     if(boot.vector) {
         boot.mode = 0;

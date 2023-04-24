@@ -245,6 +245,7 @@ void intcon_upload()
     int is_synced = 0;
     u8* out_iter;
     FILE* f_fw;
+    int attempts;
 
     const u8 magic_upld[13] = {0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0x50, 0x4C, 0x44, 0x0a};
     const u8 magic_sync[8] = {0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA};
@@ -257,7 +258,7 @@ void intcon_upload()
     out_iter = (u8*)ALL_PURPOSE_TMP_BUF;
 
     memset(last_12, 0, sizeof(last_12));
-    int attempts = 5000;
+    attempts = 5000;
     while(--attempts)
     {
         udelay(1000);
@@ -309,7 +310,8 @@ void intcon_upload()
         bytes_left -= serial_remainder;
     }
 
-    while (1)
+    attempts = 5000;
+    while (--attempts)
     {
         for (int i = 0; i < 128; i++)
         {
@@ -331,6 +333,10 @@ void intcon_upload()
         }
     }
 
+    if (attempts <= 0) {
+        goto fail;
+    }
+
     fwrite((u8*)ALL_PURPOSE_TMP_BUF, transfer_len, 1, f_fw);
 
 done:
@@ -348,6 +354,10 @@ fail:
     serial_disallow_zeros();
     printf("Transfer failed.\n");
     fclose(f_fw);
+
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER to exit.\n");
+    smc_wait_events(SMC_POWER_BUTTON);
 }
 
 void intcon_handle_cmd(const char* pCmd)
