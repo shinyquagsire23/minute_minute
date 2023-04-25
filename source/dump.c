@@ -784,18 +784,24 @@ void dump_otp_via_prshhax(void)
 {
     const u8 key_prod[16] = {0xB5, 0xD8, 0xAB, 0x06, 0xED, 0x7F, 0x6C, 0xFC, 0x52, 0x9F, 0x2C, 0xE1, 0xB4, 0xEA, 0x32, 0xFD};
     const u8 key_dev[16] = {0x2D, 0xC1, 0x9B, 0xDA, 0x70, 0x9C, 0x57, 0x21, 0xA8, 0x7E, 0x5C, 0x5F, 0x71, 0x43, 0xA2, 0x78};
+    const u8 key_zero[16] = {0,0,0,0 ,0,0,0,0,0,0,0,0,0,0,0,0};
 
     prsh_set_entry("boot_info", (void*)(0x0D40AC6D), 0x58); // +0x24
 
-    if (!memcmp(otp.fw_ancast_key, 0, 16)) {
+    if (!memcmp(otp.fw_ancast_key, key_zero, 16)) {
         u8 hwver = latte_get_hw_version() & 0xFF;
+        printf("Guessing key based on hwver %02x == %02x\n", hwver, BSP_HARDWARE_VERSION_CAFE);
         if (!hwver || hwver == BSP_HARDWARE_VERSION_CAFE) {
+            printf("  --> prod key\n");
             memcpy(otp.fw_ancast_key, key_prod, 16);
         }
         else {
+            printf("  --> dev key\n");
             memcpy(otp.fw_ancast_key, key_dev, 16);
         }
     }
+
+    otp.security_level |= 0x80000000;
     
     prsh_encrypt();
     void* payload_dst = (void*)PRSHHAX_PAYLOAD_DST;

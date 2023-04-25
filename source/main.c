@@ -513,6 +513,39 @@ u32 _main(void *base)
 
     crypto_check_de_Fused();
 
+    // Write out our dumped OTP, if valid
+    if (read32(PRSHHAX_OTPDUMP_PTR) == PRSHHAX_OTP_MAGIC) {
+        write32(PRSHHAX_OTPDUMP_PTR, 0);
+        FILE* f_otp = fopen("sdmc:/otp.bin", "wb");
+        if (f_otp)
+        {
+            fwrite((void*)(PRSHHAX_OTPDUMP_PTR+4), sizeof(otp), 1, f_otp);
+            fclose(f_otp);
+
+            printf("OTP written to `sdmc:/otp.bin`!\n");
+        }
+        else {
+            printf("OTP dumped, but couldn't open `sdmc:/otp.bin`!\n");
+
+            u8* otp_iter = (u8*)(PRSHHAX_OTPDUMP_PTR+4);
+            for (int i = 0; i < 0x400; i++)
+            {
+                if (i && i % 16 == 0) {
+                    printf("\n");
+                }
+                printf("%02x ", *otp_iter++);
+            }
+            printf("\n");
+
+            smc_get_events();
+            printf("Press POWER to continue.\n");
+            smc_wait_events(SMC_POWER_BUTTON);
+        }
+
+        memcpy(&otp, (void*)(PRSHHAX_OTPDUMP_PTR+4), sizeof(otp));
+        has_no_otp_bin = 0;
+    }
+
     if (crypto_otp_is_de_Fused)
     {
         printf("Console is de_Fused! Loading sdmc:/otp.bin...\n");
@@ -555,39 +588,6 @@ u32 _main(void *base)
     printf("Mounting SLC...\n");
     isfs_init();
     //isfs_test();
-
-    // Write out our dumped OTP, if valid
-    if (read32(PRSHHAX_OTPDUMP_PTR) == PRSHHAX_OTP_MAGIC) {
-        write32(PRSHHAX_OTPDUMP_PTR, 0);
-        FILE* f_otp = fopen("sdmc:/otp.bin", "wb");
-        if (f_otp)
-        {
-            fwrite((void*)(PRSHHAX_OTPDUMP_PTR+4), sizeof(otp), 1, f_otp);
-            fclose(f_otp);
-
-            printf("OTP written to `sdmc:/otp.bin`!\n");
-        }
-        else {
-            printf("OTP dumped, but couldn't open `sdmc:/otp.bin`!\n");
-
-            u8* otp_iter = (u8*)(PRSHHAX_OTPDUMP_PTR+4);
-            for (int i = 0; i < 0x400; i++)
-            {
-                if (i && i % 16 == 0) {
-                    printf("\n");
-                }
-                printf("%02x ", *otp_iter++);
-            }
-            printf("\n");
-
-            smc_get_events();
-            printf("Press POWER to continue.\n");
-            smc_wait_events(SMC_POWER_BUTTON);
-        }
-
-        memcpy(&otp, (void*)(PRSHHAX_OTPDUMP_PTR+4), sizeof(otp));
-        has_no_otp_bin = 0;
-    }
 
 #if 0
     if (crypto_otp_is_de_Fused && has_no_otp_bin) {
