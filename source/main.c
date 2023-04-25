@@ -722,8 +722,6 @@ int boot_ini(const char* key, const char* value)
         strncpy(autoboot_file, value, sizeof(autoboot_file));
     if(!strcmp(key, "autoboot_timeout"))
         autoboot_timeout_s = (u32)minini_get_uint(value, 3);
-    
-    printf("minini: autoboot=%x\n", autoboot);
 
     return 0;
 }
@@ -748,6 +746,7 @@ int main_autoboot(void)
     // Ancast image.
     if(magic == 0xEFA282D9) {
         boot.vector = ancast_iop_load(autoboot_file);
+        boot.is_patched = 0;
     }
     else if (magic == 0x53414C54) {
         boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", autoboot_file); // slc:/sys/title/00050010/1000400a/code/fw.img
@@ -774,6 +773,7 @@ void main_reload(void)
 
     boot.vector = ancast_iop_load("fw.img");
     boot.needs_otp = 0;
+    boot.is_patched = 0;
 
     if(boot.vector) {
         boot.mode = 0;
@@ -853,6 +853,7 @@ void main_quickboot_fw(void)
 
     boot.vector = ancast_iop_load("ios.img");
     boot.needs_otp = 1;
+    boot.is_patched = 0;
 
     if(boot.vector) {
         boot.mode = 0;
@@ -873,6 +874,7 @@ void main_boot_fw(void)
 
     boot.vector = ancast_iop_load(path);
     boot.needs_otp = 1;
+    boot.is_patched = 0;
 
     if(boot.vector) {
         boot.mode = 0;
