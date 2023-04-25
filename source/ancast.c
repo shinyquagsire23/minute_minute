@@ -29,18 +29,6 @@
 char sd_read_buffer[0x200] ALIGNED(0x20);
 
 typedef struct {
-    u16 unk1;
-    u8 unk2;
-    u8 unk3;
-    u32 device;
-    u32 type;
-    u32 body_size;
-    u32 body_hash[SHA_HASH_WORDS];
-    u32 version;
-    u8 padding[0x38];
-} ancast_header;
-
-typedef struct {
     ancast_header header;
     size_t header_size;
     FILE* file;

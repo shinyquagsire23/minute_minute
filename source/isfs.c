@@ -23,6 +23,7 @@
 #include "nand.h"
 #include "sdmmc.h"
 #include "sdcard.h"
+#include "memory.h"
 
 //#define ISFS_DEBUG
 
@@ -103,6 +104,8 @@ static int _isfs_read_pages(isfs_ctx* ctx, void* buffer, u32 start, u32 pages)
         {
             nand_read_page(i, buffer + j, ecc_buf);
             nand_wait();
+            dc_invalidaterange(buffer + j, PAGE_SIZE);
+            dc_invalidaterange(ecc_buf, ECC_BUFFER_ALLOC);
             nand_correct(i, buffer + j, ecc_buf);
         }
     }

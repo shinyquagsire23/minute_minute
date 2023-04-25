@@ -24,6 +24,7 @@
 #include "main.h"
 #include "prsh.h"
 #include "latte.h"
+#include "ancast.h"
 
 #include "ff.h"
 
@@ -40,6 +41,9 @@ extern otp_t otp;
 
 extern void boot1_prshhax_payload(void);
 extern void boot1_prshhax_payload_end(void);
+
+static u8 nand_page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(128);
+static u8 nand_ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(128);
 
 menu menu_dump = {
     "minute", // title
@@ -237,9 +241,6 @@ int _dump_slc_raw(u32 bank)
     #define PAGES_PER_ITERATION (0x10)
     #define TOTAL_ITERATIONS (NAND_MAX_PAGE / PAGES_PER_ITERATION)
 
-    static u8 page_buf[PAGE_SIZE] ALIGNED(64);
-    static u8 ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(128);
-
     static u8 file_buf[PAGES_PER_ITERATION][PAGE_SIZE + PAGE_SPARE_SIZE];
 
     sdcard_ack_card();
@@ -273,12 +274,14 @@ int _dump_slc_raw(u32 bank)
         u32 page_base = i * PAGES_PER_ITERATION;
         for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
         {
-            nand_read_page(page_base + page, page_buf, ecc_buf);
+            nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
             nand_wait();
-            nand_correct(page_base + page, page_buf, ecc_buf);
+            dc_invalidaterange(nand_page_buf, PAGE_SIZE);
+            dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+            nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
 
-            memcpy(file_buf[page], page_buf, PAGE_SIZE);
-            memcpy(file_buf[page] + PAGE_SIZE, ecc_buf, PAGE_SPARE_SIZE);
+            memcpy(file_buf[page], nand_page_buf, PAGE_SIZE);
+            memcpy(file_buf[page] + PAGE_SIZE, nand_ecc_buf, PAGE_SPARE_SIZE);
         }
 
         fres = f_write(&file, file_buf, sizeof(file_buf), &btx);
@@ -311,7 +314,6 @@ int _dump_restore_slc_raw(u32 bank)
     #define TOTAL_ITERATIONS (NAND_MAX_PAGE / PAGES_PER_ITERATION)
 
     static u8 page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(64);
-    static u8 ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(128);
 
     static u8 file_buf[PAGES_PER_ITERATION][PAGE_SIZE + PAGE_SPARE_SIZE];
 
@@ -367,8 +369,10 @@ int _dump_restore_slc_raw(u32 bank)
             nand_wait();
 
             // This might not be optional? Bug?
-            nand_read_page(page_base + page, page_buf, ecc_buf);
+            nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
             nand_wait();
+            dc_invalidaterange(nand_page_buf, PAGE_SIZE);
+            dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
         }
 
         if((i % 0x100) == 0) {
@@ -390,23 +394,36 @@ int _dump_restore_slc_raw(u32 bank)
         u32 page_base = i * PAGES_PER_ITERATION;
         for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
         {
-            memcpy(page_buf, file_buf[page], PAGE_SIZE + PAGE_SPARE_SIZE);
-            memcpy(ecc_buf, file_buf[page] + PAGE_SIZE, PAGE_SPARE_SIZE);
-            memcpy(ecc_buf+PAGE_SPARE_SIZE, ecc_buf+PAGE_SPARE_SIZE-0x10, 0x10);
+            memcpy(nand_page_buf, file_buf[page], PAGE_SIZE + PAGE_SPARE_SIZE);
+            memcpy(nand_ecc_buf, file_buf[page] + PAGE_SIZE, PAGE_SPARE_SIZE);
+            memcpy(nand_ecc_buf+PAGE_SPARE_SIZE, nand_ecc_buf+PAGE_SPARE_SIZE-0x10, 0x10);
 
-            if (!memcmp(file_buf[page], 0xFF, PAGE_SIZE + PAGE_SPARE_SIZE)) {
-                
+            int is_cleared = 1;
+            for (int j = 0; j < PAGE_SIZE + PAGE_SPARE_SIZE; j++)
+            {
+                if (file_buf[page][j] != 0xFF) {
+                    is_cleared = 0;
+                    break;
+                }
             }
-            else {
+
+            // Don't need to program unprogrammed pages
+            if (!is_cleared) {
                 
-                //nand_correct(page_base + page, page_buf, ecc_buf);
-                nand_write_page(page_base + page, page_buf, ecc_buf);
+                //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
+                nand_write_page(page_base + page, nand_page_buf, nand_ecc_buf);
                 nand_wait();
 
                 // This might not be optional? Bug?
-                nand_read_page(page_base + page, page_buf, ecc_buf);
+                nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
                 nand_wait();
-                nand_correct(page_base + page, page_buf, ecc_buf);
+                dc_invalidaterange(nand_page_buf, PAGE_SIZE + PAGE_SPARE_SIZE);
+                dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+                //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
+
+                if (memcmp(nand_page_buf, file_buf[page], PAGE_SIZE + PAGE_SPARE_SIZE)) {
+                    printf("Failed to program page: 0x%05lX\n", page_base + page);
+                }
             }
         }
 
@@ -438,7 +455,6 @@ int _dump_slc(u32 base, u32 bank)
     #define TOTAL_ITERATIONS (NAND_MAX_PAGE / PAGES_PER_ITERATION)
 
     static u8 page_buf[PAGES_PER_ITERATION][PAGE_SIZE] ALIGNED(64);
-    static u8 ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(128);
 
     sdcard_ack_card();
     if(sdcard_check_card() != SDMMC_INSERTED) {
@@ -465,9 +481,11 @@ int _dump_slc(u32 base, u32 bank)
         u32 page_base = i * PAGES_PER_ITERATION;
         for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
         {
-            nand_read_page(page_base + page, page_buf[page], ecc_buf);
+            nand_read_page(page_base + page, page_buf[page], nand_ecc_buf);
             nand_wait();
-            nand_correct(page_base + page, page_buf[page], ecc_buf);
+            dc_invalidaterange(page_buf[page], PAGE_SIZE);
+            dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+            nand_correct(page_base + page, page_buf[page], nand_ecc_buf);
         }
 
         do res = sdcard_write(sdcard_sector, SECTORS_PER_ITERATION, page_buf);
@@ -784,9 +802,87 @@ void dump_otp_via_prshhax(void)
 {
     const u8 key_prod[16] = {0xB5, 0xD8, 0xAB, 0x06, 0xED, 0x7F, 0x6C, 0xFC, 0x52, 0x9F, 0x2C, 0xE1, 0xB4, 0xEA, 0x32, 0xFD};
     const u8 key_dev[16] = {0x2D, 0xC1, 0x9B, 0xDA, 0x70, 0x9C, 0x57, 0x21, 0xA8, 0x7E, 0x5C, 0x5F, 0x71, 0x43, 0xA2, 0x78};
-    const u8 key_zero[16] = {0,0,0,0 ,0,0,0,0,0,0,0,0,0,0,0,0};
+    const u8 key_zero[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    void* payload_dst = (void*)PRSHHAX_PAYLOAD_DST;
+    u32 boot_info_addr = 0x0;
+    char* console_type_str = "unk";
 
-    prsh_set_entry("boot_info", (void*)(0x0D40AC6D), 0x58); // +0x24
+    nand_initialize(NAND_BANK_SLC);
+    nand_read_page(0, nand_page_buf, nand_ecc_buf);
+    nand_wait();
+    dc_invalidaterange(nand_page_buf, PAGE_SIZE);
+    dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+
+    ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
+    if (hdr->type == ANCAST_CONSOLE_TYPE_PROD) {
+        console_type_str = "prod";
+        switch(hdr->version)
+        {
+        case 8296:
+            boot_info_addr = 0x0D40A7E5;
+            break;
+        case 8325:
+            boot_info_addr = 0x0D40A7A5;
+            break;
+        case 8338:
+            boot_info_addr = 0x0D40ABA5;
+            break;
+        case 8342:
+            boot_info_addr = 0x0D40ABA9;
+            break;
+        case 8354:
+            boot_info_addr = 0x0D40ABD5;
+            break;
+        case 8377:
+            boot_info_addr = 0x0D40AC6D;
+            break;
+        default:
+            printf("Unknown prod boot1 version: v%u (%04x).\n");
+            printf("Either your NAND is corrupt of you've got something exotic,\n");
+            printf("maybe ask ShinyQuagsire to add a bruteforce option.\n");
+            goto fail;
+        }
+    }
+    else if (hdr->type == ANCAST_CONSOLE_TYPE_DEV) {
+        console_type_str = "dev";
+        switch(hdr->version)
+        {
+        case 8296:
+            boot_info_addr = 0x0D40A78D;
+            break;
+        case 8297:
+        case 8325:
+            boot_info_addr = 0x0D40A7A5;
+            break;
+        case 8339:
+            boot_info_addr = 0x0D40AB69;
+            break;
+        case 8342:
+            boot_info_addr = 0x0D40ABA9;
+            break;
+        case 8354:
+            boot_info_addr = 0x0D40ABD5;
+            break;
+        case 8377:
+            boot_info_addr = 0x0D40AC6D;
+            break;
+        case 8378:
+            boot_info_addr = 0x0D40AC91;
+            break;
+        default:
+            printf("Unknown dev boot1 version: v%u (%04x).\n");
+            printf("Either your NAND is corrupt of you've got something exotic,\n");
+            printf("maybe ask ShinyQuagsire to add a bruteforce option.\n");
+            goto fail;
+        }
+    }
+    else {
+        printf("boot1 might be corrupt? Console type: %02x\n");
+        printf("Can't continue.\n");
+        goto fail;
+    }
+
+    prsh_set_entry("boot_info", (void*)(boot_info_addr), 0x58);
 
     if (!memcmp(otp.fw_ancast_key, key_zero, 16)) {
         u8 hwver = latte_get_hw_version() & 0xFF;
@@ -800,18 +896,26 @@ void dump_otp_via_prshhax(void)
             memcpy(otp.fw_ancast_key, key_dev, 16);
         }
     }
-
     otp.security_level |= 0x80000000;
+
+    printf("Dumping OTP using boot1 %s v%u, and offset 0x%08x...\n", console_type_str, hdr->version, boot_info_addr);
     
     prsh_encrypt();
-    void* payload_dst = (void*)PRSHHAX_PAYLOAD_DST;
-
     write32(0x0, 0xEA000010); // b 0x48
     memcpy(payload_dst, boot1_prshhax_payload, ((u32)boot1_prshhax_payload_end-(u32)boot1_prshhax_payload));
 
     dc_flushrange(payload_dst, 0x1000);
 
+    write32(PRSHHAX_OTPDUMP_PTR, PRSHHAX_FAIL_MAGIC);
+    dc_flushrange((void*)PRSHHAX_OTPDUMP_PTR, 0x20);
+
     main_reset_no_defuse();
+    return;
+
+fail:
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER to exit.\n");
+    smc_wait_events(SMC_POWER_BUTTON);
 }
 
 #endif // MINUTE_BOOT1

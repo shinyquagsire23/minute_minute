@@ -13,6 +13,20 @@
 
 #include "types.h"
 
+#include "sha.h"
+
+typedef struct {
+    u16 unk1;
+    u8 unk2;
+    u8 unk3;
+    u32 device;
+    u32 type;
+    u32 body_size;
+    u32 body_hash[SHA_HASH_WORDS];
+    u32 version;
+    u8 padding[0x38];
+} ancast_header;
+
 u32 ancast_iop_load(const char* path);
 u32 ancast_ppc_load(const char* path);
 
@@ -28,5 +42,8 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch);
 #define ANCAST_MAGIC (0xEFA282D9l)
 #define ANCAST_TARGET_IOP (0x02)
 #define ANCAST_TARGET_PPC (0x01)
+
+#define ANCAST_CONSOLE_TYPE_PROD (0x2)
+#define ANCAST_CONSOLE_TYPE_DEV  (0x1)
 
 #endif

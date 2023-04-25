@@ -522,7 +522,11 @@ u32 _main(void *base)
             fwrite((void*)(PRSHHAX_OTPDUMP_PTR+4), sizeof(otp), 1, f_otp);
             fclose(f_otp);
 
-            printf("OTP written to `sdmc:/otp.bin`!\n");
+            printf("OTP dumped successfully and was written to `sdmc:/otp.bin`.\n");
+
+            smc_get_events();
+            printf("Press POWER to continue.\n");
+            smc_wait_events(SMC_POWER_BUTTON);
         }
         else {
             printf("OTP dumped, but couldn't open `sdmc:/otp.bin`!\n");
@@ -544,6 +548,13 @@ u32 _main(void *base)
 
         memcpy(&otp, (void*)(PRSHHAX_OTPDUMP_PTR+4), sizeof(otp));
         has_no_otp_bin = 0;
+    } else if (read32(PRSHHAX_OTPDUMP_PTR) == PRSHHAX_FAIL_MAGIC) {
+        write32(PRSHHAX_OTPDUMP_PTR, 0);
+        printf("boot1 never jumped to payload! Offset or SEEPROM version might be incorrect.\n");
+
+        smc_get_events();
+        printf("Press POWER to continue.\n");
+        smc_wait_events(SMC_POWER_BUTTON);
     }
 
     if (crypto_otp_is_de_Fused)
@@ -620,8 +631,10 @@ u32 _main(void *base)
                 // Get input at .1s intervals.
                 u8 input = smc_get_events();
                 udelay(100000);
-                if((input & SMC_EJECT_BUTTON) || (input & SMC_POWER_BUTTON))
+                if((input & SMC_EJECT_BUTTON) || (input & SMC_POWER_BUTTON)) {
                     autoboot = false;
+                    break;
+                }
             }
         }
     }

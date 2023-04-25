@@ -79,7 +79,7 @@ int crypto_check_de_Fused()
     int bytes_loaded = 0x3FF;
 
     crypto_otp_is_de_Fused = 0;
-    u8* otp_iter = ((u8*)&otp) + sizeof(otp) - 2;
+    u8* otp_iter = ((u8*)&otp) + sizeof(otp) - 5;
     while (!(*otp_iter))
     {
         otp_iter--;

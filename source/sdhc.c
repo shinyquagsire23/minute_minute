@@ -729,6 +729,7 @@ sdhc_transfer_data(struct sdhc_host *hp, struct sdmmc_command *cmd)
                 break;
             }
         }
+        dc_invalidaterange(cmd->c_data, cmd->c_datalen);
     } else {
         //printf("fail.\n");
 
