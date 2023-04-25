@@ -18,6 +18,7 @@
 #include "utils.h"
 #include "memory.h"
 #include "gpio.h"
+#include "elm.h"
 
 #include "latte.h"
 
@@ -25,6 +26,7 @@
 #include "irq.h"
 #endif
 
+extern bool elm_mounted;
 //#define SDCARD_DEBUG
 
 #ifdef SDCARD_DEBUG
@@ -52,6 +54,11 @@ static struct sdcard_ctx card;
 
 void sdcard_attach(sdmmc_chipset_handle_t handle)
 {
+#ifndef MINUTE_BOOT1
+    //bool should_remount = elm_mounted;
+    ELM_Unmount();
+#endif
+
     memset(&card, 0, sizeof(card));
 
     card.handle = handle;
@@ -68,6 +75,11 @@ void sdcard_attach(sdmmc_chipset_handle_t handle)
             sdcard_needs_discover();
             if (card.inserted) break;
         }
+#ifndef MINUTE_BOOT1
+        //if (should_remount) {
+        ELM_Mount();
+        //}
+#endif
     }
 }
 

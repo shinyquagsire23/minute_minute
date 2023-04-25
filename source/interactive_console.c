@@ -266,6 +266,9 @@ void intcon_upload()
         serial_poll();
         serial_len = serial_in_read(serial_tmp);
         serial_idx = 0;
+        if (serial_len) {
+            attempts = 5000;
+        }
 
         for (int i = 0; i < serial_len; i++) {
             serial_idx++;
@@ -313,11 +316,14 @@ void intcon_upload()
     attempts = 5000;
     while (--attempts)
     {
-        for (int i = 0; i < 128; i++)
+        //for (int i = 0; i < 128; i++)
         {
             serial_poll();
         }
         serial_len = serial_in_read(serial_tmp);
+        if (serial_len) {
+            attempts = 5000;
+        }
 
         if (serial_len > bytes_left) {
             serial_len = bytes_left;

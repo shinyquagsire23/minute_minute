@@ -346,20 +346,36 @@ void smc_set_panic_reason(const char* buffer)
     write32(EXI0_CSR, 0);
 }
 
-void SRAM_TEXT smc_shutdown(bool reset)
+void SRAM_TEXT smc_shutdown(int type)
 {
-    if (reset) {
+    if (type == SMC_SHUTDOWN_RESET) {
         printf("Resetting...\n");
+    }
+    else if (type == SMC_SHUTDOWN_RESET_NO_DEFUSE) {
+        printf("Resetting (prshhax)...\n");
     }
     else {
         printf("Powering down...\n");
     }
+
     // Request a reset
-    serial_send_u32(0x55AA55AA);
-    serial_send_u32(0x55AA55AA);
-    serial_send_u32(0x55AA55AA);
-    serial_send_u32(0x55AA55AA);
-    serial_send_u32(0x4E525354);
+    if (type == SMC_SHUTDOWN_RESET)
+    {
+        serial_send_u32(0x55AA55AA);
+        serial_send_u32(0x55AA55AA);
+        serial_send_u32(0x55AA55AA);
+        serial_send_u32(0x55AA55AA);
+        serial_send_u32(0x4E525354);
+    }
+    else if (type == SMC_SHUTDOWN_RESET_NO_DEFUSE)
+    {
+        serial_send_u32(0x55AA55AA);
+        serial_send_u32(0x55AA55AA);
+        serial_send_u32(0x55AA55AA);
+        serial_send_u32(0x55AA55AA);
+        serial_send_u32(0x50525348);
+    }
+    
 
     write16(MEM_FLUSH_MASK, 0b1111);
     while(read16(MEM_FLUSH_MASK) & 0b1111);
@@ -395,7 +411,7 @@ void SRAM_TEXT smc_shutdown(bool reset)
     write16(MEM_SEQ0_REG_ADDR, 0x1A);
     write16(MEM_SEQ0_REG_VAL, 1);
 
-    if(reset) {
+    if(type) {
         {
             write32(EXI0_CSR, 0x108);
             write32(EXI0_DATA, 0xA1000D00);
@@ -474,10 +490,15 @@ void SRAM_TEXT smc_shutdown(bool reset)
 
 void smc_power_off(void)
 {
-    smc_shutdown(false);
+    smc_shutdown(SMC_SHUTDOWN_POFF);
 }
 
 void smc_reset(void)
 {
-    smc_shutdown(true);
+    smc_shutdown(SMC_SHUTDOWN_RESET);
+}
+
+void smc_reset_no_defuse(void)
+{
+    smc_shutdown(SMC_SHUTDOWN_RESET_NO_DEFUSE);
 }

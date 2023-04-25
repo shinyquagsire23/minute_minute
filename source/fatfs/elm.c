@@ -37,6 +37,7 @@
 //#include "gfx.h"
 
 bool elm_initialized = false;
+bool elm_mounted = false;
 FRESULT elm_error = 0;
 
 static FATFS fatfs = {0};
@@ -697,6 +698,8 @@ int ELM_Mount(void)
 {
     _ELM_init();
 
+    if (elm_mounted) return 0;
+
     FRESULT res = FR_OK;
     char buffer[_MAX_LFN];
 
@@ -710,6 +713,8 @@ int ELM_Mount(void)
         _ELM_chk_mounted(0);
         int dev = AddDevice(&devoptab);
         setDefaultDevice(dev);
+
+        elm_mounted = true;
     }
 
     elm_error = 0;
@@ -725,6 +730,8 @@ void ELM_Unmount(void)
     strcat(buffer, ":");
     RemoveDevice(buffer);
     f_mount(NULL, buffer, 1);
+
+    elm_mounted = false;
 }
 
 int ELM_ClusterSizeFromDisk(int disk, uint32_t* size)

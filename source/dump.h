@@ -32,4 +32,6 @@ void dump_format_rednand(void);
 void dump_seeprom_otp();
 void dump_factory_log();
 
+void dump_otp_via_prshhax(void);
+
 #endif

@@ -32,6 +32,8 @@ static int _minini_handler(void* user, const char* section, const char* name, co
 {
     int i = 0;
 
+    printf("minini: %s %s %s\n", section, name, value);
+
     while(true)
     {
         if(!minini_handlers[i].section) break;
@@ -48,7 +50,10 @@ static int _minini_handler(void* user, const char* section, const char* name, co
 int minini_init(void)
 {
     FILE* file = fopen("sdmc:/minute/minute.ini", "r");
-    if(!file) return 1;
+    if(!file) {
+        printf("minini: Failed to open `sdmc:/minute/minute.ini`!\n");
+        return 1;
+    }
 
     int res = ini_parse_file(file, _minini_handler, NULL);
 

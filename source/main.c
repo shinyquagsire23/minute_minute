@@ -3,6 +3,7 @@
  *
  *  Copyright (C) 2016          SALT
  *  Copyright (C) 2016          Daz Jones <daz@dazzozo.com>
+ *  Copyright (C) 2016, 2023    Max Thomas <mtinc2@gmail.com>
  *
  *  Copyright (C) 2008, 2009    Haxx Enterprises <bushing@gmail.com>
  *  Copyright (C) 2008, 2009    Sven Peter <svenpeter@gmail.com>
@@ -463,6 +464,7 @@ u32 _main(void *base)
 {
     (void)base;
     int res = 0; (void)res;
+    int has_no_otp_bin = 0;
 
     if (!memcmp((char*)ALL_PURPOSE_TMP_BUF, PASSALONG_MAGIC_BOOT1, 8)) {
         main_loaded_from_boot1 = 1;
@@ -509,8 +511,6 @@ u32 _main(void *base)
         panic(0);
     }
 
-    minini_init();
-
     crypto_check_de_Fused();
 
     if (crypto_otp_is_de_Fused)
@@ -522,6 +522,21 @@ u32 _main(void *base)
             fread(&otp, sizeof(otp), 1, otp_file);
             fclose(otp_file);
         }
+        else {
+            printf("Failed to load `sdmc:/otp.bin`!\nFirmware will fail to load.\n");
+            has_no_otp_bin = 1;
+
+            smc_get_events();
+            printf("Press POWER to continue.\n");
+            smc_wait_events(SMC_POWER_BUTTON);
+        }
+    }
+
+    minini_init();
+
+    // idk?
+    if (main_loaded_from_boot1) {
+        write32(0xC, 0x20008000);
     }
 
     gpu_test();
@@ -541,10 +556,82 @@ u32 _main(void *base)
     isfs_init();
     //isfs_test();
 
-    // Triple press opens menu
-    // TODO remove the && 0
-    if (main_loaded_from_boot1 && !(smc_get_events() & SMC_POWER_BUTTON) && 0) {
-        //main_autoboot();
+    // Write out our dumped OTP, if valid
+    if (read32(PRSHHAX_OTPDUMP_PTR) == PRSHHAX_OTP_MAGIC) {
+        write32(PRSHHAX_OTPDUMP_PTR, 0);
+        FILE* f_otp = fopen("sdmc:/otp.bin", "wb");
+        if (f_otp)
+        {
+            fwrite((void*)(PRSHHAX_OTPDUMP_PTR+4), sizeof(otp), 1, f_otp);
+            fclose(f_otp);
+
+            printf("OTP written to `sdmc:/otp.bin`!\n");
+        }
+        else {
+            printf("OTP dumped, but couldn't open `sdmc:/otp.bin`!\n");
+
+            u8* otp_iter = (u8*)(PRSHHAX_OTPDUMP_PTR+4);
+            for (int i = 0; i < 0x400; i++)
+            {
+                if (i && i % 16 == 0) {
+                    printf("\n");
+                }
+                printf("%02x ", *otp_iter++);
+            }
+            printf("\n");
+
+            smc_get_events();
+            printf("Press POWER to continue.\n");
+            smc_wait_events(SMC_POWER_BUTTON);
+        }
+
+        memcpy(&otp, (void*)(PRSHHAX_OTPDUMP_PTR+4), sizeof(otp));
+        has_no_otp_bin = 0;
+    }
+
+#if 0
+    if (crypto_otp_is_de_Fused && has_no_otp_bin) {
+        printf("Resetting into boot1 to dump ")
+        dump_otp_via_prshhax();
+    }
+#endif
+
+    // Can't boot w/o OTP
+    if (has_no_otp_bin) {
+        printf("No OTP bin, showing menu...\n");
+        autoboot = false;
+    }
+
+    // ~Triple press opens menu
+    if (smc_get_events() & SMC_POWER_BUTTON) {
+        printf("Power button spam, showing menu...\n");
+        autoboot = false;
+    }
+
+    // Prompt user to skip autoboot, time = 0 will skip this.
+    if(autoboot)
+    {
+        while((autoboot_timeout_s-- > 0) && autoboot)
+        {
+            printf("Autobooting in %d seconds...\n", (int)autoboot_timeout_s + 1);
+            printf("Press the POWER button or EJECT button to skip autoboot.\n");
+            for(u32 i = 0; i < 1000000; i += 100000)
+            {
+                // Get input at .1s intervals.
+                u8 input = smc_get_events();
+                udelay(100000);
+                if((input & SMC_EJECT_BUTTON) || (input & SMC_POWER_BUTTON))
+                    autoboot = false;
+            }
+        }
+    }
+    
+    // Try to autoboot if specified, if it fails just load the menu.
+    if(autoboot && main_autoboot() == 0) {
+        printf("Autobooting...\n");
+    }
+    else
+    {
         printf("Showing menu...\n");
 
         smc_get_events();
@@ -555,43 +642,8 @@ u32 _main(void *base)
         smc_get_events();
         smc_set_odd_power(true);
     }
-    else {
-        // Prompt user to skip autoboot, time = 0 will skip this.
-        if(autoboot)
-        {
-            while((autoboot_timeout_s-- > 0) && autoboot)
-            {
-                printf("Autobooting in %d seconds...\n", (int)autoboot_timeout_s + 1);
-                printf("Press the POWER button or EJECT button to skip autoboot.\n");
-                for(u32 i = 0; i < 1000000; i += 100000)
-                {
-                    // Get input at .1s intervals.
-                    u8 input = smc_get_events();
-                    udelay(100000);
-                    if((input & SMC_EJECT_BUTTON) || (input & SMC_POWER_BUTTON))
-                        autoboot = false;
-                }
-            }
-        }
-        
-        // Try to autoboot if specified, if it fails just load the menu.
-        if(autoboot && main_autoboot() == 0) {
-            printf("Autobooting...\n");
-        }
-        else
-        {
-            printf("Showing menu...\n");
 
-            smc_get_events();
-            smc_set_odd_power(false);
-
-            menu_init(&menu_main);
-
-            smc_get_events();
-            smc_set_odd_power(true);
-        }
-    }
-
+skip_menu:
     printf("Unmounting SLC...\n");
     isfs_fini();
 
@@ -619,6 +671,7 @@ u32 _main(void *base)
             break;
         case 1: smc_power_off(); break;
         case 2: smc_reset(); break;
+        case 3: smc_reset_no_defuse(); break;
     }
 
     if (boot.needs_otp)
@@ -670,6 +723,8 @@ int boot_ini(const char* key, const char* value)
     if(!strcmp(key, "autoboot_timeout"))
         autoboot_timeout_s = (u32)minini_get_uint(value, 3);
     
+    printf("minini: autoboot=%x\n", autoboot);
+
     return 0;
 }
 
@@ -743,6 +798,14 @@ void main_reset(void)
     gfx_clear(GFX_ALL, BLACK);
 
     boot.mode = 2;
+    menu_reset();
+}
+
+void main_reset_no_defuse(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+
+    boot.mode = 3;
     menu_reset();
 }
 

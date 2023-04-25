@@ -58,6 +58,10 @@
 #define CTRL0_POFFLG_4S    (0x02000000) // Set upon a 4 second power button press.
 #define CTRL0_POFFLG_FPOFF (0x04000000) // Set upon a forced power off.
 
+#define SMC_SHUTDOWN_POFF            (0)
+#define SMC_SHUTDOWN_RESET           (1)
+#define SMC_SHUTDOWN_RESET_NO_DEFUSE (2)
+
 int smc_read_register(u8 offset, u8* data);
 int smc_write_register(u8 offset, u8 data);
 int smc_write_register_multiple(u8 offset, u8* data, u32 count);
@@ -87,8 +91,9 @@ int smc_set_rearusb_power(int state);
 int smc_set_frontusb_power(int state);
 int smc_set_wifi_idk(int state);
 
-void smc_reset(void);
 void smc_power_off(void);
+void smc_reset(void);
+void smc_reset_no_defuse(void);
 
 void smc_get_panic_reason(char* buffer);
 void smc_set_panic_reason(const char* buffer);

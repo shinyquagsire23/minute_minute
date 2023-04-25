@@ -12,6 +12,7 @@
 
 #include "types.h"
 
+#define DMCU_RESET  (0x5800) // DMCU deassert = clear bit0
 #define D1GRPH_BASE (0x6100)
 #define D2GRPH_BASE (0x6900)
 

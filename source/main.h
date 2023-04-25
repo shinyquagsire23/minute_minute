@@ -23,6 +23,7 @@ void main_boot_fw(void);
 void main_boot_ppc(void);
 void main_shutdown(void);
 void main_reset(void);
+void main_reset_no_defuse(void);
 void main_reload(void);
 void main_credits(void);
 void main_get_crash(void);

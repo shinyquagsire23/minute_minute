@@ -15,6 +15,7 @@
 #include <string.h>
 #include "gfx.h"
 #include "crypto.h"
+#include "memory.h"
 
 typedef struct {
     char name[0x100];
@@ -451,4 +452,6 @@ void prsh_encrypt()
 
     aes_set_iv((u8*)iv);
     aes_encrypt((void*)0x10000400, (void*)0x10000400, 0x7C00 / 0x10, 0);
+
+    dc_flushrange((void*)0x10000400, 0x7C00);
 }
