@@ -55,7 +55,7 @@ void crypto_read_seeprom(void)
     seeprom_read(&seeprom, 0, sizeof(seeprom) / 2);
 
     // Added: fallback
-    if (!seeprom.bc_size || seeprom.bc_size != 0x24)
+    if (!seeprom.bc_size || seeprom.bc_size != 0x24 || crc32(&seeprom.bc_size, seeprom.bc_size - sizeof(u32)) != seeprom.bc_crc32)
     {
         memcpy(&seeprom.bc, &default_bc, sizeof(seeprom.bc));
         seeprom.bc_size = 0x24;
@@ -128,6 +128,35 @@ void crypto_decrypt_seeprom()
     crypto_decrypt_verify_seeprom_ptr(&seeprom_decrypted, &seeprom);
 }
 
+int crypto_verify_seeprom_ptr(seeprom_t* pSeeprom)
+{
+    // Verify non-crypted parameters
+    if (pSeeprom->AA55_marker != 0xAA55) {
+        printf("seeprom: bad AA55 marker! %04x\n", pSeeprom->AA55_marker);
+        return 0;
+    }
+    if (pSeeprom->BB66_marker != 0xBB66) {
+        printf("seeprom: bad BB66 marker! %04x\n", pSeeprom->BB66_marker);
+        return 0;
+    }
+    u32 crc_check = crc32(&pSeeprom->production_timestamp, sizeof(pSeeprom->production_timestamp));
+    if (crc_check != pSeeprom->production_timestamp_crc32) {
+        printf("seeprom: bad production CRC32! calc=%08x, stored=%08x\n", crc_check, pSeeprom->production_timestamp_crc32);
+        return 0;
+    }
+    if (pSeeprom->bc_size != 0x24) {
+        printf("seeprom: bad bc_size! %04x\n", pSeeprom->bc_size);
+        return 0;
+    }
+    crc_check = crc32(&pSeeprom->bc_size, pSeeprom->bc_size - sizeof(u32));
+    if (crc_check != pSeeprom->bc_crc32) {
+        printf("seeprom: bad production CRC32! calc=%08x, stored=%08x\n", crc_check, pSeeprom->bc_crc32);
+        return 0;
+    }
+
+    return 1;
+}
+
 int crypto_decrypt_verify_seeprom_ptr(seeprom_t* pOut, seeprom_t* pSeeprom)
 {
     static u8 seeprom_tmp[0x10] ALIGNED(16);
@@ -156,7 +185,7 @@ int crypto_decrypt_verify_seeprom_ptr(seeprom_t* pOut, seeprom_t* pSeeprom)
     u32 crc_2 = crc32(&pOut->boot1_params, 0xC);
     u32 crc_3 = crc32(&pOut->boot1_copy_params, 0xC);
 
-    if (crc_1 == pOut->hw_params_crc32 && crc_2 == pOut->boot1_params_crc32 && crc_3 == pOut->boot1_copy_params_crc32) {
+    if (crc_1 == pOut->hw_params_crc32 && crc_2 == pOut->boot1_params_crc32 && crc_3 == pOut->boot1_copy_params_crc32 && crypto_verify_seeprom_ptr(pOut)) {
         return 1;
     }
 
@@ -181,7 +210,7 @@ int crypto_encrypt_verify_seeprom_ptr(seeprom_t* pOut, seeprom_t* pSeeprom)
     u32 crc_2 = crc32(&pOut->boot1_params, 0xC);
     u32 crc_3 = crc32(&pOut->boot1_copy_params, 0xC);
 
-    if (crc_1 != pOut->hw_params_crc32 || crc_2 != pOut->boot1_params_crc32 || crc_3 != pOut->boot1_copy_params_crc32) {
+    if (crc_1 != pOut->hw_params_crc32 || crc_2 != pOut->boot1_params_crc32 || crc_3 != pOut->boot1_copy_params_crc32 || !crypto_verify_seeprom_ptr(pOut)) {
         printf("SEEPROM failed to verify!\n");
         printf("(Check your otp.bin?)\n");
         printf("Hardware params         calc: %08x stored: %08x\n", crc_1, pOut->hw_params_crc32);

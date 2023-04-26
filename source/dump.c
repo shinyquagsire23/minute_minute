@@ -442,7 +442,12 @@ void dump_restore_seeprom(void)
         printf("Failed to open sdmc:/seeprom.bin.\n");
         goto ret;
     }
-    fread(&to_write, 1, sizeof(seeprom_t), f_eep);
+    if (fread(&to_write, 1, sizeof(seeprom_t), f_eep) != sizeof(seeprom_t)) {
+        fclose(f_eep);
+
+        printf("sdmc:/seeprom.bin is the wrong size!! Aborting.\n");
+        goto ret;
+    }
     fclose(f_eep);
 
     printf("Verifying seeprom.bin...\n");
@@ -466,7 +471,8 @@ void dump_restore_seeprom(void)
         printf("If you lose BOTH otp.bin and seeprom.bin, you will be FORCED to\n");
         printf("use a donor copy from another Wii U.\n");
         printf("This *may* mean forfeiting the ability to play online!\n");
-        printf("This WILL mean saves stored on NAND or USBs will be unrecoverable!\n\n");
+        printf("This WILL mean saves stored on NAND or USBs will be unrecoverable!\n");
+        printf("This WILL mean your disk drive will no longer be usable!\n\n");
 
         printf("This is like, the one limitation of de_Fuse lol.\n");
         printf("You probably don't want to be here unless you're a developer\n");

@@ -189,14 +189,25 @@ typedef struct
         u8 model_number[16];
     } sys_prod;
 
-    u32 unk5;
-    u8 unk6[12];
-    u8 unk7[16];
-    u8 unk8[8];
+    struct __attribute__((packed)) {
+        u32 unk5;
+        u8 unk6[4];
+        u16 production_year;
+        u16 production_date;
+        u16 production_time;
+    } production_timestamp;
+    u32 production_timestamp_crc32;
+
+    u16 AA55_marker;
+    u8 unk7[6];
+    u8 _empty[4];
+    u8 unk8[4];
+    u16 BB66_marker;
+    u8 unk9[4];
 
     char ascii_tag2[8];
 
-    u8 unk9[16];
+    u8 unk10[16];
 
     struct __attribute__((packed)) {
         u16 clock_control;
