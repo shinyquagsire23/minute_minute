@@ -1364,7 +1364,10 @@ void dump_otp_via_prshhax(void)
     printf("Dumping OTP using boot1 %s v%u, and offset 0x%08x...\n", console_type_str, hdr->version, boot_info_addr);
     if (seeprom_decrypted.boot1_params.version != hdr->version) {
         printf("WARNING: SEEPROM boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_params.version, hdr->version);
-        printf("         Exploit might not work!\n");
+        printf("         Exploit might not work!\n\n");
+        printf("If this is the first time you're dumping otp.bin, ignore this message.\n");
+        printf("However, if you reflashed boot1, you might have to guess which boot1\n");
+        printf("version was originally on NAND and will match the SEEPROM version.\n");
     }
     
     prsh_encrypt();
