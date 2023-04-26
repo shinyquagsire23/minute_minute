@@ -16,15 +16,16 @@
 
 #include "types.h"
 
-#define PAGE_SIZE       2048
-#define PAGE_SPARE_SIZE     64
-#define ECC_BUFFER_SIZE     (PAGE_SPARE_SIZE+16)
-#define ECC_BUFFER_ALLOC    (PAGE_SPARE_SIZE+32)
-#define BLOCK_SIZE      64
-#define NAND_MAX_PAGE       0x40000
+#define PAGE_SIZE        (2048)
+#define PAGE_SPARE_SIZE  (64)
+#define ECC_BUFFER_SIZE  (PAGE_SPARE_SIZE+16)
+#define ECC_BUFFER_ALLOC (PAGE_SPARE_SIZE+32)
+#define BLOCK_SIZE       (64)
+#define NAND_MAX_PAGE    (0x40000)
+#define BOOT1_MAX_PAGE   (0x20)
 
-#define NAND_BANK_SLCCMPT 0x00000001
-#define NAND_BANK_SLC 0x00000002
+#define NAND_BANK_SLCCMPT (0x00000001)
+#define NAND_BANK_SLC     (0x00000002)
 
 #define NAND_CMD_EXEC (1<<31)
 

@@ -227,12 +227,15 @@ _Static_assert(sizeof(seeprom_t) == 0x200, "SEEPROM size must be 0x200!");
 
 extern otp_t otp;
 extern seeprom_t seeprom;
+extern seeprom_t seeprom_decrypted;
 extern int crypto_otp_is_de_Fused;
 
 void crypto_read_otp();
 int crypto_check_de_Fused();
 
 void crypto_initialize();
+void crypto_decrypt_seeprom(void);
+int crypto_decrypt_verify_seeprom_ptr(seeprom_t* pOut, seeprom_t* pSeeprom);
 
 void aes_reset(void);
 void aes_set_iv(u8 *iv);

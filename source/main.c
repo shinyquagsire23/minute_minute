@@ -576,6 +576,9 @@ u32 _main(void *base)
         }
     }
 
+    // Hopefully we have proper keys by this point
+    crypto_decrypt_seeprom();
+
     minini_init();
 
     // idk?

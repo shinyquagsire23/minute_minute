@@ -57,12 +57,14 @@ menu menu_dump = {
             {"Dump OTP via PRSHhax", &dump_otp_via_prshhax},
             {"Dump SLC.RAW", &dump_slc_raw},
             {"Dump SLCCMPT.RAW", &dump_slccmpt_raw},
+            {"Dump BOOT1_SLC.RAW", &dump_boot1_raw},
             {"Dump factory log", &dump_factory_log},
             {"Restore SLC.RAW", &dump_restore_slc_raw},
             {"Restore SLCCMPT.RAW", &dump_restore_slccmpt_raw},
+            {"Restore BOOT1_SLC.RAW", &dump_restore_boot1_raw},
             {"Return to Main Menu", &menu_close},
     },
-    9, // number of options
+    11, // number of options
     0,
     0
 };
@@ -122,7 +124,54 @@ close_ret:
     smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
 }
 
-void dump_seeprom_otp()
+void mandatory_seeprom_otp_backups()
+{
+    char tmp[128];
+    FILE* f_otp = NULL;
+    FILE* f_eep = NULL;
+
+    printf("Making mandatory OTP/SEEPROM backups...\n");
+
+    for (int try = 0; try < 128; try++)
+    {
+        snprintf(tmp, 127, "sdmc:/backup_otp_%u.bin", try);
+        tmp[127] = 0;
+
+        f_otp = fopen(tmp, "wb");
+        if (f_otp) break;
+    }
+
+    printf("Dumping OTP to `%s`...\n", tmp);
+    if(!f_otp)
+    {
+        printf("Failed to open `%s`.\n", tmp);
+    }
+    else {
+        fwrite(&otp, 1, sizeof(otp_t), f_otp);
+        fclose(f_otp);
+    }
+
+    for (int try = 0; try < 128; try++)
+    {
+        snprintf(tmp, 127, "sdmc:/backup_seeprom_%u.bin", try);
+        tmp[127] = 0;
+
+        f_eep = fopen(tmp, "wb");
+        if (f_eep) break;
+    }
+
+    printf("Dumping SEEPROM to `%s`...\n", tmp);
+    if(!f_eep)
+    {
+        printf("Failed to open `%s`.\n", tmp);
+    }
+    else {
+        fwrite(&seeprom, 1, sizeof(seeprom_t), f_eep);
+        fclose(f_eep);
+    }
+}
+
+void dump_seeprom_otp(void)
 {
     gfx_clear(GFX_ALL, BLACK);
 
@@ -151,7 +200,50 @@ void dump_seeprom_otp()
     fwrite(&seeprom, 1, sizeof(seeprom_t), f_eep);
     fclose(f_eep);
 
+    if (memcmp(&seeprom, &seeprom_decrypted, sizeof(seeprom)))
+    {
+        printf("Dumping decrypted SEEPROM to `sdmc:/seeprom_decrypted.bin`...\n");
+        FILE* f_eep = fopen("sdmc:/seeprom_decrypted.bin", "wb");
+        if(!f_eep)
+        {
+            printf("Failed to open sdmc:/seeprom_decrypted.bin.\n");
+            goto ret;
+        }
+        fwrite(&seeprom_decrypted, 1, sizeof(seeprom_t), f_eep);
+        fclose(f_eep);
+    }
+
     printf("\nDone!\n");
+ret:
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER or EJECT to return...\n");
+    smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+}
+
+void dump_restore_seeprom(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+
+    seeprom_t to_write;
+    seeprom_t to_write_verify;
+
+    printf("Restoring SEEPROM from `sdmc:/seeprom.bin`...\n");
+    FILE* f_eep = fopen("sdmc:/seeprom.bin", "rb");
+    if(!f_eep)
+    {
+        printf("Failed to open sdmc:/seeprom.bin.\n");
+        goto ret;
+    }
+    fread(&to_write, 1, sizeof(seeprom_t), f_eep);
+    fclose(f_eep);
+
+    if (!crypto_decrypt_verify_seeprom_ptr(&to_write_verify, &to_write)) {
+        printf("\nSEEPROM failed to verify!\n");
+        printf("(A valid otp.bin is required)\n");
+        goto ret;
+    }
+
+    printf("\nUnimplemented, nothing happened.\n");
 ret:
     smc_get_events(); // Eat all existing events
     printf("Press POWER or EJECT to return...\n");
@@ -236,10 +328,10 @@ int _dump_mlc(u32 base)
     return 0;
 }
 
-int _dump_slc_raw(u32 bank)
+int _dump_slc_raw(u32 bank, int boot1_only)
 {
     #define PAGES_PER_ITERATION (0x10)
-    #define TOTAL_ITERATIONS (NAND_MAX_PAGE / PAGES_PER_ITERATION)
+    #define TOTAL_ITERATIONS ((boot1_only ? BOOT1_MAX_PAGE : NAND_MAX_PAGE) / PAGES_PER_ITERATION)
 
     static u8 file_buf[PAGES_PER_ITERATION][PAGE_SIZE + PAGE_SPARE_SIZE];
 
@@ -257,7 +349,12 @@ int _dump_slc_raw(u32 bank)
     }
 
     char path[64] = {0};
-    sprintf(path, "%s.RAW", name);
+    if (!boot1_only) {
+        sprintf(path, "%s.RAW", name);
+    }
+    else {
+        sprintf(path, "BOOT1_%s.RAW", name);
+    }
 
     FIL file = {0}; FRESULT fres = 0; UINT btx = 0;
     fres = f_open(&file, path, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
@@ -308,10 +405,10 @@ int _dump_slc_raw(u32 bank)
     #undef TOTAL_ITERATIONS
 }
 
-int _dump_restore_slc_raw(u32 bank)
+int _dump_restore_slc_raw(u32 bank, int boot1_only)
 {
     #define PAGES_PER_ITERATION (0x10)
-    #define TOTAL_ITERATIONS (NAND_MAX_PAGE / PAGES_PER_ITERATION)
+    #define TOTAL_ITERATIONS ((boot1_only ? BOOT1_MAX_PAGE : NAND_MAX_PAGE) / PAGES_PER_ITERATION)
 
     static u8 page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(64);
 
@@ -331,7 +428,12 @@ int _dump_restore_slc_raw(u32 bank)
     }
 
     char path[64] = {0};
-    sprintf(path, "%s.RAW", name);
+    if (!boot1_only) {
+        sprintf(path, "%s.RAW", name);
+    }
+    else {
+        sprintf(path, "BOOT1_%s.RAW", name);
+    }
 
     // Make sure the user is dedicated (and require a difficult button press)
     smc_get_events(); // Eat all existing events
@@ -347,7 +449,7 @@ int _dump_restore_slc_raw(u32 bank)
         return -3;
     }
 
-    u64 nand_file_size_expected = NAND_MAX_PAGE * (PAGE_SIZE + PAGE_SPARE_SIZE);
+    u64 nand_file_size_expected = (boot1_only ? BOOT1_MAX_PAGE : NAND_MAX_PAGE) * (PAGE_SIZE + PAGE_SPARE_SIZE);
     u64 nand_file_size = f_size(&file);
     if (nand_file_size != nand_file_size_expected) {
         printf("Invalid file size! Expected 0x%llx, got 0x%llx.\n", nand_file_size_expected, nand_file_size);
@@ -443,7 +545,7 @@ int _dump_restore_slc_raw(u32 bank)
     #undef TOTAL_ITERATIONS
 }
 
-int _dump_slc(u32 base, u32 bank)
+int _dump_slc_to_sdcard_sectors(u32 base, u32 bank)
 {
     // how many sectors needed for a page (4)
     #define SECTORS_PER_PAGE (PAGE_SIZE / SDMMC_DEFAULT_BLOCKLEN)
@@ -520,12 +622,12 @@ int _dump_copy_rednand(u32 slc_base, u32 slccmpt_base, u32 mlc_base)
 
     // Dump SLC.
     if(slc_base != 0) {
-        _dump_slc(slc_base, NAND_BANK_SLC);
+        _dump_slc_to_sdcard_sectors(slc_base, NAND_BANK_SLC);
     }
 
     // Dump SLCCMPT.
     if(slccmpt_base != 0) {
-        _dump_slc(slccmpt_base, NAND_BANK_SLCCMPT);
+        _dump_slc_to_sdcard_sectors(slccmpt_base, NAND_BANK_SLCCMPT);
     }
 
     // Dump MLC.
@@ -554,10 +656,14 @@ int _dump_partition_rednand(void)
     }
 
     // Already partitioned, so ask about repartitioning
-    if(part2[0x4] == 0xAE && part3[0x4] == 0xAE && part4[0x4] == 0xAE)
+    // Actually let's always ask
+    //if(part2[0x4] == 0xAE && part3[0x4] == 0xAE && part4[0x4] == 0xAE)
     {
         smc_get_events(); // Eat all existing events
         printf("Repartition SD card?\n");
+        printf("ALL DATA ON THE SD CARD WILL BE OVERWRITTEN!\n");
+        printf("THIS CANNOT BE UNDONE!\n");
+
         printf("[POWER] No | [EJECT] Yes...\n");
         u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
         if(input & SMC_POWER_BUTTON) return 0;
@@ -573,15 +679,14 @@ int _dump_partition_rednand(void)
     u32 slccmpt_base = end - slc_sectors;
     u32 slc_base = slccmpt_base - slc_sectors;
     u32 mlc_base = slc_base - mlc_sectors;
-    u32 data_base = mlc_base - data_sectors;
-    u32 start = data_base;
 
-    u32 fat_base = 0;
-    u32 fat_size = start - 1;
+    u32 fat_sectors = mlc_base - 1 - data_sectors;
+    u32 fat_base = mlc_base - fat_sectors;
+    u32 data_base = 0;
 
     printf("Partition layout on SD with 0x%08lX (0x%08lX) sectors:\n", (u32)sdcard_get_sectors(), end);
 
-    printf("FAT32:   0x%08lX->0x%08lX\n", fat_base, fat_base + fat_size);
+    printf("FAT32:   0x%08lX->0x%08lX\n", fat_base, fat_base + fat_sectors);
     printf("DATA:    0x%08lX->0x%08lX\n", data_base, data_base + data_sectors);
     printf("MLC:     0x%08lX->0x%08lX\n", mlc_base, mlc_base + mlc_sectors);
     printf("SLC:     0x%08lX->0x%08lX\n", slc_base, slc_base + slc_sectors);
@@ -593,7 +698,7 @@ int _dump_partition_rednand(void)
     if(input & SMC_POWER_BUTTON) return 1;
 
     printf("Formatting to FAT32...\n");
-    fres = f_mkfs("sdmc:", 0, 0, fat_base, fat_base + fat_size);
+    fres = f_mkfs("sdmc:", 0, 0, fat_base, fat_base + fat_sectors);
     if(fres != FR_OK) {
         printf("Failed to format card (%d)!\n", fres);
         return -2;
@@ -628,6 +733,9 @@ int _dump_partition_rednand(void)
         return -4;
     }
 
+    // Mandatory backup
+    mandatory_seeprom_otp_backups();
+
     return 0;
 }
 
@@ -650,7 +758,7 @@ void dump_slc(void)
 
     u32 slc_base = LD_DWORD(&part4[0x8]);
 
-    res = _dump_slc(slc_base, NAND_BANK_SLC);
+    res = _dump_slc_to_sdcard_sectors(slc_base, NAND_BANK_SLC);
     if(res) {
         printf("Failed to dump SLC (%d)!\n", res);
         goto slc_exit;
@@ -662,14 +770,14 @@ slc_exit:
     smc_wait_events(SMC_POWER_BUTTON);
 }
 
-void dump_slc_raw()
+void dump_slc_raw(void)
 {
     int res = 0;
 
     gfx_clear(GFX_ALL, BLACK);
     printf("Dumping SLC.RAW...\n");
 
-    res = _dump_slc_raw(NAND_BANK_SLC);
+    res = _dump_slc_raw(NAND_BANK_SLC, 0);
     if(res) {
         printf("Failed to dump SLC.RAW (%d)!\n", res);
         goto slc_exit;
@@ -681,14 +789,14 @@ slc_exit:
     smc_wait_events(SMC_POWER_BUTTON);
 }
 
-void dump_slccmpt_raw()
+void dump_slccmpt_raw(void)
 {
     int res = 0;
 
     gfx_clear(GFX_ALL, BLACK);
     printf("Dumping SLCCMPT.RAW...\n");
 
-    res = _dump_slc_raw(NAND_BANK_SLCCMPT);
+    res = _dump_slc_raw(NAND_BANK_SLCCMPT, 0);
     if(res) {
         printf("Failed to dump SLCCMPT.RAW (%d)!\n", res);
         goto slc_exit;
@@ -700,14 +808,33 @@ slc_exit:
     smc_wait_events(SMC_POWER_BUTTON);
 }
 
-void dump_restore_slc_raw()
+void dump_boot1_raw(void)
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Dumping BOOT1_SLC.RAW...\n");
+
+    res = _dump_slc_raw(NAND_BANK_SLC, 1);
+    if(res) {
+        printf("Failed to dump BOOT1_SLC.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER to exit.\n");
+    smc_wait_events(SMC_POWER_BUTTON);
+}
+
+void dump_restore_slc_raw(void)
 {
     int res = 0;
 
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring SLC.RAW...\n");
 
-    res = _dump_restore_slc_raw(NAND_BANK_SLC);
+    res = _dump_restore_slc_raw(NAND_BANK_SLC, 0);
     if(res) {
         printf("Failed to restore SLC.RAW (%d)!\n", res);
         goto slc_exit;
@@ -719,16 +846,35 @@ slc_exit:
     smc_wait_events(SMC_POWER_BUTTON);
 }
 
-void dump_restore_slccmpt_raw()
+void dump_restore_slccmpt_raw(void)
 {
     int res = 0;
 
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring SLCCMPT.RAW...\n");
 
-    res = _dump_restore_slc_raw(NAND_BANK_SLCCMPT);
+    res = _dump_restore_slc_raw(NAND_BANK_SLCCMPT, 0);
     if(res) {
         printf("Failed to restore SLCCMPT.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER to exit.\n");
+    smc_wait_events(SMC_POWER_BUTTON);
+}
+
+void dump_restore_boot1_raw(void)
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Restoring BOOT1_SLC.RAW...\n");
+
+    res = _dump_restore_slc_raw(NAND_BANK_SLC, 1);
+    if(res) {
+        printf("Failed to restore BOOT1_SLC.RAW (%d)!\n", res);
         goto slc_exit;
     }
 
@@ -767,14 +913,14 @@ void dump_format_rednand(void)
     if(input & SMC_EJECT_BUTTON)
     {
         printf("Dumping SLC-RAW to FAT32...\n");
-        res = _dump_slc_raw(NAND_BANK_SLC);
+        res = _dump_slc_raw(NAND_BANK_SLC, 0);
         if(res) {
             printf("Failed to dump SLC-RAW (%d)!\n", res);
             goto format_exit;
         }
 
         printf("Dumping SLCCMPT-RAW to FAT32...\n");
-        res = _dump_slc_raw(NAND_BANK_SLCCMPT);
+        res = _dump_slc_raw(NAND_BANK_SLCCMPT, 0);
         if(res) {
             printf("Failed to dump SLCCMPT-RAW (%d)!\n", res);
             goto format_exit;
@@ -899,6 +1045,10 @@ void dump_otp_via_prshhax(void)
     otp.security_level |= 0x80000000;
 
     printf("Dumping OTP using boot1 %s v%u, and offset 0x%08x...\n", console_type_str, hdr->version, boot_info_addr);
+    if (seeprom_decrypted.boot1_params.version != hdr->version) {
+        printf("WARNING: SEEPROM boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_params.version, hdr->version);
+        printf("         Exploit might not work!\n");
+    }
     
     prsh_encrypt();
     write32(0x0, 0xEA000010); // b 0x48

@@ -19,6 +19,7 @@
 #include "gfx.h"
 #include "string.h"
 #include "seeprom.h"
+#include "crc32.h"
 
 #define     AES_CMD_RESET   0
 #define     AES_CMD_DECRYPT 0x9800
@@ -27,6 +28,7 @@
 
 otp_t otp;
 seeprom_t seeprom;
+seeprom_t seeprom_decrypted;
 int crypto_otp_is_de_Fused = 0;
 
 bc_t default_bc =
@@ -114,9 +116,57 @@ void crypto_initialize(void)
 {
     crypto_read_otp();
     crypto_read_seeprom();
-    write32(AES_CTRL, 0);
-    while (read32(AES_CTRL) != 0);
+
+    aes_reset();
     irq_enable(IRQ_AES);
+
+    memcpy(&seeprom_decrypted, &seeprom, sizeof(seeprom));
+}
+
+void crypto_decrypt_seeprom()
+{
+    crypto_decrypt_verify_seeprom_ptr(&seeprom_decrypted, &seeprom);
+}
+
+int crypto_decrypt_verify_seeprom_ptr(seeprom_t* pOut, seeprom_t* pSeeprom)
+{
+    static u8 seeprom_tmp[0x10] ALIGNED(16);
+
+    memcpy(pOut, pSeeprom, sizeof(*pSeeprom));
+    aes_reset();
+    aes_set_key(otp.seeprom_key);
+
+    // Decrypt the three SEEPROM blocks
+    aes_empty_iv();
+    memcpy(seeprom_tmp, &pOut->hw_params, 0x10);
+    aes_decrypt(seeprom_tmp, seeprom_tmp, 0x10, 0);
+    memcpy(&pOut->hw_params, seeprom_tmp, 0x10);
+
+    aes_empty_iv();
+    memcpy(seeprom_tmp, &pOut->boot1_params, 0x10);
+    aes_decrypt(seeprom_tmp, seeprom_tmp, 0x10, 0);
+    memcpy(&pOut->boot1_params, seeprom_tmp, 0x10);
+
+    aes_empty_iv();
+    memcpy(seeprom_tmp, &pOut->boot1_copy_params, 0x10);
+    aes_decrypt(seeprom_tmp, seeprom_tmp, 0x10, 0);
+    memcpy(&pOut->boot1_copy_params, seeprom_tmp, 0x10);
+
+    u32 crc_1 = crc32(&pOut->hw_params, 0xC);
+    u32 crc_2 = crc32(&pOut->boot1_params, 0xC);
+    u32 crc_3 = crc32(&pOut->boot1_copy_params, 0xC);
+
+    if (crc_1 == pOut->hw_params_crc32 && crc_2 == pOut->boot1_params_crc32 && crc_3 == pOut->boot1_copy_params_crc32) {
+        return 1;
+    }
+
+    printf("SEEPROM failed to verify!\n");
+    printf("(Check your otp.bin?)\n");
+    printf("Hardware params         calc: %08x stored: %08x\n", crc_1, pOut->hw_params_crc32);
+    printf("Primary boot1 params    calc: %08x stored: %08x\n", crc_2, pOut->boot1_params);
+    printf("Secondary boot1 params  calc: %08x stored: %08x\n", crc_3, pOut->boot1_copy_params);
+    printf("Decrypted boot1 versions: v%u and v%u\n", pOut->boot1_params.version, pOut->boot1_copy_params.version);
+    return 0;
 }
 
 static int _aes_irq = 0;
