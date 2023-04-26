@@ -12,7 +12,7 @@
 #include "gfx.h"
 #include "utils.h"
 #include "memory.h"
-#include "gpio.h"
+#include "serial.h"
 #include "latte.h"
 
 const char *exceptions[] = {

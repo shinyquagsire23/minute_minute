@@ -20,7 +20,7 @@
 #include "nand.h"
 #include "sdcard.h"
 #include "mlc.h"
-#include "gpio.h"
+#include "serial.h"
 
 static u32 _alarm_frequency = 0;
 

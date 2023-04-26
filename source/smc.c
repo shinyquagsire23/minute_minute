@@ -21,6 +21,7 @@
 #include "asic.h"
 #include "gfx.h"
 #include "gpio.h"
+#include "serial.h"
 
 // 0x00 - odd on (raw)
 // 0x01 - odd off (raw)
@@ -143,7 +144,7 @@ int smc_mask_register(u8 offset, u8 mask, u8 val)
     existing &= ~mask;
     existing |= val;
 
-    ret = smc_write_register(offset, &existing);
+    ret = smc_write_register(offset, existing);
     return ret;
 }
 
@@ -160,7 +161,7 @@ int smc_write_raw_multiple(u8* data, u32 count)
     // Clock is 10000 in C2W, but 5000 in IOS...
     i2c_init(5000, 1);
 
-    return i2c_write(I2C_SLAVE_SMC, &data, count);
+    return i2c_write(I2C_SLAVE_SMC, data, count);
 }
 
 int smc_set_notification_led(u8 val)
@@ -283,67 +284,6 @@ u8 smc_wait_events(u8 mask)
         u8 data = smc_get_events();
         if(data & mask) return data & mask;
     }
-}
-
-void smc_set_ctrl1(u32 val)
-{
-    exi0_write32(0x21000D00, val);
-}
-
-u32 smc_get_ctrl1()
-{
-    return exi0_read32(0x21000D00);
-}
-
-void smc_set_ctrl0(u32 val)
-{
-    exi0_write32(0x21000C00, val);
-}
-
-u32 smc_get_ctrl0()
-{
-    return exi0_read32(0x21000C00);
-}
-
-void smc_get_panic_reason(char* buffer)
-{
-    u32* buf32 = (u32*)buffer;
-
-    write32(EXI0_CSR, 0x108);
-    write32(EXI0_DATA, 0x20000100);
-    write32(EXI0_CR, 0x35);
-    while(!(read32(EXI0_CSR) & 8));
-
-    for(int i = 0; i < 64 / sizeof(u32); i++)
-    {
-        write32(EXI0_CSR, 0x108);
-        write32(EXI0_CR, 0x31);
-        while(!(read32(EXI0_CSR) & 8));
-
-        buf32[i] = read32(EXI0_DATA);
-    }
-
-    write32(EXI0_CSR, 0);
-}
-
-void smc_set_panic_reason(const char* buffer)
-{
-    const u32* buf32 = (const u32*)buffer;
-
-    write32(EXI0_CSR, 0x108);
-    write32(EXI0_DATA, 0xA0000100);
-    write32(EXI0_CR, 0x35);
-    while(!(read32(EXI0_CSR) & 8));
-
-    for(int i = 0; i < 64 / sizeof(u32); i++)
-    {
-        write32(EXI0_CSR, 0x108);
-        write32(EXI0_DATA, buf32[i]);
-        write32(EXI0_CR, 0x35);
-        while(!(read32(EXI0_CSR) & 8));
-    }
-
-    write32(EXI0_CSR, 0);
 }
 
 void SRAM_TEXT smc_shutdown(int type)

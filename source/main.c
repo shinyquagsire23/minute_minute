@@ -38,19 +38,22 @@
 #include "ancast.h"
 #include "minini.h"
 #include "gpio.h"
+#include "serial.h"
 #include "memory.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <malloc.h>
 #include "ppc_elf.h"
 #include "ppc.h"
 #include "dram.h"
 #include "smc.h"
+#include "rtc.h"
 #include "prsh.h"
 #include "asic.h"
 #include "gpu.h"
 #include "exi.h"
 #include "interactive_console.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <malloc.h>
 
 static struct {
     int mode;
@@ -73,31 +76,6 @@ void silly_tests();
 
 #ifdef MINUTE_BOOT1
 extern otp_t otp;
-
-#define PFLAGS_INVALID              (0x00000001)
-#define PFLAG_PON_WAKEREQ1_EVENT_SW (0x00000002)
-#define PFLAG_PON_WAKEBT_EVENT_SW   (0x00000004)
-#define PFLAG_PON_POWER_BTN_SW      (0x00000008)
-#define PFLAG_ENTER_BG_NORMAL_MODE  (0x00000010)
-#define PFLAG_PON_SMC_DISC          (0x00000200)
-#define PFLAG_PON_SYNC_BTN          (0x00000400)
-#define PFLAG_PON_RESTART           (0x00001000)
-#define PFLAG_PON_COLDBOOT          (0x00010000)
-#define PON_SMC_TIMER               (0x00020000)
-#define PFLAG_40000                 (0x00040000)
-#define CMPT_RETSTAT1               (0x00080000)
-#define CMPT_RETSTAT0               (0x00100000)
-#define PFLAG_DDR_SREFRESH          (0x00200000)
-#define POFF_TMR                    (0x00400000)
-#define POFF_4S                     (0x00800000)
-#define POFF_FORCED                 (0x01000000)
-#define PON_TMR                     (0x02000000)
-#define PON_SMC                     (0x04000000)
-#define PON_WAKEREQ1_EVENT          (0x08000000)
-#define PON_WAKEREQ0_EVENT          (0x10000000)
-#define PON_WAKEBT_EVENT            (0x20000000)
-#define PON_EJECT_BTN               (0x40000000)
-#define PON_POWER_BTN               (0x80000000)
 
 u32 _main(void *base)
 {
@@ -161,7 +139,7 @@ u32 _main(void *base)
 
     // 0x00020721 on extra cold booting (fresh from power plug)
     // 0x02020321 on warm cold booting (or 0x02000221?)
-    u32 rtc_ctrl0 = smc_get_ctrl0();
+    u32 rtc_ctrl0 = rtc_get_ctrl0();
     serial_send_u32(rtc_ctrl0);
 
     u32 syscfg1_val = read32(LT_SYSCFG1);
@@ -224,12 +202,12 @@ u32 _main(void *base)
     }
 
     // Raise POFFLG_TMR, PONFLG_SYS and some unknown flags
-    smc_set_ctrl0(CTRL0_POFFLG_TMR | CTRL0_PONFLG_SYS | CTRL0_FLG_00800000 | CTRL0_FLG_00400000);
+    rtc_set_ctrl0(CTRL0_POFFLG_TMR | CTRL0_PONFLG_SYS | CTRL0_FLG_00800000 | CTRL0_FLG_00400000);
 
-    u32 rtc_ctrl1 = smc_get_ctrl1();
+    u32 rtc_ctrl1 = rtc_get_ctrl1();
 
     // Check if SLEEP_EN is raised
-    if (rtc_ctrl1 & 0x00000100)
+    if (rtc_ctrl1 & CTRL1_SLEEP_EN)
         pflags_val |= PFLAG_DDR_SREFRESH; // Set DDR_SREFRESH power flag
 
     u32 mem_mode = 0;
@@ -285,14 +263,10 @@ u32 _main(void *base)
         for (u32 j = 0x10000000; j != 0x10000400; j += 8 )
         {
             if (*(vu32*)j != 0x12345678) {
-                //serial_send_u32(j);
-                //serial_send_u32(*(vu32*)j);
                 is_good = 0;
                 break;
             }
             if (*(vu32*)(j + 4) != 0x9ABCDEF0) {
-                //serial_send_u32(j+4);
-                //serial_send_u32(*(vu32*)(j+4));
                 is_good = 0;
                 break;
             }
@@ -307,7 +281,7 @@ u32 _main(void *base)
     serial_send_u32(0x4D454D30); // MEM0
 
     // Clear all MEM0
-    memset(0x08000000, 0, 0x002E0000);
+    memset((void*)0x08000000, 0, 0x002E0000);
 
     // Standby Mode boot doesn't need to upclock
     if (!(pflags_val & PON_SMC_TIMER))
@@ -910,7 +884,7 @@ void main_reset_crash(void)
 	printf("Clearing SMC crash buffer...\n");
 
 	const char buffer[64 + 1] = "Crash buffer empty.";
-	smc_set_panic_reason(buffer);
+	rtc_set_panic_reason(buffer);
 
     printf("Press POWER to exit.\n");
     smc_wait_events(SMC_POWER_BUTTON);
@@ -922,7 +896,7 @@ void main_get_crash(void)
     printf("Reading SMC crash buffer...\n");
 
     char buffer[64 + 1] = {0};
-    smc_get_panic_reason(buffer);
+    rtc_get_panic_reason(buffer);
 
     // We use this SMC buffer for storing exception info, however, it is only 64 bytes.
     // This is exactly enough for r0-r15, but nothing else - not even some exception "magic"

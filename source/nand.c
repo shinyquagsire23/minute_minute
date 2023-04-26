@@ -295,3 +295,63 @@ int nand_correct(u32 pageno, void *data, void *ecc)
         return NAND_ECC_CORRECTED;
     return NAND_ECC_OK;
 }
+
+static u8 _nand_parity(u8 x)
+{
+    u8 y = 0;
+    while (x)
+    {
+        y ^= (x & 1);
+        x >>= 1;
+    }
+    return y;
+}
+
+void nand_create_ecc(void* in_data, void* spare_out)
+{
+    u8 a[12][2];
+    u32 a0, a1;
+    u8 x;
+
+    u8* ecc = PTR_OFFS(spare_out, 0x30);
+    const u8* data = (u8*)in_data;
+
+    for (int k = 0; k < 4; k++)
+    {
+        memset(a, 0, sizeof(a));
+        for (int i = 0; i < 0x200; i++)
+        {
+            x = data[i];
+            for (int j = 0; j < 9; j++)
+                a[3 + j][(i >> j) & 1] ^= x;
+        }
+
+        x = a[3][0] ^ a[3][1];
+        a[0][0] = x & 0x55;
+        a[0][1] = x & 0xaa;
+        a[1][0] = x & 0x33;
+        a[1][1] = x & 0xcc;
+        a[2][0] = x & 0x0f;
+        a[2][1] = x & 0xf0;
+
+        for (int j = 0; j < 12; j++)
+        {
+            a[j][0] = _nand_parity(a[j][0]);
+            a[j][1] = _nand_parity(a[j][1]);
+        }
+        a0 = a1 = 0;
+
+        for (int j = 0; j < 12; j++)
+        {
+            a0 |= a[j][0] << j;
+            a1 |= a[j][1] << j;
+        }
+        ecc[0] = a0;
+        ecc[1] = a0 >> 8;
+        ecc[2] = a1;
+        ecc[3] = a1 >> 8;
+
+        data += 512;
+        ecc += 4;
+    }
+}

@@ -239,6 +239,8 @@ type *name = (type*)(((u32)(_al__##name)) + ((alignment) - (( \
 (u32)(_al__##name))&((alignment)-1))))
 
 
+#define PTR_OFFS(a, b) ((void*)(((intptr_t)a) + b))
+
 #define max(a, b) \
     ({ __typeof__ (a) _a = (a); \
        __typeof__ (b) _b = (b); \

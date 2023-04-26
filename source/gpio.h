@@ -2,6 +2,8 @@
  *  minute - a port of the "mini" IOS replacement for the Wii U.
  *
  *  Copyright (C) 2008, 2009    Hector Martin "marcan" <marcan@marcansoft.com>
+ *  Copyright (C) 2016          SALT
+ *  Copyright (C) 2023          Max Thomas <mtinc2@gmail.com>
  *
  *  This code is licensed to you under the terms of the GNU GPL, version 2;
  *  see file COPYING or http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
@@ -82,15 +84,6 @@ extern u8 test_read_serial;
 
 void gpio_enable(u16 gpio_id, u8 val);
 void gpio_set_dir(u16 gpio_id, u8 dir);
-
-void serial_fatal();
-void serial_force_terminate();
-void serial_send_u32(u32 val);
-int serial_in_read(u8* out);
-void serial_poll();
-void serial_allow_zeros();
-void serial_disallow_zeros();
-void serial_send(u8 val);
 
 void gpio_dcdc_pwrcnt2_set(u8 val);
 void gpio_dcdc_pwrcnt_set(u8 val);

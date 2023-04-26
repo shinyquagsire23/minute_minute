@@ -23,7 +23,7 @@
 #include "crypto.h"
 #include "smc.h"
 #include "sdcard.h"
-#include "gpio.h"
+#include "serial.h"
 #include "elfldr_patch.h"
 
 char sd_read_buffer[0x200] ALIGNED(0x20);

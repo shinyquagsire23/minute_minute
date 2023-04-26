@@ -9,7 +9,7 @@
  */
 
 #include "gfx.h"
-#include "gpio.h"
+#include "serial.h"
 #include "gpu.h"
 #include <stdio.h>
 #include <string.h>

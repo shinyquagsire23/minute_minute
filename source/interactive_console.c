@@ -16,7 +16,7 @@
 #include <malloc.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "gpio.h"
+#include "serial.h"
 #include "smc.h"
 #include "console.h"
 #include "gfx.h"
@@ -101,7 +101,7 @@ void intcon_delete()
 
 void intcon_show_help(void)
 {
-    printf("Valid commands: exit, quit, reset, restart, shutdown, smc, help, ?\n");
+    printf("Valid commands: exit, quit, reset, restart, shutdown, smc, peek, poke, set, clear, help, ?\n");
 }
 
 void intcon_smc_cmd(int argc, char** argv)
@@ -121,7 +121,7 @@ smc_usage:
         if (argc < 3) {
             goto smc_usage;
         }
-        uint8_t val = strtol(argv[2], NULL, 0);
+        u8 val = strtol(argv[2], NULL, 0);
 
         smc_write_raw(val);
         printf("raw %02x\n", val);
@@ -130,9 +130,9 @@ smc_usage:
         if (argc < 3) {
             goto smc_usage;
         }
-        uint8_t addr = strtol(argv[2], NULL, 0);
-        uint8_t val = 0;
-        uint8_t len = 1;
+        u8 addr = strtol(argv[2], NULL, 0);
+        u8 val = 0;
+        u8 len = 1;
         if (argc > 3) {
             len = strtol(argv[3], NULL, 0);
         }
@@ -152,9 +152,9 @@ smc_usage:
         if (argc < 4) {
             goto smc_usage;
         }
-        uint8_t addr = strtol(argv[2], NULL, 0);
-        uint8_t val = 0;
-        uint8_t len = strtol(argv[3], NULL, 0);
+        u8 addr = strtol(argv[2], NULL, 0);
+        u8 val = 0;
+        u8 len = strtol(argv[3], NULL, 0);
 
         printf("read %02x:", addr);
 
@@ -171,8 +171,8 @@ smc_usage:
         if (argc < 4) {
             goto smc_usage;
         }
-        uint8_t addr = strtol(argv[2], NULL, 0);
-        uint8_t val = strtol(argv[3], NULL, 0);
+        u8 addr = strtol(argv[2], NULL, 0);
+        u8 val = strtol(argv[3], NULL, 0);
         printf("write %02x: %02x\n", addr, val);
 
         smc_write_register(addr, val);
@@ -182,10 +182,10 @@ smc_usage:
             goto smc_usage;
         }
         int len = argc-3;
-        uint8_t addr = strtol(argv[2], NULL, 0);
+        u8 addr = strtol(argv[2], NULL, 0);
         
         for (int i = 0; i < len; i++) {
-            uint8_t val = strtol(argv[3+i], NULL, 0);
+            u8 val = strtol(argv[3+i], NULL, 0);
             
             smc_write_register(addr + i, val);
         }
@@ -199,7 +199,7 @@ smc_usage:
         {
             tmp[i-3] = strtol(argv[i], NULL, 0);
         }
-        uint8_t addr = strtol(argv[2], NULL, 0);
+        u8 addr = strtol(argv[2], NULL, 0);
 
         smc_write_register_multiple(addr, tmp, argc-3);
     }
@@ -207,7 +207,7 @@ smc_usage:
         if (argc < 3) {
             goto smc_usage;
         }
-        uint8_t val = strtol(argv[2], NULL, 0);
+        u8 val = strtol(argv[2], NULL, 0);
         printf("test %02x\n", val);
 
         smc_write_register(0x73, 0);
@@ -230,6 +230,56 @@ smc_usage:
 
         smc_read_register(0x76, &val);
         printf("%02x\n", val);
+    }
+}
+
+void intcon_memory_cmd(int argc, char** argv)
+{
+    if (!strcmp(argv[0], "peek"))
+    {
+        if (argc < 2) {
+            printf("Usage: peek <addr>\n");
+            return;
+        }
+        u32 addr = strtol(argv[1], NULL, 0);
+        u32 val = read32(addr);
+        printf("%08x\n", val);
+    }
+    else if (!strcmp(argv[0], "poke"))
+    {
+        if (argc < 3) {
+            printf("Usage: poke <addr> <val>\n");
+            return;
+        }
+        u32 addr = strtol(argv[1], NULL, 0);
+        u32 val = strtol(argv[2], NULL, 0);
+        write32(addr, val);
+        val = read32(addr);
+        printf("%08x\n", val);
+    }
+    else if (!strcmp(argv[0], "set"))
+    {
+        if (argc < 3) {
+            printf("Usage: set <addr> <OR val>\n");
+            return;
+        }
+        u32 addr = strtol(argv[1], NULL, 0);
+        u32 val = strtol(argv[2], NULL, 0);
+        set32(addr, val);
+        val = read32(addr);
+        printf("%08x\n", val);
+    }
+    else if (!strcmp(argv[0], "clear"))
+    {
+        if (argc < 3) {
+            printf("Usage: set <addr> <AND ~val>\n");
+            return;
+        }
+        u32 addr = strtol(argv[1], NULL, 0);
+        u32 val = strtol(argv[2], NULL, 0);
+        clear32(addr, val);
+        val = read32(addr);
+        printf("%08x\n", val);
     }
 }
 
@@ -412,6 +462,9 @@ void intcon_handle_cmd(const char* pCmd)
     }
     else if (!strcmp(cmd, "smc")) {
         intcon_smc_cmd(argc, argv);
+    }
+    else if (!strcmp(cmd, "peek") || !strcmp(cmd, "poke") || !strcmp(cmd, "set") || !strcmp(cmd, "clear")) {
+        intcon_memory_cmd(argc, argv);
     }
     else if (!strcmp(cmd, "help") || !strcmp(cmd, "?")) {
         intcon_show_help();

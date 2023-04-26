@@ -13,7 +13,7 @@
 #include "utils.h"
 #include "gfx.h"
 #include "console.h"
-#include "gpio.h"
+#include "serial.h"
 #include <stdio.h>
 
 #include "smc.h"

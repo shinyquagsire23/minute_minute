@@ -284,6 +284,18 @@
 #define EHCI2_REG_BASE      (0x0D140000)
 
 /*
+ * SI registers.
+ * http://wiiubrew.org/wiki/Hardware/Legacy#Serial_Interface
+ * http://hitmen.c02.at/files/yagcd/yagcd/chap5.html#sec5.8
+ */
+#define SI_REG_BASE        (0x0D806400)
+
+#define SI_C0OUTBUF         (SI_REG_BASE  + 0x000)
+#define SI_C1OUTBUF         (SI_REG_BASE  + 0x00C)
+#define SI_C2OUTBUF         (SI_REG_BASE  + 0x018)
+#define SI_C3OUTBUF         (SI_REG_BASE  + 0x024)
+
+/*
  * EXI registers.
  * http://wiiubrew.org/wiki/Hardware/Legacy#External_Interface
  */
