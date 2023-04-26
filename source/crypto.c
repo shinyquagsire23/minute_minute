@@ -139,17 +139,17 @@ int crypto_decrypt_verify_seeprom_ptr(seeprom_t* pOut, seeprom_t* pSeeprom)
     // Decrypt the three SEEPROM blocks
     aes_empty_iv();
     memcpy(seeprom_tmp, &pOut->hw_params, 0x10);
-    aes_decrypt(seeprom_tmp, seeprom_tmp, 0x10, 0);
+    aes_decrypt(seeprom_tmp, seeprom_tmp, 1, 0);
     memcpy(&pOut->hw_params, seeprom_tmp, 0x10);
 
     aes_empty_iv();
     memcpy(seeprom_tmp, &pOut->boot1_params, 0x10);
-    aes_decrypt(seeprom_tmp, seeprom_tmp, 0x10, 0);
+    aes_decrypt(seeprom_tmp, seeprom_tmp, 1, 0);
     memcpy(&pOut->boot1_params, seeprom_tmp, 0x10);
 
     aes_empty_iv();
     memcpy(seeprom_tmp, &pOut->boot1_copy_params, 0x10);
-    aes_decrypt(seeprom_tmp, seeprom_tmp, 0x10, 0);
+    aes_decrypt(seeprom_tmp, seeprom_tmp, 1, 0);
     memcpy(&pOut->boot1_copy_params, seeprom_tmp, 0x10);
 
     u32 crc_1 = crc32(&pOut->hw_params, 0xC);
@@ -165,8 +165,55 @@ int crypto_decrypt_verify_seeprom_ptr(seeprom_t* pOut, seeprom_t* pSeeprom)
     printf("Hardware params         calc: %08x stored: %08x\n", crc_1, pOut->hw_params_crc32);
     printf("Primary boot1 params    calc: %08x stored: %08x\n", crc_2, pOut->boot1_params);
     printf("Secondary boot1 params  calc: %08x stored: %08x\n", crc_3, pOut->boot1_copy_params);
-    printf("Decrypted boot1 versions: v%u and v%u\n", pOut->boot1_params.version, pOut->boot1_copy_params.version);
+    printf("Decrypted boot1 versions: v%u (%04x) and v%u (%04x)\n", pOut->boot1_params.version, pOut->boot1_params.version, pOut->boot1_copy_params.version, pOut->boot1_copy_params.version);
+    printf("Decrypted boot1 sectors: 0x%04x and 0x%04x\n", pOut->boot1_params.sector, pOut->boot1_copy_params.sector);
     return 0;
+}
+
+int crypto_encrypt_verify_seeprom_ptr(seeprom_t* pOut, seeprom_t* pSeeprom)
+{
+    seeprom_t extra_verify;
+    static u8 seeprom_tmp[0x10] ALIGNED(16);
+
+    memcpy(pOut, pSeeprom, sizeof(*pSeeprom));
+
+    u32 crc_1 = crc32(&pOut->hw_params, 0xC);
+    u32 crc_2 = crc32(&pOut->boot1_params, 0xC);
+    u32 crc_3 = crc32(&pOut->boot1_copy_params, 0xC);
+
+    if (crc_1 != pOut->hw_params_crc32 || crc_2 != pOut->boot1_params_crc32 || crc_3 != pOut->boot1_copy_params_crc32) {
+        printf("SEEPROM failed to verify!\n");
+        printf("(Check your otp.bin?)\n");
+        printf("Hardware params         calc: %08x stored: %08x\n", crc_1, pOut->hw_params_crc32);
+        printf("Primary boot1 params    calc: %08x stored: %08x\n", crc_2, pOut->boot1_params);
+        printf("Secondary boot1 params  calc: %08x stored: %08x\n", crc_3, pOut->boot1_copy_params);
+        printf("Decrypted boot1 versions: v%u (%04x) and v%u (%04x)\n", pOut->boot1_params.version, pOut->boot1_params.version, pOut->boot1_copy_params.version, pOut->boot1_copy_params.version);
+        printf("Decrypted boot1 sectors: 0x%04x and 0x%04x\n", pOut->boot1_params.sector, pOut->boot1_copy_params.sector);
+
+        return 0;
+    }
+
+    aes_reset();
+    aes_set_key(otp.seeprom_key);
+
+    // Decrypt the three SEEPROM blocks
+    aes_empty_iv();
+    memcpy(seeprom_tmp, &pOut->hw_params, 0x10);
+    aes_encrypt(seeprom_tmp, seeprom_tmp, 1, 0);
+    memcpy(&pOut->hw_params, seeprom_tmp, 0x10);
+
+    aes_empty_iv();
+    memcpy(seeprom_tmp, &pOut->boot1_params, 0x10);
+    aes_encrypt(seeprom_tmp, seeprom_tmp, 1, 0);
+    memcpy(&pOut->boot1_params, seeprom_tmp, 0x10);
+
+    aes_empty_iv();
+    memcpy(seeprom_tmp, &pOut->boot1_copy_params, 0x10);
+    aes_encrypt(seeprom_tmp, seeprom_tmp, 1, 0);
+    memcpy(&pOut->boot1_copy_params, seeprom_tmp, 0x10);
+
+    // Juuust in case
+    return crypto_decrypt_verify_seeprom_ptr(&extra_verify, pOut);
 }
 
 static int _aes_irq = 0;
@@ -218,7 +265,12 @@ void aes_set_key(u8 *key)
 
 void aes_decrypt(u8 *src, u8 *dst, u32 blocks, u8 keep_iv)
 {
+    // Kinda have to do both flush/invalidate on both because if you crypt
+    // 1 block, an invalidate will corrupt the periphery memory in the cache
+    // line.
     dc_flushrange(src, blocks * 16);
+    dc_invalidaterange(src, blocks * 16);
+    dc_flushrange(dst, blocks * 16);
     dc_invalidaterange(dst, blocks * 16);
     ahb_flush_to(RB_AES);
 
@@ -241,11 +293,18 @@ void aes_decrypt(u8 *src, u8 *dst, u32 blocks, u8 keep_iv)
 
     ahb_flush_from(WB_AES);
     ahb_flush_to(RB_IOD);
+    //dc_flushrange(dst, blocks * 16);
+    //dc_invalidaterange(dst, blocks * 16);
 }
 
 void aes_encrypt(u8 *src, u8 *dst, u32 blocks, u8 keep_iv)
 {
+    // Kinda have to do both flush/invalidate on both because if you crypt
+    // 1 block, an invalidate will corrupt the periphery memory in the cache
+    // line.
     dc_flushrange(src, blocks * 16);
+    dc_invalidaterange(src, blocks * 16);
+    dc_flushrange(dst, blocks * 16);
     dc_invalidaterange(dst, blocks * 16);
     ahb_flush_to(RB_AES);
 
@@ -268,11 +327,18 @@ void aes_encrypt(u8 *src, u8 *dst, u32 blocks, u8 keep_iv)
 
     ahb_flush_from(WB_AES);
     ahb_flush_to(RB_IOD);
+    //dc_flushrange(dst, blocks * 16);
+    //dc_invalidaterange(dst, blocks * 16);
 }
 
 void aes_copy(u8 *src, u8 *dst, u32 blocks)
 {
+    // Kinda have to do both flush/invalidate on both because if you crypt
+    // 1 block, an invalidate will corrupt the periphery memory in the cache
+    // line.
     dc_flushrange(src, blocks * 16);
+    dc_invalidaterange(src, blocks * 16);
+    dc_flushrange(dst, blocks * 16);
     dc_invalidaterange(dst, blocks * 16);
     ahb_flush_to(RB_AES);
 
@@ -294,4 +360,6 @@ void aes_copy(u8 *src, u8 *dst, u32 blocks)
 
     ahb_flush_from(WB_AES);
     ahb_flush_to(RB_IOD);
+    //dc_flushrange(dst, blocks * 16);
+    //dc_invalidaterange(dst, blocks * 16);
 }

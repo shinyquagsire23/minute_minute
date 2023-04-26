@@ -38,4 +38,6 @@ void dump_factory_log();
 
 void dump_otp_via_prshhax(void);
 
+void dump_sync_seeprom_boot1_versions(void);
+
 #endif

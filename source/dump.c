@@ -26,6 +26,7 @@
 #include "latte.h"
 #include "ancast.h"
 #include "seeprom.h"
+#include "crc32.h"
 
 #include "ff.h"
 
@@ -64,9 +65,10 @@ menu menu_dump = {
             {"Restore SLCCMPT.RAW", &dump_restore_slccmpt_raw},
             {"Restore BOOT1_SLC.RAW", &dump_restore_boot1_raw},
             {"Restore seeprom.bin", &dump_restore_seeprom},
+            {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
             {"Return to Main Menu", &menu_close},
     },
-    12, // number of options
+    13, // number of options
     0,
     0
 };
@@ -126,11 +128,13 @@ close_ret:
     smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
 }
 
-void mandatory_seeprom_otp_backups()
+int mandatory_seeprom_otp_backups()
 {
     char tmp[128];
     FILE* f_otp = NULL;
     FILE* f_eep = NULL;
+
+    int ret = 1;
 
     printf("Making mandatory OTP/SEEPROM backups...\n");
 
@@ -139,6 +143,11 @@ void mandatory_seeprom_otp_backups()
         snprintf(tmp, 127, "sdmc:/backup_otp_%u.bin", try);
         tmp[127] = 0;
 
+        f_otp = fopen(tmp, "rb");
+        if (f_otp) {
+            fclose(f_otp);
+            continue;
+        }
         f_otp = fopen(tmp, "wb");
         if (f_otp) break;
     }
@@ -147,6 +156,7 @@ void mandatory_seeprom_otp_backups()
     if(!f_otp)
     {
         printf("Failed to open `%s`.\n", tmp);
+        ret = 0;
     }
     else {
         fwrite(&otp, 1, sizeof(otp_t), f_otp);
@@ -158,6 +168,11 @@ void mandatory_seeprom_otp_backups()
         snprintf(tmp, 127, "sdmc:/backup_seeprom_%u.bin", try);
         tmp[127] = 0;
 
+        f_eep = fopen(tmp, "rb");
+        if (f_eep) {
+            fclose(f_eep);
+            continue;
+        }
         f_eep = fopen(tmp, "wb");
         if (f_eep) break;
     }
@@ -166,11 +181,14 @@ void mandatory_seeprom_otp_backups()
     if(!f_eep)
     {
         printf("Failed to open `%s`.\n", tmp);
+        ret = 0;
     }
     else {
         fwrite(&seeprom, 1, sizeof(seeprom_t), f_eep);
         fclose(f_eep);
     }
+
+    return ret;
 }
 
 void dump_seeprom_otp(void)
@@ -222,6 +240,180 @@ ret:
     smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
 }
 
+void _dump_sync_seeprom_boot1_versions(void)
+{
+    seeprom_t crypt_verify;
+    seeprom_t readback_verify;
+
+    crypto_read_seeprom();
+
+    if (!crypto_decrypt_verify_seeprom_ptr(&seeprom_decrypted, &seeprom)) {
+        printf("\nSEEPROM failed to verify!\n");
+        printf("boot1 version cannot be written to SEEPROM without a valid otp.bin!\n");
+        goto ret;
+    }
+
+    int needs_sync = 0;
+
+    u16 original_version_1 = seeprom_decrypted.boot1_params.version;
+    u16 original_version_2 = seeprom_decrypted.boot1_copy_params.version;
+
+    {
+        int bank = NAND_BANK_SLC;
+        if (!(seeprom_decrypted.boot1_params.sector >> 12)) {
+            bank = NAND_BANK_SLCCMPT;
+        }
+        int page = (seeprom_decrypted.boot1_params.sector & 0xFFF) * 0x40;
+        nand_initialize(bank);
+        nand_read_page(page, nand_page_buf, nand_ecc_buf);
+        nand_wait();
+        dc_invalidaterange(nand_page_buf, PAGE_SIZE);
+        dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+
+        ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
+
+        if (hdr->version == 0xFFFF || !hdr->version) {
+            printf("Refusing to sync NAND boot1 version 0x%04x (erased NAND page?)\n");
+        }
+        else if (seeprom_decrypted.boot1_params.version != hdr->version) {
+            printf("\nSEEPROM boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_params.version, hdr->version);
+            printf("Change SEEPROM boot1 version from v%u to v%u?\n", seeprom_decrypted.boot1_params.version, hdr->version);
+            printf("[POWER] No | [EJECT] Yes...\n\n");
+
+            u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+            if(input & SMC_POWER_BUTTON) return;
+
+            needs_sync = 1;
+            seeprom_decrypted.boot1_params.version = hdr->version;
+        }
+    }
+
+    {
+        int bank = NAND_BANK_SLC;
+        if (!(seeprom_decrypted.boot1_copy_params.sector >> 12)) {
+            bank = NAND_BANK_SLCCMPT;
+        }
+        int page = (seeprom_decrypted.boot1_copy_params.sector & 0xFFF) * 0x40;
+        nand_initialize(bank);
+        nand_read_page(page, nand_page_buf, nand_ecc_buf);
+        nand_wait();
+        dc_invalidaterange(nand_page_buf, PAGE_SIZE);
+        dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+
+        ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
+
+        if (hdr->version == 0xFFFF || !hdr->version) {
+            printf("Refusing to sync NAND boot1 version 0x%04x (erased NAND page?)\n");
+        }
+        else if (seeprom_decrypted.boot1_copy_params.version != hdr->version) {
+            printf("\nSEEPROM boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_copy_params.version, hdr->version);
+            printf("Change SEEPROM boot1 version from v%u to v%u?\n", seeprom_decrypted.boot1_copy_params.version, hdr->version);
+            printf("[POWER] No | [EJECT] Yes...\n\n");
+
+            u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+            if(input & SMC_POWER_BUTTON) return;
+
+            needs_sync = 1;
+            seeprom_decrypted.boot1_copy_params.version = hdr->version;
+        }
+    }
+
+    if (!needs_sync) {
+        printf("SEEPROM boot1 versions are already synced with NAND\n");
+        return;
+    }
+
+    seeprom_decrypted.hw_params_crc32 = crc32(&seeprom_decrypted.hw_params, 0xC);
+    seeprom_decrypted.boot1_params_crc32 = crc32(&seeprom_decrypted.boot1_params, 0xC);
+    seeprom_decrypted.boot1_copy_params_crc32 = crc32(&seeprom_decrypted.boot1_copy_params, 0xC);
+
+    if (!mandatory_seeprom_otp_backups()) {
+        printf("The mandatory SEEPROM/OTP backups are mandatory.\n");
+        goto ret;
+    }
+    printf("Done making mandatory backups.\n");
+
+    if (!crypto_encrypt_verify_seeprom_ptr(&seeprom, &seeprom_decrypted)) {
+        goto ret;
+    }
+    printf("Done verifying.\n");
+
+    {
+        printf("\n\nSEEPROM will be synced to the following versions:\n");
+        printf("Primary:   v%u -> v%u\n", original_version_1, seeprom_decrypted.boot1_params.version);
+        printf("Secondary: v%u -> v%u\n", original_version_2, seeprom_decrypted.boot1_copy_params.version);
+        printf("Write these values to SEEPROM?\n");
+        printf("[POWER] No | [EJECT] Yes...\n\n");
+
+        u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+        if(input & SMC_POWER_BUTTON) return;
+    }
+
+    //seeprom_write(&seeprom.hw_params, (((u32)&seeprom.hw_params) - ((u32)&seeprom) / 2), 0x30/2);
+    seeprom_write(&seeprom, 0, sizeof(seeprom)/2);
+    udelay(10);
+    seeprom_read(&readback_verify, 0, sizeof(readback_verify)/2);
+
+    int has_issues = 0;
+    if (memcmp(&seeprom, &readback_verify, sizeof(seeprom))) {
+        printf("\nSEEPROM write failed!\n");
+        printf("Readback did not match!\n");
+        printf("Rename your mandatory backup to `seeprom.bin` and flash it ASAP.\n");
+
+        printf("Read back:");
+        u8* printout = (u8*)&readback_verify;
+        for (int i = 0; i < sizeof(readback_verify); i++)
+        {
+            if (i % 16 == 0) {
+                printf("\n");
+            }
+            printf("%02x ", *printout++);
+        }
+        printf("\n");
+
+        printf("Expected:");
+        printout = (u8*)&seeprom;
+        for (int i = 0; i < sizeof(seeprom); i++)
+        {
+            if (i % 16 == 0) {
+                printf("\n");
+            }
+            printf("%02x ", *printout++);
+        }
+        printf("\n");
+        has_issues = 1;
+    }
+
+    if (!crypto_decrypt_verify_seeprom_ptr(&crypt_verify, &readback_verify)) {
+        printf("\nSEEPROM CRC32s failed to verify!\n");
+        printf("This unit might not boot up without de_Fuse now...\n");
+        printf("Rename your mandatory backup to `seeprom.bin` and flash it ASAP.\n");
+        has_issues = 1;
+    }
+
+    if (!has_issues) {
+        printf("\nSuccess!\n");
+    }
+    else {
+        printf("\nDone.\n");
+    }
+    return;
+
+ret:
+    return;
+}
+
+void dump_sync_seeprom_boot1_versions(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+
+    _dump_sync_seeprom_boot1_versions();
+
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER or EJECT to return...\n");
+    smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+}
+
 void dump_restore_seeprom(void)
 {
     gfx_clear(GFX_ALL, BLACK);
@@ -230,11 +422,14 @@ void dump_restore_seeprom(void)
     seeprom_t crypt_verify;
     seeprom_t readback_verify;
 
-    mandatory_seeprom_otp_backups();
+    if (!mandatory_seeprom_otp_backups()) {
+        printf("The mandatory SEEPROM/OTP backups are mandatory.\n");
+        goto ret;
+    }
 
     {
         printf("Write sdmc:/seeprom.bin to SEEPROM?\n");
-        printf("[POWER] No | [EJECT] Yes...\n");
+        printf("[POWER] No | [EJECT] Yes...\n\n");
 
         u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
         if(input & SMC_POWER_BUTTON) return;
@@ -265,41 +460,102 @@ void dump_restore_seeprom(void)
 
         printf("A missing otp.bin can ONLY be recovered with a valid\n");
         printf("seeprom.bin from the SAME Wii U, and a missing seeprom.bin\n");
-        printf("can ONLY be recovered with a valid otp.bin from the SAME Wii U!\n\n");
+        printf("can ONLY be partially recovered (enough to boot) with a\n");
+        printf(" valid otp.bin from the SAME Wii U!\n\n");
 
         printf("If you lose BOTH otp.bin and seeprom.bin, you will be FORCED to\n");
         printf("use a donor copy from another Wii U.\n");
         printf("This *may* mean forfeiting the ability to play online!\n");
         printf("This WILL mean saves stored on NAND or USBs will be unrecoverable!\n\n");
 
-        printf("This is like, the one limitation of de_Fuse lol.\n\n");
+        printf("This is like, the one limitation of de_Fuse lol.\n");
+        printf("You probably don't want to be here unless you're a developer\n");
+        printf("and know what you're doing.\n\n");
 
         smc_get_events(); // Eat all existing events
         udelay(3000*1000);
         smc_get_events(); // Eat all existing events
 
         printf("Write sdmc:/seeprom.bin to SEEPROM?\n");
-        printf("[POWER] No | [EJECT] Yes...\n");
+        printf("[POWER] No | [EJECT] Yes...\n\n");
 
         u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
         if(input & SMC_POWER_BUTTON) return;
     }
 
+    {
+        int bank = NAND_BANK_SLC;
+        if (!(crypt_verify.boot1_params.sector >> 12)) {
+            bank = NAND_BANK_SLCCMPT;
+        }
+        int page = (crypt_verify.boot1_params.sector & 0xFFF) * 0x40;
+        nand_initialize(bank);
+        nand_read_page(page, nand_page_buf, nand_ecc_buf);
+        nand_wait();
+        dc_invalidaterange(nand_page_buf, PAGE_SIZE);
+        dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+
+        ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
+
+        if (crypt_verify.boot1_params.version != hdr->version) {
+            printf("WARNING: SEEPROM boot1 version v%u does not match NAND version v%u!\n", crypt_verify.boot1_params.version, hdr->version);
+            printf("Continue writing sdmc:/seeprom.bin to SEEPROM?\n");
+            printf("[POWER] No | [EJECT] Yes...\n\n");
+
+            u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+            if(input & SMC_POWER_BUTTON) return;
+        }
+    }
+
+    {
+        int bank = NAND_BANK_SLC;
+        if (!(crypt_verify.boot1_copy_params.sector >> 12)) {
+            bank = NAND_BANK_SLCCMPT;
+        }
+        int page = (crypt_verify.boot1_copy_params.sector & 0xFFF) * 0x40;
+        nand_initialize(bank);
+        nand_read_page(page, nand_page_buf, nand_ecc_buf);
+        nand_wait();
+        dc_invalidaterange(nand_page_buf, PAGE_SIZE);
+        dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+
+        ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
+
+        if (crypt_verify.boot1_copy_params.version != hdr->version) {
+            printf("WARNING: SEEPROM boot1 version v%u does not match NAND version v%u!\n", crypt_verify.boot1_copy_params.version, hdr->version);
+            printf("Continue writing sdmc:/seeprom.bin to SEEPROM?\n");
+            printf("[POWER] No | [EJECT] Yes...\n\n");
+
+            u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+            if(input & SMC_POWER_BUTTON) return;
+        }
+    }
+    
     seeprom_write(&to_write, 0, sizeof(to_write)/2);
     seeprom_read(&readback_verify, 0, sizeof(readback_verify)/2);
 
+    int has_issues = 0;
     if (memcmp(&to_write, &readback_verify, sizeof(to_write))) {
         printf("SEEPROM write failed!\n");
         printf("Readback did not match!\n");
+        has_issues = 1;
+    }
+    else {
+        memcpy(&seeprom, &to_write, sizeof(to_write)); // Update RAM copy
     }
 
     if (!crypto_decrypt_verify_seeprom_ptr(&crypt_verify, &readback_verify)) {
         printf("SEEPROM CRC32s failed to verify!\n");
         printf("This unit might not boot up without de_Fuse now...\n");
-        goto ret;
+        has_issues = 1;
     }
 
-    printf("Success!\n");
+    if (!has_issues) {
+        printf("\nSuccess!\n");
+    }
+    else {
+        printf("\nDone.\n");
+    }
 
 ret:
     smc_get_events(); // Eat all existing events
@@ -464,11 +720,12 @@ int _dump_slc_raw(u32 bank, int boot1_only)
 
 int _dump_restore_slc_raw(u32 bank, int boot1_only)
 {
+    int ret = 0;
+
     #define PAGES_PER_ITERATION (0x10)
     #define TOTAL_ITERATIONS ((boot1_only ? BOOT1_MAX_PAGE : NAND_MAX_PAGE) / PAGES_PER_ITERATION)
 
     static u8 page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(64);
-
     static u8 file_buf[PAGES_PER_ITERATION][PAGE_SIZE + PAGE_SPARE_SIZE];
 
     sdcard_ack_card();
@@ -594,9 +851,12 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only)
     fres = f_close(&file);
     if(fres != FR_OK) {
         printf("Failed to close %s (%d).\n", path, fres);
-        return -5;
+        ret = -5;
     }
-    return 0;
+
+    _dump_sync_seeprom_boot1_versions();
+
+    return ret;
 
     #undef PAGES_PER_ITERATION
     #undef TOTAL_ITERATIONS

@@ -551,6 +551,7 @@ u32 _main(void *base)
     } else if (read32(PRSHHAX_OTPDUMP_PTR) == PRSHHAX_FAIL_MAGIC) {
         write32(PRSHHAX_OTPDUMP_PTR, 0);
         printf("boot1 never jumped to payload! Offset or SEEPROM version might be incorrect.\n");
+        printf("(try it again just in case, sometimes the resets can get weird)\n");
 
         smc_get_events();
         printf("Press POWER to continue.\n");

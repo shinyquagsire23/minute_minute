@@ -56,6 +56,20 @@ static void flush()
     recv_bits(2);
 }
 
+static void wait_write()
+{
+    clear32(LT_GPIO_OUT, BIT(GP_EEP_MOSI));
+    set32(LT_GPIO_OUT, BIT(GP_EEP_CS));
+
+    int timeout = 999;
+    while (timeout--) {
+        if (recv_bits(1)) {
+            break;
+        }
+    }
+    flush();
+}
+
 int seeprom_read(void *dst, int offset, int size)
 {
     int i;
@@ -98,7 +112,6 @@ int seeprom_write(void *src, int offset, int size)
 {
     int i;
     u16 *ptr = (u16 *)src;
-    u16 recv;
 
     if(size & 1)
         return -1;
@@ -128,10 +141,10 @@ int seeprom_write(void *src, int offset, int size)
     {
         //printf("%x\n", i);
         set32(LT_GPIO_OUT, BIT(GP_EEP_CS));
-        send_bits(((0x500 | (offset + i)) << 16) | (*ptr++), 23);
+        send_bits(((0x500 | (offset + i)) << 16) | (*ptr++), 27);
         clear32(LT_GPIO_OUT, BIT(GP_EEP_CS));
         flush();
-        eeprom_delay();
+        wait_write();
     }
 
     // Write disable

@@ -234,8 +234,10 @@ void crypto_read_otp();
 int crypto_check_de_Fused();
 
 void crypto_initialize();
+void crypto_read_seeprom(void);
 void crypto_decrypt_seeprom(void);
 int crypto_decrypt_verify_seeprom_ptr(seeprom_t* pOut, seeprom_t* pSeeprom);
+int crypto_encrypt_verify_seeprom_ptr(seeprom_t* pOut, seeprom_t* pSeeprom);
 
 void aes_reset(void);
 void aes_set_iv(u8 *iv);
