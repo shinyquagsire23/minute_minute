@@ -25,6 +25,7 @@
 #include "prsh.h"
 #include "latte.h"
 #include "ancast.h"
+#include "seeprom.h"
 
 #include "ff.h"
 
@@ -62,9 +63,10 @@ menu menu_dump = {
             {"Restore SLC.RAW", &dump_restore_slc_raw},
             {"Restore SLCCMPT.RAW", &dump_restore_slccmpt_raw},
             {"Restore BOOT1_SLC.RAW", &dump_restore_boot1_raw},
+            {"Restore seeprom.bin", &dump_restore_seeprom},
             {"Return to Main Menu", &menu_close},
     },
-    11, // number of options
+    12, // number of options
     0,
     0
 };
@@ -225,7 +227,18 @@ void dump_restore_seeprom(void)
     gfx_clear(GFX_ALL, BLACK);
 
     seeprom_t to_write;
-    seeprom_t to_write_verify;
+    seeprom_t crypt_verify;
+    seeprom_t readback_verify;
+
+    mandatory_seeprom_otp_backups();
+
+    {
+        printf("Write sdmc:/seeprom.bin to SEEPROM?\n");
+        printf("[POWER] No | [EJECT] Yes...\n");
+
+        u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+        if(input & SMC_POWER_BUTTON) return;
+    }
 
     printf("Restoring SEEPROM from `sdmc:/seeprom.bin`...\n");
     FILE* f_eep = fopen("sdmc:/seeprom.bin", "rb");
@@ -237,13 +250,57 @@ void dump_restore_seeprom(void)
     fread(&to_write, 1, sizeof(seeprom_t), f_eep);
     fclose(f_eep);
 
-    if (!crypto_decrypt_verify_seeprom_ptr(&to_write_verify, &to_write)) {
+    printf("Verifying seeprom.bin...\n");
+    if (!crypto_decrypt_verify_seeprom_ptr(&crypt_verify, &to_write)) {
         printf("\nSEEPROM failed to verify!\n");
         printf("(A valid otp.bin is required)\n");
         goto ret;
     }
+    else {
+        printf("Everything verified!\n\n");
 
-    printf("\nUnimplemented, nothing happened.\n");
+        printf("Last chance: Are you sure you want to write SEEPROM?\n");
+        printf("If you write an invalid SEEPROM and then fail to backup\n");
+        printf("otp.bin, you will NOT be able to recover your Wii U!\n\n");
+
+        printf("A missing otp.bin can ONLY be recovered with a valid\n");
+        printf("seeprom.bin from the SAME Wii U, and a missing seeprom.bin\n");
+        printf("can ONLY be recovered with a valid otp.bin from the SAME Wii U!\n\n");
+
+        printf("If you lose BOTH otp.bin and seeprom.bin, you will be FORCED to\n");
+        printf("use a donor copy from another Wii U.\n");
+        printf("This *may* mean forfeiting the ability to play online!\n");
+        printf("This WILL mean saves stored on NAND or USBs will be unrecoverable!\n\n");
+
+        printf("This is like, the one limitation of de_Fuse lol.\n\n");
+
+        smc_get_events(); // Eat all existing events
+        udelay(3000*1000);
+        smc_get_events(); // Eat all existing events
+
+        printf("Write sdmc:/seeprom.bin to SEEPROM?\n");
+        printf("[POWER] No | [EJECT] Yes...\n");
+
+        u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+        if(input & SMC_POWER_BUTTON) return;
+    }
+
+    seeprom_write(&to_write, 0, sizeof(to_write)/2);
+    seeprom_read(&readback_verify, 0, sizeof(readback_verify)/2);
+
+    if (memcmp(&to_write, &readback_verify, sizeof(to_write))) {
+        printf("SEEPROM write failed!\n");
+        printf("Readback did not match!\n");
+    }
+
+    if (!crypto_decrypt_verify_seeprom_ptr(&crypt_verify, &readback_verify)) {
+        printf("SEEPROM CRC32s failed to verify!\n");
+        printf("This unit might not boot up without de_Fuse now...\n");
+        goto ret;
+    }
+
+    printf("Success!\n");
+
 ret:
     smc_get_events(); // Eat all existing events
     printf("Press POWER or EJECT to return...\n");

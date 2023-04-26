@@ -11,5 +11,6 @@
 #define __SEEPROM_H__
 
 int seeprom_read(void *dst, int offset, int size);
+int seeprom_write(void *src, int offset, int size);
 
 #endif
