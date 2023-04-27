@@ -11,11 +11,13 @@
 
 #include "gpio.h"
 #include "utils.h"
+#include "gfx.h"
 #include <string.h>
 
 u8 serial_buffer[256];
 u16 serial_len = 0;
 static u8 _serial_allow_zeros = 0;
+u32 serial_line = 0;
 
 void serial_fatal()
 {
@@ -80,6 +82,44 @@ int serial_in_read(u8* out) {
     serial_len = 0;
 
     return read_len;
+}
+
+void serial_line_inc()
+{
+    serial_line++;
+}
+
+// Stuff like menu doesn't need to preserve history
+void serial_line_noscroll()
+{
+    serial_line = 0;
+}
+
+void serial_clear()
+{
+    static int saved = 0;
+    int get_serial_line = serial_line;
+
+    if (!saved) {
+        for (int i = 0; i < 256; i++)
+        {
+            serial_send('\n');
+        }
+        // Save the cursor position at the bottom of the screen
+        printf("\033[s");
+        saved = 1;
+    }
+
+    // Restore cursor to last line, then push everything up
+    printf("\033[u");
+    for (int i = 0; i < get_serial_line; i++)
+    {
+        printf("\n"); // \033[2K
+    }
+
+    // Move cursor to home and clear screen
+    printf("\033[H\033[2J");
+    serial_line = 0;
 }
 
 void serial_poll()

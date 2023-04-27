@@ -20,5 +20,8 @@ void serial_poll();
 void serial_allow_zeros();
 void serial_disallow_zeros();
 void serial_send(u8 val);
+void serial_line_inc();
+void serial_clear();
+void serial_line_noscroll();
 
 #endif // __SERIAL_H__

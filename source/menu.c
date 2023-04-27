@@ -158,6 +158,9 @@ void menu_draw()
 {
     char item_buffer[100] = {0};
 
+    if (__menu->showed) {
+        serial_line_noscroll();
+    }
     console_init();
     console_add_text(__menu->title);
     console_add_text("");

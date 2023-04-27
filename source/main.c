@@ -534,6 +534,10 @@ u32 _main(void *base)
 
     if (crypto_otp_is_de_Fused)
     {
+        //smc_get_events();
+        //printf("Press POWER to continue.\n");
+        //smc_wait_events(SMC_POWER_BUTTON);
+
         printf("Console is de_Fused! Loading sdmc:/otp.bin...\n");
         FILE* otp_file = fopen("sdmc:/otp.bin", "rb");
         if (otp_file)

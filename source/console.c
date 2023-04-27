@@ -10,6 +10,7 @@
 #include "console.h"
 
 #include "gfx.h"
+#include "serial.h"
 #include <string.h>
 
 char console[MAX_LINES][MAX_LINE_LENGTH];
@@ -82,11 +83,7 @@ void console_flush()
 {
     if (gfx_is_currently_headless())
     {
-        /*for (int i = 0; i < lines; i++)
-        {
-            printf("\033[F");
-        }*/
-        printf("\033[2J");
+        serial_clear();
     }
 
     gfx_clear(GFX_DRC, BLACK);

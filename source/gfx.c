@@ -238,6 +238,9 @@ int printf(const char* fmt, ...)
 	char* str_iter = str;
 	while (*str_iter)
 	{
+		if (*str_iter == '\n') {
+			serial_line_inc();
+		}
 		serial_send(*str_iter);
 		str_iter++;
 	}
