@@ -116,8 +116,10 @@ void gfx_init(void)
 		return;
 	}
 
-	fbs[GFX_TV].ptr = gpu_tv_primary_surface_addr();
-	fbs[GFX_DRC].ptr = gpu_drc_primary_surface_addr();
+	/*if (gpu_tv_primary_surface_addr())
+		fbs[GFX_TV].ptr = (u32*)gpu_tv_primary_surface_addr();
+	if (gpu_drc_primary_surface_addr())
+		fbs[GFX_DRC].ptr = (u32*)gpu_drc_primary_surface_addr();*/
 
 	gfx_clear(GFX_ALL, BLACK);
 }

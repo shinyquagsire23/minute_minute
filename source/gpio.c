@@ -98,6 +98,12 @@ void gpio_smc_i2c_init()
     gpio2_enable(GP2_SMC_I2C_DAT, 1);
 }
 
+void gpio_ave_i2c_init()
+{
+    gpio_enable(GP_AVE_SCL, 1);
+    gpio_enable(GP_AVE_SDA, 1);
+}
+
 void gpio_basic_set(u16 gpio_id, u8 val)
 {
     gpio_set_dir(gpio_id, GPIO_DIR_OUT);

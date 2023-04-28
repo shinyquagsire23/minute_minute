@@ -241,10 +241,8 @@ int ddrBrIdk(bsp_pll_cfg *pCfg)
 {
     u16 v2; // r1
     u16 v3; // r3
-    u16 v4; // r0
     u16 v5; // r1
     u16 v6; // r2
-    u16 v7; // r0
     u16 v8; // r1
     u16 v9; // r2
     u16 v10; // r1
@@ -254,70 +252,38 @@ int ddrBrIdk(bsp_pll_cfg *pCfg)
     u16 v14; // r1
     u16 v15; // r2
 
-    if (pCfg->satEn)
-        v2 = 0x800;
-    else
-        v2 = 0;
-    if (pCfg->fastEn)
-        v3 = 0x1000;
-    else
-        v3 = 0;
+    v2 = pCfg->satEn ? 0x800 : 0;
+    v3 = pCfg->fastEn ? 0x1000 : 0;
     abif_cpl_br_write16(0x20u, v2 | v3);
     udelay(5000);
-    abif_cpl_br_write16(CPL_CLK_V_LSB, pCfg->clkVLsb);
-    v4 = pCfg->clkVMsb;
-    if (pCfg->ssEn)
-        v5 = 1024;
-    else
-        v5 = 0;
-    if (pCfg->dithEn)
-        v6 = 0x800;
-    else
-        v6 = 0;
-    abif_cpl_br_write16(CPL_CLK_V_MSB, v5 | v4 | v6);
-    abif_cpl_br_write16(0x14u, pCfg->clkS);
-    abif_cpl_br_write16(0x16u, pCfg->bwAdj);
-    abif_cpl_br_write16(0x18u, pCfg->clkFLsb);
-    abif_cpl_br_write16(0x1Cu, (pCfg->clkO0Div << 6) | pCfg->clkR | 0x8000);
-    v7 = pCfg->clkFMsb;
-    if (pCfg->bypVco)
-        v8 = 0x1000;
-    else
-        v8 = 0;
-    if (pCfg->bypOut)
-        v9 = 0x2000;
-    else
-        v9 = 0;
-    abif_cpl_br_write16(0x1Eu, v8 | v7 | v9);
-    if (pCfg->satEn)
-        v10 = 0x800;
-    else
-        v10 = 0;
-    if (pCfg->fastEn)
-        v11 = 0x1000;
-    else
-        v11 = 0;
+    abif_cpl_br_write16(0x10, pCfg->clkVLsb);
+    
+    v5 = pCfg->ssEn ? 0x400 : 0;
+    v6 = pCfg->dithEn ? 0x800 : 0;
+    abif_cpl_br_write16(0x12, v5 | pCfg->clkVMsb | v6);
+    abif_cpl_br_write16(0x14, pCfg->clkS);
+    abif_cpl_br_write16(0x16, pCfg->bwAdj);
+    abif_cpl_br_write16(0x18, pCfg->clkFLsb);
+    abif_cpl_br_write16(0x1C, (pCfg->clkO0Div << 6) | pCfg->clkR | 0x8000);
+    
+    v8 = pCfg->bypVco ? 0x1000 : 0;
+    v9 = pCfg->bypOut ? 0x2000 : 0;
+    abif_cpl_br_write16(0x1Eu, v8 | pCfg->clkFMsb | v9);
+    
+    v10 = pCfg->satEn ? 0x800 : 0;
+    v11 = pCfg->fastEn ? 0x1000 : 0;
     abif_cpl_br_write16(0x20u, v10 | v11);
     udelay(5);
-    if (pCfg->satEn)
-        v12 = 0x800;
-    else
-        v12 = 0;
-    if (pCfg->fastEn)
-        v13 = 0x1000;
-    else
-        v13 = 0;
-    abif_cpl_br_write16(0x20u, v12 | v13 | 0x4000);
+    
+    v12 = pCfg->satEn ? 0x4800 : 0x4000;
+    v13 = pCfg->fastEn ? 0x1000 : 0;
+    abif_cpl_br_write16(0x20u, v12 | v13);
     udelay(5000);
-    if (pCfg->satEn)
-        v14 = 0x800;
-    else
-        v14 = 0;
-    if (pCfg->fastEn)
-        v15 = 0x1000;
-    else
-        v15 = 0;
-    abif_cpl_br_write16(0x20u, v14 | v15 | 0xC000);
+    
+    v14 = pCfg->satEn ? 0xC800 : 0xC000;
+    v15 = pCfg->fastEn ? 0x1000 : 0;
+    abif_cpl_br_write16(0x20u, v14 | v15);
+
     udelay(5000);
     return 0;
 }
@@ -771,18 +737,18 @@ int init_br_pll_cfg_from_regs(bsp_pll_cfg *pOut)
     int v17; // r0
 
     memset(pOut, 0, sizeof(bsp_pll_cfg));
-    pOut->clkVLsb = abif_cpl_br_read16(CPL_CLK_V_LSB);
+    pOut->clkVLsb = abif_cpl_br_read16(0x10);
 
-    v2 = abif_cpl_br_read16(CPL_CLK_V_MSB);
+    v2 = abif_cpl_br_read16(0x12);
     pOut->clkVMsb = (v2 & 0x3FFu);
     pOut->ssEn = !!(v2 & 0x400);
     pOut->dithEn = !!(v2 & 0x800);
 
-    pOut->clkS = abif_cpl_br_read16(0x14u) & 0xFFF;
-    pOut->bwAdj = abif_cpl_br_read16(0x16u) & 0xFFF;
+    pOut->clkS = abif_cpl_br_read16(0x14) & 0xFFF;
+    pOut->bwAdj = abif_cpl_br_read16(0x16) & 0xFFF;
 
-    pOut->clkFLsb = abif_cpl_br_read16(0x18u) & 0x3FFF;
-    v8 = abif_cpl_br_read16(0x1Cu);
+    pOut->clkFLsb = abif_cpl_br_read16(0x18) & 0x3FFF;
+    v8 = abif_cpl_br_read16(0x1C);
     pOut->clkR = v8 & 0x3F;
     pOut->clkO0Div = (unsigned int)(v8 << 17) >> 23;
     v11 = abif_cpl_br_read16(0x1Eu);
@@ -1069,11 +1035,13 @@ int init_mem2(u16 mem_mode)
     }
     else if ( seeprom.bc.ddr3_size == 0x800 ) // 2GiB
     {
+        // This is "disable_2ndrank"
         dram_size_hi = 0;
         dram_size_lo = 0x80000000;
     }
     else if ( seeprom.bc.ddr3_size == 0x1000 ) // 3GiB
     {
+        // This is the default in IOS?
         dram_size_hi = 0;
         dram_size_lo = 0xC0000000;
     }

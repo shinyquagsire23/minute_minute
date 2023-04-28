@@ -89,6 +89,7 @@ void gpio_dcdc_pwrcnt2_set(u8 val);
 void gpio_dcdc_pwrcnt_set(u8 val);
 void gpio_fan_set(u8 val);
 void gpio_smc_i2c_init();
+void gpio_ave_i2c_init();
 void gpio_basic_set(u16 gpio_id, u8 val);
 void gpio2_basic_set(u16 gpio_id, u8 val);
 void gpio_debug_send(u8 val);

@@ -19,4 +19,8 @@ void i2c_init(u32 clock, u32 channel);
 int i2c_read(u8 slave_7bit, u8* data, size_t size);
 int i2c_write(u8 slave_7bit, const u8* data, size_t size);
 
+void ave_i2c_init(u32 clock, u32 channel);
+int ave_i2c_read(u8 slave_7bit, u8* data, size_t size);
+int ave_i2c_write(u8 slave_7bit, const u8* data, size_t size);
+
 #endif

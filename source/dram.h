@@ -121,6 +121,10 @@ typedef struct bsp_system_clock_info
 
 #define CPL_CLK_V_LSB (0x10)
 #define CPL_CLK_V_MSB (0x12)
+#define CPL_CLK_S     (0x14)
+#define CPL_BW_ADJ    (0x16)
+#define CPL_CLK_F_LSB (0x18)
+#define CPL_CLK_O_0DIV__CLK_R (0x1C)
 
 #define DRAM_MODE_1         (0x01)
 #define DRAM_MODE_CCBOOT    (0x02)
