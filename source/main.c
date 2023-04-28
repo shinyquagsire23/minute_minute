@@ -500,9 +500,7 @@ u32 _main(void *base)
 
             printf("OTP dumped successfully and was written to `sdmc:/otp.bin`.\n");
 
-            smc_get_events();
-            printf("Press POWER to continue.\n");
-            smc_wait_events(SMC_POWER_BUTTON);
+            console_power_to_continue();
         }
         else {
             printf("OTP dumped, but couldn't open `sdmc:/otp.bin`!\n");
@@ -517,9 +515,7 @@ u32 _main(void *base)
             }
             printf("\n");
 
-            smc_get_events();
-            printf("Press POWER to continue.\n");
-            smc_wait_events(SMC_POWER_BUTTON);
+            console_power_to_continue();
         }
 
         memcpy(&otp, (void*)(PRSHHAX_OTPDUMP_PTR+4), sizeof(otp));
@@ -529,16 +525,12 @@ u32 _main(void *base)
         printf("boot1 never jumped to payload! Offset or SEEPROM version might be incorrect.\n");
         printf("(try it again just in case, sometimes the resets can get weird)\n");
 
-        smc_get_events();
-        printf("Press POWER to continue.\n");
-        smc_wait_events(SMC_POWER_BUTTON);
+        console_power_to_continue();
     }
 
     if (crypto_otp_is_de_Fused)
     {
-        //smc_get_events();
-        //printf("Press POWER to continue.\n");
-        //smc_wait_events(SMC_POWER_BUTTON);
+        //console_power_to_continue();
 
         printf("Console is de_Fused! Loading sdmc:/otp.bin...\n");
         FILE* otp_file = fopen("sdmc:/otp.bin", "rb");
@@ -551,9 +543,7 @@ u32 _main(void *base)
             printf("Failed to load `sdmc:/otp.bin`!\nFirmware will fail to load.\n");
             has_no_otp_bin = 1;
 
-            smc_get_events();
-            printf("Press POWER to continue.\n");
-            smc_wait_events(SMC_POWER_BUTTON);
+            console_power_to_continue();
         }
     }
 
@@ -729,8 +719,7 @@ int main_autoboot(void)
     if(f == NULL)
     {
         printf("Failed to open %s.\n", autoboot_file);
-        printf("Press POWER to continue.\n");
-        smc_wait_events(SMC_POWER_BUTTON);
+        console_power_to_continue();
         return -1;
     }
 
@@ -758,8 +747,7 @@ int main_autoboot(void)
     else
     {
         printf("Failed to load file for autoboot: %s\n", autoboot_file);
-        printf("Press POWER to continue.\n");
-        smc_wait_events(SMC_POWER_BUTTON);
+        console_power_to_continue();
         return -2;
     }
 }
@@ -777,8 +765,7 @@ void main_reload(void)
         menu_reset();
     } else {
         printf("Failed to load fw.img!\n");
-        printf("Press POWER to continue.\n");
-        smc_wait_events(SMC_POWER_BUTTON);
+        console_power_to_continue();
     }
 }
 
@@ -823,8 +810,7 @@ void main_boot_ppc(void)
     ppc_jump(entry);
 
 ppc_exit:
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void main_quickboot_patch(void)
@@ -839,8 +825,7 @@ void main_quickboot_patch(void)
         menu_reset();
     } else {
         printf("Failed to load IOS with patches!\n");
-        printf("Press POWER to continue.\n");
-        smc_wait_events(SMC_POWER_BUTTON);
+        console_power_to_continue();
     }
 }
 
@@ -857,8 +842,7 @@ void main_quickboot_fw(void)
         menu_reset();
     } else {
         printf("Failed to load 'ios.img'!\n");
-        printf("Press POWER to continue.\n");
-        smc_wait_events(SMC_POWER_BUTTON);
+        console_power_to_continue();
     }
 }
 
@@ -878,8 +862,7 @@ void main_boot_fw(void)
         menu_reset();
     } else {
         printf("Failed to load '%s'!\n", path);
-        printf("Press POWER to continue.\n");
-        smc_wait_events(SMC_POWER_BUTTON);
+        console_power_to_continue();
     }
 }
 
@@ -892,8 +875,7 @@ void main_reset_crash(void)
 	const char buffer[64 + 1] = "Crash buffer empty.";
 	rtc_set_panic_reason(buffer);
 
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void main_get_crash(void)
@@ -931,8 +913,7 @@ void main_get_crash(void)
         printf("%s\n", buffer);
     }
 
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void main_credits(void)
@@ -951,7 +932,7 @@ void main_credits(void)
     console_add_text("Press POWER to exit.");
 
     console_show();
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void main_interactive_console(void)

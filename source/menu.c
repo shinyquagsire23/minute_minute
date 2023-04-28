@@ -39,8 +39,6 @@ int menu_get_state()
 
 void menu_init(menu* new_menu)
 {
-    char serial_tmp[256];
-    int serial_len = 0;
     menu_set_state(0); // Set state to in-menu.
 
     smc_get_events(); // Eat all existing events
@@ -51,108 +49,44 @@ void menu_init(menu* new_menu)
     __menu->selected_showed = 0;
     menu_draw();
 
-    int parsing_escape_code = 0;
-    int parsing_csi = 0;
-
     menu_active = true;
 
     while(menu_active)
     {
         menu_show();
 
-        serial_poll();
-        serial_len = serial_in_read(serial_tmp);
-        for (int i = 0; i < serial_len; i++) {
-            if (!menu_active) break;
+        int console_input = console_select_poll();
 
-            if (serial_tmp[i] == 0) continue;
-            if (parsing_csi) {
-                if (serial_tmp[i] >= '0' && serial_tmp[i] <= '9') {
-                    parsing_csi++;
-                    continue;
-                }
-                else if (serial_tmp[i] == 'A') {
-                    menu_prev_selection();
-                    parsing_csi = 0;
-                    continue;
-                }
-                else if (serial_tmp[i] == 'B') {
-                    menu_next_selection();
-                    parsing_csi = 0;
-                    continue;
-                }
-                else if (serial_tmp[i] == 'C') {
-                    menu_next_jump();
-                    parsing_csi = 0;
-                    continue;
-                }
-                else if (serial_tmp[i] == 'D') {
-                    menu_prev_jump();
-                    parsing_csi = 0;
-                    continue;
-                }
-                else {
-                    parsing_csi = 0;
-                    continue;
-                }
-            }
-            else if (parsing_escape_code)
-            {
-                if (parsing_escape_code == 1 && serial_tmp[i] == '[') {
-                    parsing_csi = 1;
-                    parsing_escape_code = 0;
-                    continue;
-                }
-                
-                parsing_escape_code++;
-            }
-            else {
-                switch (serial_tmp[i])
-                {
-                case '\033':
-                    parsing_escape_code = 1;
-                    break;
-                case 'W':
-                case 'w':
-                    menu_prev_selection();
-                    break;
-                case 'S':
-                case 's':
-                    menu_next_selection();
-                    break;
-                case 'A':
-                case 'a':
-                    menu_prev_jump();
-                    break;
-                case 'D':
-                case 'd':
-                    menu_next_jump();
-                    break;
-                case '\n':
-                case '\r':
-                case ' ':
+        if ((console_input & CONSOLE_KEY_UP) || (console_input & CONSOLE_KEY_W)) {
+            menu_prev_selection();
+        }
+        if ((console_input & CONSOLE_KEY_DOWN) || (console_input & CONSOLE_KEY_S)) {
+            menu_next_selection();
+        }
+        if ((console_input & CONSOLE_KEY_LEFT) || (console_input & CONSOLE_KEY_A)) {
+            menu_prev_jump();
+        }
+        if ((console_input & CONSOLE_KEY_RIGHT) || (console_input & CONSOLE_KEY_D)) {
+            menu_next_jump();
+        }
+        if (console_input & CONSOLE_KEY_ENTER) {
+            menu_select();
+        }
+        if (console_input & CONSOLE_KEY_INTCON) {
+            // Kinda hacky but whatever.
+            for (int j = 0; j < __menu->entries; j++) {
+                if (__menu->option[j].callback == main_interactive_console) {
+                    __menu->selected = j;
                     menu_select();
-                    break;
-
-                // Kinda hacky but whatever.
-                case '\\':
-                    for (int j = 0; j < __menu->entries; j++) {
-                        if (__menu->option[j].callback == main_interactive_console) {
-                            __menu->selected = j;
-                            menu_select();
-                        }
-                    }
-                    break;
                 }
             }
         }
-
-        u8 input = smc_get_events();
-
-        //TODO: Double press to go back? Or just add "Back" options
-
-        if(input & SMC_EJECT_BUTTON) menu_select();
-        if(input & SMC_POWER_BUTTON) menu_next_selection();
+        if ((console_input & CONSOLE_KEY_EJECT) || (console_input & CONSOLE_KEY_P)) {
+            menu_select();
+        }
+        else if ((console_input & CONSOLE_KEY_POWER) || (console_input & CONSOLE_KEY_Q)) {
+            menu_next_selection();
+        }
     }
 }
 

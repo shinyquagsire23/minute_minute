@@ -123,9 +123,7 @@ void dump_factory_log()
 close_ret:
     if(f_log) fclose(f_log);
 
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER or EJECT to return...\n");
-    smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+    console_power_or_eject_to_return();
 }
 
 int mandatory_seeprom_otp_backups()
@@ -235,9 +233,7 @@ void dump_seeprom_otp(void)
 
     printf("\nDone!\n");
 ret:
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER or EJECT to return...\n");
-    smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+    console_power_or_eject_to_return();
 }
 
 void _dump_sync_seeprom_boot1_versions(void)
@@ -278,10 +274,7 @@ void _dump_sync_seeprom_boot1_versions(void)
         else if (seeprom_decrypted.boot1_params.version != hdr->version) {
             printf("\nSEEPROM boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_params.version, hdr->version);
             printf("Change SEEPROM boot1 version from v%u to v%u?\n", seeprom_decrypted.boot1_params.version, hdr->version);
-            printf("[POWER] No | [EJECT] Yes...\n\n");
-
-            u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
-            if(input & SMC_POWER_BUTTON) return;
+            if(console_abort_confirmation_power_no_eject_yes()) return;
 
             needs_sync = 1;
             seeprom_decrypted.boot1_params.version = hdr->version;
@@ -308,10 +301,8 @@ void _dump_sync_seeprom_boot1_versions(void)
         else if (seeprom_decrypted.boot1_copy_params.version != hdr->version) {
             printf("\nSEEPROM boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_copy_params.version, hdr->version);
             printf("Change SEEPROM boot1 version from v%u to v%u?\n", seeprom_decrypted.boot1_copy_params.version, hdr->version);
-            printf("[POWER] No | [EJECT] Yes...\n\n");
 
-            u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
-            if(input & SMC_POWER_BUTTON) return;
+            if(console_abort_confirmation_power_no_eject_yes()) return;
 
             needs_sync = 1;
             seeprom_decrypted.boot1_copy_params.version = hdr->version;
@@ -343,10 +334,8 @@ void _dump_sync_seeprom_boot1_versions(void)
         printf("Primary:   v%u -> v%u\n", original_version_1, seeprom_decrypted.boot1_params.version);
         printf("Secondary: v%u -> v%u\n", original_version_2, seeprom_decrypted.boot1_copy_params.version);
         printf("Write these values to SEEPROM?\n");
-        printf("[POWER] No | [EJECT] Yes...\n\n");
 
-        u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
-        if(input & SMC_POWER_BUTTON) return;
+        if(console_abort_confirmation_power_no_eject_yes()) return;
     }
 
     //seeprom_write(&seeprom.hw_params, (((u32)&seeprom.hw_params) - ((u32)&seeprom) / 2), 0x30/2);
@@ -409,9 +398,7 @@ void dump_sync_seeprom_boot1_versions(void)
 
     _dump_sync_seeprom_boot1_versions();
 
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER or EJECT to return...\n");
-    smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+    console_power_or_eject_to_return();
 }
 
 void dump_restore_seeprom(void)
@@ -429,10 +416,7 @@ void dump_restore_seeprom(void)
 
     {
         printf("Write sdmc:/seeprom.bin to SEEPROM?\n");
-        printf("[POWER] No | [EJECT] Yes...\n\n");
-
-        u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
-        if(input & SMC_POWER_BUTTON) return;
+        if(console_abort_confirmation_power_no_eject_yes()) return;
     }
 
     printf("Restoring SEEPROM from `sdmc:/seeprom.bin`...\n");
@@ -483,10 +467,7 @@ void dump_restore_seeprom(void)
         smc_get_events(); // Eat all existing events
 
         printf("Write sdmc:/seeprom.bin to SEEPROM?\n");
-        printf("[POWER] No | [EJECT] Yes...\n\n");
-
-        u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
-        if(input & SMC_POWER_BUTTON) return;
+        if(console_abort_confirmation_power_no_eject_yes()) return;
     }
 
     {
@@ -506,10 +487,7 @@ void dump_restore_seeprom(void)
         if (crypt_verify.boot1_params.version != hdr->version) {
             printf("WARNING: SEEPROM boot1 version v%u does not match NAND version v%u!\n", crypt_verify.boot1_params.version, hdr->version);
             printf("Continue writing sdmc:/seeprom.bin to SEEPROM?\n");
-            printf("[POWER] No | [EJECT] Yes...\n\n");
-
-            u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
-            if(input & SMC_POWER_BUTTON) return;
+            if(console_abort_confirmation_power_no_eject_yes()) return;
         }
     }
 
@@ -530,10 +508,7 @@ void dump_restore_seeprom(void)
         if (crypt_verify.boot1_copy_params.version != hdr->version) {
             printf("WARNING: SEEPROM boot1 version v%u does not match NAND version v%u!\n", crypt_verify.boot1_copy_params.version, hdr->version);
             printf("Continue writing sdmc:/seeprom.bin to SEEPROM?\n");
-            printf("[POWER] No | [EJECT] Yes...\n\n");
-
-            u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
-            if(input & SMC_POWER_BUTTON) return;
+            if(console_abort_confirmation_power_no_eject_yes()) return;
         }
     }
     
@@ -564,9 +539,7 @@ void dump_restore_seeprom(void)
     }
 
 ret:
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER or EJECT to return...\n");
-    smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
+    console_power_or_eject_to_return();
 }
 
 int _dump_mlc(u32 base)
@@ -758,9 +731,7 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only)
     // Make sure the user is dedicated (and require a difficult button press)
     smc_get_events(); // Eat all existing events
     printf("Write sdmc:/%s to %s?\n", path, name);
-    printf("[POWER] No | [EJECT] Yes...\n");
-    u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
-    if(input & SMC_POWER_BUTTON) return 0;
+    if (console_abort_confirmation_power_no_eject_yes()) return 0;
 
     FIL file = {0}; FRESULT fres = 0; UINT btx = 0;
     fres = f_open(&file, path, FA_READ);
@@ -987,9 +958,7 @@ int _dump_partition_rednand(void)
         printf("ALL DATA ON THE SD CARD WILL BE OVERWRITTEN!\n");
         printf("THIS CANNOT BE UNDONE!\n");
 
-        printf("[POWER] No | [EJECT] Yes...\n");
-        u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
-        if(input & SMC_POWER_BUTTON) return 0;
+        if(console_abort_confirmation_power_no_eject_yes()) return 0;
     }
 
     printf("Partitioning SD card...\n");
@@ -1015,10 +984,7 @@ int _dump_partition_rednand(void)
     printf("SLC:     0x%08lX->0x%08lX\n", slc_base, slc_base + slc_sectors);
     printf("SLCCMPT: 0x%08lX->0x%08lX\n", slccmpt_base, slccmpt_base + slc_sectors);
 
-    smc_get_events(); // Eat all existing events
-    printf("[POWER] Exit | [EJECT] Continue...\n");
-    u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
-    if(input & SMC_POWER_BUTTON) return 1;
+    if(console_abort_confirmation_power_exit_eject_continue()) return 1;
 
     printf("Formatting to FAT32...\n");
     fres = f_mkfs("sdmc:", 0, 0, fat_base, fat_base + fat_sectors);
@@ -1088,9 +1054,7 @@ void dump_slc(void)
     }
 
 slc_exit:
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void dump_slc_raw(void)
@@ -1107,9 +1071,7 @@ void dump_slc_raw(void)
     }
 
 slc_exit:
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void dump_slccmpt_raw(void)
@@ -1126,9 +1088,7 @@ void dump_slccmpt_raw(void)
     }
 
 slc_exit:
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void dump_boot1_raw(void)
@@ -1145,9 +1105,7 @@ void dump_boot1_raw(void)
     }
 
 slc_exit:
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void dump_restore_slc_raw(void)
@@ -1164,9 +1122,7 @@ void dump_restore_slc_raw(void)
     }
 
 slc_exit:
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void dump_restore_slccmpt_raw(void)
@@ -1183,9 +1139,7 @@ void dump_restore_slccmpt_raw(void)
     }
 
 slc_exit:
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void dump_restore_boot1_raw(void)
@@ -1202,9 +1156,7 @@ void dump_restore_boot1_raw(void)
     }
 
 slc_exit:
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void dump_format_rednand(void)
@@ -1231,9 +1183,7 @@ void dump_format_rednand(void)
 
     smc_get_events(); // Eat all existing events
     printf("Dump SLC/SLCCMPT-RAW images? These are useful for sysNAND restore.\n");
-    printf("[POWER] Skip | [EJECT] Dump...\n");
-    u8 input = smc_wait_events(SMC_POWER_BUTTON | SMC_EJECT_BUTTON);
-    if(input & SMC_EJECT_BUTTON)
+    if(!console_abort_confirmation_power_skip_eject_dump())
     {
         printf("Dumping SLC-RAW to FAT32...\n");
         res = _dump_slc_raw(NAND_BANK_SLC, 0);
@@ -1262,9 +1212,7 @@ void dump_format_rednand(void)
     }
 
 format_exit:
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 void dump_otp_via_prshhax(void)
@@ -1389,9 +1337,7 @@ void dump_otp_via_prshhax(void)
     return;
 
 fail:
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
 }
 
 #endif // MINUTE_BOOT1

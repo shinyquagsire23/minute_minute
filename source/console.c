@@ -11,6 +11,7 @@
 
 #include "gfx.h"
 #include "serial.h"
+#include "smc.h"
 #include <string.h>
 
 char console[MAX_LINES][MAX_LINE_LENGTH];
@@ -135,4 +136,189 @@ void console_set_text_color(int color)
 int console_get_text_color()
 {
     return text_color;
+}
+
+void console_wait_power_or_q()
+{
+    while (1)
+    {
+        int input = console_select_poll();
+        if ((input & CONSOLE_KEY_POWER) || (input & CONSOLE_KEY_Q)) return;
+    }
+}
+
+void console_wait_power_q_eject_or_p()
+{
+    while (1)
+    {
+        int input = console_select_poll();
+        if ((input & CONSOLE_KEY_POWER) || (input & CONSOLE_KEY_Q)) return;
+        if ((input & CONSOLE_KEY_EJECT) || (input & CONSOLE_KEY_P)) return;
+    }
+}
+
+void console_power_or_eject_to_return()
+{
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER/Q or EJECT/P to return...\n");
+    console_wait_power_q_eject_or_p();
+}
+
+void console_power_to_exit()
+{
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER/Q to exit.\n");
+    console_wait_power_or_q();
+}
+
+void console_power_to_continue()
+{
+    smc_get_events(); // Eat all existing events
+    printf("Press POWER/Q to continue.\n");
+    console_wait_power_or_q();
+}
+
+int console_abort_confirmation(const char* text_power, const char* text_eject)
+{
+    printf("[POWER/Q] %s | [EJECT/P] %s...\n", text_power, text_eject);
+
+    while (1)
+    {
+        int input = console_select_poll();
+        if ((input & CONSOLE_KEY_POWER) || (input & CONSOLE_KEY_Q)) return 1;
+        if ((input & CONSOLE_KEY_EJECT) || (input & CONSOLE_KEY_P)) return 0;
+    }
+
+    return 0;
+}
+
+int console_abort_confirmation_power_no_eject_yes()
+{
+    return console_abort_confirmation("No", "Yes");
+}
+
+int console_abort_confirmation_power_exit_eject_continue()
+{
+    return console_abort_confirmation("Exit", "Continue");
+}
+
+int console_abort_confirmation_power_skip_eject_dump()
+{
+    return console_abort_confirmation("Skip", "Dump");
+}
+
+static char console_serial_tmp[256];
+static int console_serial_len = 0;
+static int parsing_escape_code = 0;
+static int parsing_csi = 0;
+
+int console_select_poll()
+{
+    int ret = 0;
+
+    serial_poll();
+    console_serial_len = serial_in_read(console_serial_tmp);
+    for (int i = 0; i < console_serial_len; i++) {
+        //if (!menu_active) break;
+
+        if (console_serial_tmp[i] == 0) continue;
+        if (parsing_csi) {
+            if (console_serial_tmp[i] >= '0' && console_serial_tmp[i] <= '9') {
+                parsing_csi++;
+                continue;
+            }
+            else if (console_serial_tmp[i] == 'A') {
+                ret |= CONSOLE_KEY_UP;
+                parsing_csi = 0;
+                continue;
+            }
+            else if (console_serial_tmp[i] == 'B') {
+                ret |= CONSOLE_KEY_DOWN;
+                parsing_csi = 0;
+                continue;
+            }
+            else if (console_serial_tmp[i] == 'C') {
+                ret |= CONSOLE_KEY_RIGHT;
+                parsing_csi = 0;
+                continue;
+            }
+            else if (console_serial_tmp[i] == 'D') {
+                ret |= CONSOLE_KEY_LEFT;
+                parsing_csi = 0;
+                continue;
+            }
+            else {
+                parsing_csi = 0;
+                continue;
+            }
+        }
+        else if (parsing_escape_code)
+        {
+            if (parsing_escape_code == 1 && console_serial_tmp[i] == '[') {
+                parsing_csi = 1;
+                parsing_escape_code = 0;
+                continue;
+            }
+            
+            parsing_escape_code++;
+        }
+        else {
+            switch (console_serial_tmp[i])
+            {
+            case '\033':
+                parsing_escape_code = 1;
+                break;
+            case 'W':
+            case 'w':
+                ret |= CONSOLE_KEY_W;
+                break;
+            case 'S':
+            case 's':
+                ret |= CONSOLE_KEY_S;
+                break;
+            case 'A':
+            case 'a':
+                ret |= CONSOLE_KEY_A;
+                break;
+            case 'D':
+            case 'd':
+                ret |= CONSOLE_KEY_D;
+                break;
+            case '\b':
+                ret |= CONSOLE_KEY_BACKSPACE;
+                break;
+            case 'Q':
+            case 'q':
+                ret |= CONSOLE_KEY_Q;
+                break;
+            case 'P':
+            case 'p':
+                ret |= CONSOLE_KEY_P;
+                break;
+            case 'B':
+            case 'b':
+                ret |= CONSOLE_KEY_B;
+                break;
+            case '\n':
+            case '\r':
+            case ' ':
+                ret |= CONSOLE_KEY_ENTER;
+                break;
+
+            // Kinda hacky but whatever.
+            case '\\':
+                ret |= CONSOLE_KEY_INTCON;
+                break;
+            }
+        }
+    }
+
+    u8 input = smc_get_events();
+
+    //TODO: Double press to go back? Or just add "Back" options
+
+    if(input & SMC_EJECT_BUTTON) ret |= CONSOLE_KEY_EJECT;
+    if(input & SMC_POWER_BUTTON) ret |= CONSOLE_KEY_POWER;
+
+    return ret;
 }

@@ -273,6 +273,12 @@ u8 smc_get_events(void)
 {
     u8 data = 0;
     smc_read_register(0x41, &data);
+
+    // SMC failed to init...?
+    if (data == 0xFF) {
+        return 0;
+    }
+
     return data;
 }
 
