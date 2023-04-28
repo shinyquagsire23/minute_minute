@@ -102,6 +102,11 @@ void gpio_ave_i2c_init()
 {
     gpio_enable(GP_AVE_SCL, 1);
     gpio_enable(GP_AVE_SDA, 1);
+    //gpio_enable(GP_AV1_I2C_CLK, 1);
+    //gpio_enable(GP_AV1_I2C_DAT, 1);
+    gpio2_basic_set(GP2_AVRESET, 1);
+    gpio2_basic_set(GP2_AVRESET, 0);
+    gpio2_basic_set(GP2_AVRESET, 1);
 }
 
 void gpio_basic_set(u16 gpio_id, u8 val)

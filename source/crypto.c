@@ -20,6 +20,7 @@
 #include "string.h"
 #include "seeprom.h"
 #include "crc32.h"
+#include "serial.h"
 
 #define     AES_CMD_RESET   0
 #define     AES_CMD_DECRYPT 0x9800
@@ -57,6 +58,9 @@ void crypto_read_seeprom(void)
     // Added: fallback
     if (!seeprom.bc_size || seeprom.bc_size != 0x24 || crc32(&seeprom.bc_size, seeprom.bc_size - sizeof(u32)) != seeprom.bc_crc32)
     {
+#ifdef MINUTE_BOOT1
+        serial_send_u32(0x46414C4C);
+#endif
         memcpy(&seeprom.bc, &default_bc, sizeof(seeprom.bc));
         seeprom.bc_size = 0x24;
 

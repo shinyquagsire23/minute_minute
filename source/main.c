@@ -234,6 +234,8 @@ u32 _main(void *base)
         smc_set_notification_led(LEDRAW_PURPLE_PULSE);
     }
 
+    serial_send_u32(seeprom.bc.board_type);
+    serial_send_u32(latte_get_hw_version());
     serial_send_u32(0x4D454D32); // MEM2
 
     // Init DRAM

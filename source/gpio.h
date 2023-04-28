@@ -39,6 +39,8 @@ enum {
     GP_DEBUG5       = 21,
     GP_DEBUG6       = 22,
     GP_DEBUG7       = 23,
+    GP_AV1_I2C_CLK  = 24,
+    GP_AV1_I2C_DAT  = 25,
 };
 
 enum {

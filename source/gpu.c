@@ -44,7 +44,7 @@ void gpu_test(void) {
     //gpu_dump_dc_regs();
 #if 0
     gpu_display_init();
-    gpu_dump_dc_regs();
+    //gpu_dump_dc_regs();
 #endif
 }
 
@@ -211,6 +211,8 @@ void gpu_do_init_list(gpu_init_entry_t* paEntries, u32 len) {
     for (int i = 0; i < len; i++) {
         gpu_init_entry_t* entry = &paEntries[i];
 
+        printf("%04x: %08x\n", entry->addr, abif_gpu_read32(entry->addr));
+
         if (entry->clear_bits) {
             u32 val = abif_gpu_read32(entry->addr);
             val &= ~entry->clear_bits;
@@ -248,6 +250,34 @@ void gpu_do_ave_list(ave_init_entry_t* paEntries, u32 len) {
     }
 }
 
+int BSP_60XeDataStreaming_write(int val)
+{
+    int v4; // r6
+    int v5; // r4
+    unsigned int v6; // r4
+    int v7; // r3
+    int v9; // [sp+0h] [bp-18h] BYREF
+
+    v9 = latte_get_hw_version();
+    if ( (v9 & 0xF000000) != 0 )
+    {
+        set32(LT_60XE_CFG, 0x1000);
+        v5 = read32(LT_60XE_CFG);
+        udelay(10);
+        v6 = v5 & ~8u;
+        if (val == 1)
+            v7 = 0;
+        else
+            v7 = 8;
+        write32(LT_60XE_CFG, (v7 | v6) & ~0x1000);
+    }
+    else
+    {
+        return 1024;
+    }
+    return 0;
+}
+
 //abifr 0x01000002
 
 void gpu_display_init(void) {
@@ -267,7 +297,7 @@ void gpu_display_init(void) {
     //gpu_do_ave_list(ave_init_entries_B, NUM_AVE_ENTRIES_B);
 
     // messes up DRC?
-    //gpu_do_init_list(gpu_init_entries_C, NUM_GPU_ENTRIES_C);
+    gpu_do_init_list(gpu_init_entries_C, NUM_GPU_ENTRIES_C);
     gpu_do_ave_list(ave_init_entries_C, NUM_AVE_ENTRIES_C);
 
     printf("GPU addr: %08x\n", gpu_tv_primary_surface_addr());
@@ -275,6 +305,9 @@ void gpu_display_init(void) {
 
     abif_gpu_write32(D1GRPH_PRIMARY_SURFACE_ADDRESS, FB_TV_ADDR);
     abif_gpu_write32(D2GRPH_PRIMARY_SURFACE_ADDRESS, FB_DRC_ADDR);
+    abif_gpu_write32(0x60e0, 0x0);
+    abif_gpu_write32(0x898, 0xFFFFFFFF);
+    BSP_60XeDataStreaming_write(1);
 
     //abif_gpu_write32(D1GRPH_PRIMARY_SURFACE_ADDRESS, 0);
     //abif_gpu_write32(D2GRPH_PRIMARY_SURFACE_ADDRESS, 0);

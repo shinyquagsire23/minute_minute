@@ -63,6 +63,8 @@ void menu_init(menu* new_menu)
         serial_poll();
         serial_len = serial_in_read(serial_tmp);
         for (int i = 0; i < serial_len; i++) {
+            if (!menu_active) break;
+
             if (serial_tmp[i] == 0) continue;
             if (parsing_csi) {
                 if (serial_tmp[i] >= '0' && serial_tmp[i] <= '9') {

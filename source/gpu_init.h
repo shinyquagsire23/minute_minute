@@ -16,7 +16,7 @@
 #define NUM_AVE_ENTRIES_A (0x25)
 #define NUM_GPU_ENTRIES_B (0x13B)
 #define NUM_AVE_ENTRIES_B (0x26)
-#define NUM_GPU_ENTRIES_C (0x61)
+#define NUM_GPU_ENTRIES_C (0x65) // 61
 #define NUM_AVE_ENTRIES_C (0x25)
 
 #define FB_TV_ADDR  (0x14000000 + 0x3500000)
