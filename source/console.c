@@ -212,6 +212,62 @@ static int console_serial_len = 0;
 static int parsing_escape_code = 0;
 static int parsing_csi = 0;
 
+int console_konami_code()
+{
+    int step = 0;
+    printf("Please enter the Konami code to continue.\n");
+    printf("[POWER/Q] Abort\n");
+    printf("[^ ^ v v < > < > B A ENTER] Continue...\n");
+
+    while (true)
+    {
+        int key = console_select_poll();
+        if (!key) continue;
+
+        if ((key & CONSOLE_KEY_POWER) || (key & CONSOLE_KEY_Q)) return 1;
+
+        if ((step == 0 || step == 1) && key == CONSOLE_KEY_UP) {
+            printf("^ ");
+            step++;
+            continue;
+        }
+        else if ((step == 2 || step == 3) && key == CONSOLE_KEY_DOWN) {
+            printf("v ");
+            step++;
+            continue;
+        }
+        else if ((step == 4 || step == 6) && key == CONSOLE_KEY_LEFT) {
+            printf("< ");
+            step++;
+            continue;
+        }
+        else if ((step == 5 || step == 7) && key == CONSOLE_KEY_RIGHT) {
+            printf("> ");
+            step++;
+            continue;
+        }
+        else if (step == 8 && key == CONSOLE_KEY_B) {
+            printf("B ");
+            step++;
+            continue;
+        }
+        else if (step == 9 && key == CONSOLE_KEY_A) {
+            printf("A ");
+            step++;
+            continue;
+        }
+        else if (step == 10 && key == CONSOLE_KEY_ENTER) {
+            printf("ENTER ");
+            step++;
+            break;
+        }
+
+        step = 0;
+        printf("nope \n");
+    }
+    return 0;
+}
+
 int console_select_poll()
 {
     int ret = 0;

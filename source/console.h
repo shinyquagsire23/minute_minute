@@ -55,6 +55,8 @@ void console_set_border_color(int color);
 int console_get_border_color();
 void console_set_border_width(int width);
 int console_get_border_width(int width);
+
+int console_konami_code();
 void console_power_or_eject_to_return();
 void console_power_to_exit();
 void console_power_to_continue();

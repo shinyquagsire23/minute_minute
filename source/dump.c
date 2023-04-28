@@ -467,7 +467,7 @@ void dump_restore_seeprom(void)
         smc_get_events(); // Eat all existing events
 
         printf("Write sdmc:/seeprom.bin to SEEPROM?\n");
-        if(console_abort_confirmation_power_no_eject_yes()) return;
+        if(console_konami_code()) return;
     }
 
     {
