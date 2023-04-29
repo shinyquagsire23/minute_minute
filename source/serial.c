@@ -106,19 +106,19 @@ void serial_clear()
             serial_send('\n');
         }
         // Save the cursor position at the bottom of the screen
-        printf("\033[s");
+        serial_printf("\033[s");
         saved = 1;
     }
 
     // Restore cursor to last line, then push everything up
-    printf("\033[u");
+    serial_printf("\033[u");
     for (int i = 0; i < get_serial_line; i++)
     {
-        printf("\n"); // \033[2K
+        serial_printf("\n"); // \033[2K
     }
 
     // Move cursor to home and clear screen
-    printf("\033[H\033[2J");
+    serial_printf("\033[H\033[2J");
     serial_line = 0;
 }
 

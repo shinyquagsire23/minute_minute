@@ -65,28 +65,35 @@ void console_show()
             if((x >= console_x && x <= console_x + border_width) ||
                (y >= console_y && y <= console_y + border_width) ||
                (x >= console_w + console_x - 1 && x <= console_w + console_x - 1 + border_width) ||
-               (y >= console_h + console_y - 1 && y <= console_h + console_y - 1 + border_width))
+               (y >= console_h + console_y - 1 && y <= console_h + console_y - 1 + border_width)) {
                 gfx_draw_plot(GFX_DRC, x, y, border_color);
-            else
+                gfx_draw_plot(GFX_TV, x, y, border_color);
+            }
+                
+            else {
                 gfx_draw_plot(GFX_DRC, x, y, background_color);
+            }
         }
     }
 
     for(i = 0; i < lines; i++) {
-        gfx_draw_string(GFX_DRC, console[i], console_x + CHAR_WIDTH * 2, i * CHAR_WIDTH + console_y + CHAR_WIDTH * 2, text_color);
-        if (gfx_is_currently_headless()) {
-            printf("%s\n", console[i]);
+        gfx_draw_string(GFX_DRC, console[i], console_x + CHAR_WIDTH * 1, i * CHAR_WIDTH + console_y + CHAR_WIDTH * 2, text_color);
+        gfx_draw_string(GFX_TV, console[i], console_x + CHAR_WIDTH * 1, i * CHAR_WIDTH + console_y + CHAR_WIDTH * 2, text_color);
+        //if (gfx_is_currently_headless()) 
+        {
+            serial_printf("%s\n", console[i]);
         }
     }
 }
 
 void console_flush()
 {
-    if (gfx_is_currently_headless())
+    //if (gfx_is_currently_headless())
     {
         serial_clear();
     }
 
+    gfx_clear(GFX_TV, BLACK);
     gfx_clear(GFX_DRC, BLACK);
     lines = 0;
 }

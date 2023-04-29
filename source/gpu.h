@@ -55,17 +55,43 @@
 #define D1GRPH_BASE (0x6100)
 #define D2GRPH_BASE (0x6900)
 
+#define D1MODE_MASTER_UPDATE_LOCK        (0x60E0)
+#define MCIF_CONTROL                     (0x6CB8)
+#define DC_LUT_AUTOFILL                  (0x64A0)
+
 // D1GRPH
+#define D1GRPH_ENABLE                    (D1GRPH_BASE + 0x000)
+#define D1GRPH_CONTROL                   (D1GRPH_BASE + 0x004)
+#define D1GRPH_LUT_SEL                   (D1GRPH_BASE + 0x008)
+#define D1GRPH_SWAP_CNTL                 (D1GRPH_BASE + 0x00C)
 #define D1GRPH_PRIMARY_SURFACE_ADDRESS   (D1GRPH_BASE + 0x010)
 #define D1GRPH_SECONDARY_SURFACE_ADDRESS (D1GRPH_BASE + 0x014)
+#define D1GRPH_PITCH                     (D1GRPH_BASE + 0x020)
+#define D1GRPH_SURFACE_OFFSET_X          (D1GRPH_BASE + 0x024)
+#define D1GRPH_SURFACE_OFFSET_Y          (D1GRPH_BASE + 0x028)
+#define D1GRPH_X_START                   (D1GRPH_BASE + 0x02C)
+#define D1GRPH_Y_START                   (D1GRPH_BASE + 0x030)
+#define D1GRPH_X_END                     (D1GRPH_BASE + 0x034)
+#define D1GRPH_Y_END                     (D1GRPH_BASE + 0x038)
+#define D1OVL_COLOR_MATRIX_TRANSFORMATION_CNTL (D1GRPH_BASE + 0x040)
+#define D1GRPH_UPDATE                    (D1GRPH_BASE + 0x044)
+#define D1GRPH_FLIP_CONTROL              (D1GRPH_BASE + 0x044)
+#define D1OVL_ENABLE                     (D1GRPH_BASE + 0x080)
+#define D1OVL_UPDATE                     (D1GRPH_BASE + 0x0AC)
+#define D1GRPH_ALPHA                     (D1GRPH_BASE + 0x204)
+#define D1OVL_ALPHA                      (D1GRPH_BASE + 0x208)
+#define D1OVL_ALPHA_CONTROL              (D1GRPH_BASE + 0x20C)
+#define D1GRPH_COLOR_MATRIX_TRANSFORMATION_CNTL (D1GRPH_BASE + 0x280)
 
 // D2GRPH
 #define D2GRPH_PRIMARY_SURFACE_ADDRESS   (D2GRPH_BASE + 0x010)
-#define D1GRPH_SECONDARY_SURFACE_ADDRESS (D1GRPH_BASE + 0x014)
+#define D2GRPH_SECONDARY_SURFACE_ADDRESS (D2GRPH_BASE + 0x014)
+#define D2GRPH_PITCH                     (D2GRPH_BASE + 0x020)
 
 void* gpu_tv_primary_surface_addr(void);
 void* gpu_drc_primary_surface_addr(void);
 void gpu_test(void);
 void gpu_display_init(void);
+void gpu_cleanup(void);
 
 #endif // __GPU_H__

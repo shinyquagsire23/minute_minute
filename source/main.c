@@ -454,6 +454,7 @@ u32 _main(void *base)
     serial_send_u32(0x55AA55AA);
     serial_send_u32(0xF00FCAFE);
 
+    gpu_display_init();
     gfx_init();
     printf("minute loading\n");
 
@@ -475,7 +476,7 @@ u32 _main(void *base)
     srand(read32(LT_TIMER));
     crypto_initialize();
     printf("crypto support initialized\n");
-    printf("BSP version: %08x %04x %04x\n", latte_get_hw_version(), seeprom.bc.board_type, seeprom.bc.board_revision);
+    latte_print_hardware_info();
 
     printf("Initializing SD card...\n");
     sdcard_init();
@@ -557,8 +558,6 @@ u32 _main(void *base)
         write32(0xC, 0x20008000);
     }
 
-    gpu_test();
-
     printf("Initializing MLC...\n");
     mlc_init();
 
@@ -631,6 +630,8 @@ u32 _main(void *base)
     }
 
 skip_menu:
+    gpu_cleanup();
+
     printf("Unmounting SLC...\n");
     isfs_fini();
 

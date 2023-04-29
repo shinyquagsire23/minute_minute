@@ -547,8 +547,9 @@ void intcon_handle_cmd(const char* pCmd)
 
 void intcon_submit_cmd(void)
 {
-    printf("\033[0G\033[0K");
-    printf("\033[0G> %s\n", intcon_current_command);
+    serial_printf("\033[0G\033[0K");
+    serial_printf("\033[0G");
+    printf("> %s\n", intcon_current_command);
 
     intcon_handle_cmd(intcon_current_command);
     
@@ -578,12 +579,12 @@ void intcon_draw(void)
     }
     //console_flush();
     //console_add_text(intcon_current_command);
-    printf("\033[0G\033[0K");
-    printf("\033[0G> %s", intcon_current_command);
-    printf("\033[0G");
+    serial_printf("\033[0G\033[0K");
+    serial_printf("\033[0G> %s", intcon_current_command);
+    serial_printf("\033[0G");
     for (int i = 0; i < 2+intcon_current_command_cursor_idx; i++)
     {
-        printf("\033[C");
+        serial_printf("\033[C");
     }
 
     intcon_dirty = 0;
@@ -690,7 +691,7 @@ void intcon_show(void)
                     continue;
                 }
                 else if (serial_tmp[i] == '~') {
-                    //printf("%u\n", parsing_csi_num);
+                    //serial_printf("%u\n", parsing_csi_num);
                     if (parsing_csi_num == 3) {
                         intcon_delete();
                     }
@@ -698,7 +699,7 @@ void intcon_show(void)
                     continue;
                 }
                 else {
-                    printf("\n\nunk CSI? [%u%c\n", parsing_csi_num, serial_tmp[i]);
+                    serial_printf("\n\nunk CSI? [%u%c\n", parsing_csi_num, serial_tmp[i]);
                     parsing_csi = 0;
                     continue;
                 }

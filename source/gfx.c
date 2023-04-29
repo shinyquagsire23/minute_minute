@@ -156,7 +156,7 @@ void gfx_draw_plot(gfx_screen_t screen, int x, int y, u32 color)
 
 void gfx_clear(gfx_screen_t screen, u32 color)
 {
-	if (gfx_currently_headless) return;
+	//if (gfx_currently_headless) return;
 
 	if(screen == GFX_ALL) {
 		for(int i = 0; i < GFX_ALL; i++)
@@ -271,6 +271,28 @@ int printf(const char* fmt, ...)
 		}
 
 		fbs[i].current_y += lines;
+	}
+
+    return 0;
+}
+
+int serial_printf(const char* fmt, ...)
+{
+	static char str[0x800];
+	va_list va;
+
+	va_start(va, fmt);
+	vsnprintf(str, sizeof(str), fmt, va);
+	va_end(va);
+
+	char* str_iter = str;
+	while (*str_iter)
+	{
+		if (*str_iter == '\n') {
+			serial_line_inc();
+		}
+		serial_send(*str_iter);
+		str_iter++;
 	}
 
     return 0;

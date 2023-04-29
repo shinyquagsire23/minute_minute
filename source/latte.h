@@ -203,7 +203,6 @@
 #define LT_UNK628                     (LT_REG_BASE + 0x628)
 #define LT_60XE_CFG                   (LT_REG_BASE + 0x640)
 #define LT_UNK660                     (LT_REG_BASE + 0x660)
-#define LT_UNK640                     (LT_REG_BASE + 0x640)
 #define LT_DCCMPT                     (LT_REG_BASE + 0x708)
 
 /*
@@ -461,6 +460,7 @@ int latte_get_wood_hw_version(u32 *pOut);
 int latte_get_latte_hw_version(u32 *pOut);
 u32 latte_get_hw_version();
 void latte_set_iop_clock_mult(u8 val);
+void latte_print_hardware_info();
 #endif
 
 #endif

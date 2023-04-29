@@ -37,8 +37,13 @@ static inline int printf(const char* fmt, ...)
 {
     return 0;
 }
+static inline int serial_printf(const char* fmt, ...)
+{
+    return 0;
+}
 #else
 int printf(const char* fmt, ...);
+int serial_printf(const char* fmt, ...);
 #endif
 
 #endif

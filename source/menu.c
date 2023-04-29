@@ -92,17 +92,20 @@ void menu_init(menu* new_menu)
 
 void menu_draw()
 {
+    char tmp[128];
     char item_buffer[100] = {0};
 
     if (__menu->showed) {
         serial_line_noscroll();
     }
     console_init();
-    console_add_text(__menu->title);
+    snprintf(tmp, sizeof(tmp), " %s", __menu->title);
+    console_add_text(tmp);
     console_add_text("");
 
     for (int i = 0; i < __menu->subtitles; i++) {
-        console_add_text(__menu->subtitle[i]);
+        snprintf(tmp, sizeof(tmp), " %s", __menu->subtitle[i]);
+        console_add_text(tmp);
     }
 
     console_add_text("");
@@ -110,13 +113,14 @@ void menu_draw()
     for(int i = 0; i < __menu->entries; i++)
     {
         char selected_char = ' ';
-        if (gfx_is_currently_headless()) {
+        //if (gfx_is_currently_headless()) 
+        {
             if (i == __menu->selected) {
                 selected_char = '>';
             }
         }
 
-        sprintf(item_buffer, "%c%s", selected_char, __menu->option[i].text);
+        sprintf(item_buffer, "%c %s", selected_char, __menu->option[i].text);
         console_add_text(item_buffer);
     }
 }
@@ -134,8 +138,10 @@ void menu_show()
     // Update cursor.
     for(i = 0; i < __menu->entries; i++) {
         gfx_draw_string(GFX_DRC, i == __menu->selected ? ">" : " ", x + CHAR_WIDTH, (i+3+__menu->subtitles) * CHAR_WIDTH + y + CHAR_WIDTH * 2, GREEN);
+        gfx_draw_string(GFX_TV, i == __menu->selected ? ">" : " ", x + CHAR_WIDTH, (i+3+__menu->subtitles) * CHAR_WIDTH + y + CHAR_WIDTH * 2, GREEN);
     }
-    if (gfx_is_currently_headless() && !__menu->selected_showed) {
+    if (/*gfx_is_currently_headless() && */!__menu->selected_showed) 
+    {
         menu_draw();
         console_show();
         __menu->selected_showed = 1;

@@ -12,6 +12,7 @@
 #include "crypto.h"
 #include "irq.h"
 #include "utils.h"
+#include "gfx.h"
 
 extern seeprom_t seeprom;
 
@@ -150,4 +151,20 @@ void latte_set_iop_clock_mult(u8 val)
    // Disable IRQ 12 (LT)
    write32(LT_INTSR_AHBLT_ARM, 0);
    irq_restore(cookie);
+}
+
+void latte_print_hardware_info()
+{
+    const char* ddr_size_str = "unk";
+    if (seeprom.bc.ddr3_size == 0x0800) {
+        ddr_size_str = "2GiB";
+    }
+    else if (seeprom.bc.ddr3_size == 0x1000) {
+        ddr_size_str = "3GiB";
+    }
+    printf("BSP version: 0x%08x\n", latte_get_hw_version());
+    printf("Board type: %c%c (0x%02x)\n", seeprom.bc.board_type>>8, seeprom.bc.board_type&0xFF, seeprom.bc.board_type);
+    printf("Board revision: 0x%x\n", seeprom.bc.board_revision);
+    printf("DDR props: size=%s (0x%04x) speed=0x%04x vendor=%c%c (0x%04x)\n", ddr_size_str, seeprom.bc.ddr3_size, seeprom.bc.ddr3_speed, seeprom.bc.ddr3_vendor>>8, seeprom.bc.ddr3_vendor&0xFF, seeprom.bc.ddr3_vendor);
+    printf("\n");
 }
