@@ -44,6 +44,16 @@ extern otp_t otp;
 extern void boot1_prshhax_payload(void);
 extern void boot1_prshhax_payload_end(void);
 
+void dump_set_sata_type(void);
+void dump_set_sata_type_1(void);
+void dump_set_sata_type_2(void);
+void dump_set_sata_type_3(void);
+void dump_set_sata_type_4(void);
+void dump_set_sata_type_5(void);
+void dump_set_sata_type_6(void);
+void dump_set_sata_type_7(void);
+void dump_set_sata_type_8(void);
+
 static u8 nand_page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(128);
 static u8 nand_ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(128);
 
@@ -66,12 +76,62 @@ menu menu_dump = {
             {"Restore BOOT1_SLC.RAW", &dump_restore_boot1_raw},
             {"Restore seeprom.bin", &dump_restore_seeprom},
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
+            {"Set SEEPROM SATA device type", &dump_set_sata_type},
             {"Return to Main Menu", &menu_close},
     },
-    13, // number of options
+    14, // number of options
     0,
     0
 };
+
+menu menu_sata = {
+    "minute", // title
+    {
+            "Set SEEPROM SATA device type", // subtitles
+    },
+    1, // number of subtitles
+    {
+            {"Default", &dump_set_sata_type_1},
+            {"No device", &dump_set_sata_type_2},
+            {"ROM drive (Retail)", &dump_set_sata_type_3},
+            {"R drive (Test/Kiosk CAT-I)", &dump_set_sata_type_4},
+            {"MION (Debug)", &dump_set_sata_type_5},
+            {"SES (Kiosk CAT-SES)", &dump_set_sata_type_6},
+            {"GEN2-HDD (Kiosk CAT-I with HDD)", &dump_set_sata_type_7},
+            {"GEN1-HDD (Kiosk CAT-I with HDD)", &dump_set_sata_type_8},
+            {"Cancel and return", &menu_close},
+    },
+    9, // number of options
+    0,
+    0
+};
+
+const char* _dump_sata_type_str(int type)
+{
+    switch (type)
+    {
+        case 0:
+            return "Unk0";
+        case 1:
+            return "Default";
+        case 2:
+            return "No device";
+        case 3:
+            return "ROM drive (Retail)";
+        case 4:
+            return "R drive (Test/Kiosk CAT-I)";
+        case 5:
+            return "MION (Debug)";
+        case 6:
+            return "SES (Kiosk CAT-SES)";
+        case 7:
+            return "GEN2-HDD (Kiosk CAT-I with HDD)";
+        case 8:
+            return "GEN1-HDD (Kiosk CAT-I with HDD)";
+        default:
+            return "Unk";
+    }
+}
 
 void dump_menu_show()
 {
@@ -399,6 +459,151 @@ void dump_sync_seeprom_boot1_versions(void)
     _dump_sync_seeprom_boot1_versions();
 
     console_power_or_eject_to_return();
+}
+
+void _dump_set_sata_type(int new_sata)
+{
+    seeprom_t crypt_verify;
+    seeprom_t readback_verify;
+
+    gfx_clear(GFX_ALL, BLACK);
+
+    crypto_read_seeprom();
+
+    if (!crypto_decrypt_verify_seeprom_ptr(&seeprom_decrypted, &seeprom)) {
+        printf("\nSEEPROM failed to verify!\n");
+        printf("boot1 version cannot be written to SEEPROM without a valid otp.bin!\n");
+        goto ret;
+    }
+
+    int needs_sync = 0;
+
+    u16 original_sata = seeprom_decrypted.bc.sata_device;
+    seeprom_decrypted.bc.sata_device = new_sata; // none TODO
+
+    seeprom_decrypted.bc_crc32 = crc32(&seeprom_decrypted.bc_size, seeprom_decrypted.bc_size - sizeof(u32));
+
+    if (!mandatory_seeprom_otp_backups()) {
+        printf("The mandatory SEEPROM/OTP backups are mandatory.\n");
+        goto ret;
+    }
+    printf("Done making mandatory backups.\n");
+
+    if (!crypto_encrypt_verify_seeprom_ptr(&seeprom, &seeprom_decrypted)) {
+        goto ret;
+    }
+    printf("Done verifying.\n");
+
+    {
+        printf("\n\nSEEPROM will be set to the following SATA devices:\n");
+        printf("Primary:   %u (%s) -> %u (%s)\n", original_sata, _dump_sata_type_str(original_sata), seeprom.bc.sata_device, _dump_sata_type_str(seeprom.bc.sata_device));
+        printf("Write these values to SEEPROM?\n");
+
+        if(console_abort_confirmation_power_no_eject_yes()) return;
+    }
+
+    //seeprom_write(&seeprom.hw_params, (((u32)&seeprom.hw_params) - ((u32)&seeprom) / 2), 0x30/2);
+    seeprom_write(&seeprom, 0, sizeof(seeprom)/2);
+    udelay(10);
+    seeprom_read(&readback_verify, 0, sizeof(readback_verify)/2);
+
+    int has_issues = 0;
+    if (memcmp(&seeprom, &readback_verify, sizeof(seeprom))) {
+        printf("\nSEEPROM write failed!\n");
+        printf("Readback did not match!\n");
+        printf("Rename your mandatory backup to `seeprom.bin` and flash it ASAP.\n");
+
+        printf("Read back:");
+        u8* printout = (u8*)&readback_verify;
+        for (int i = 0; i < sizeof(readback_verify); i++)
+        {
+            if (i % 16 == 0) {
+                printf("\n");
+            }
+            printf("%02x ", *printout++);
+        }
+        printf("\n");
+
+        printf("Expected:");
+        printout = (u8*)&seeprom;
+        for (int i = 0; i < sizeof(seeprom); i++)
+        {
+            if (i % 16 == 0) {
+                printf("\n");
+            }
+            printf("%02x ", *printout++);
+        }
+        printf("\n");
+        has_issues = 1;
+    }
+
+    if (!crypto_decrypt_verify_seeprom_ptr(&crypt_verify, &readback_verify)) {
+        printf("\nSEEPROM CRC32s failed to verify!\n");
+        printf("This unit might not boot up without de_Fuse now...\n");
+        printf("Rename your mandatory backup to `seeprom.bin` and flash it ASAP.\n");
+        has_issues = 1;
+    }
+
+    if (!has_issues) {
+        printf("\nSuccess!\n");
+    }
+    else {
+        printf("\nDone.\n");
+    }
+
+    menu_close();
+    console_power_or_eject_to_return();
+    return;
+
+ret:
+    menu_close();
+    console_power_or_eject_to_return();
+    return;
+}
+
+void dump_set_sata_type(void)
+{
+    menu_init(&menu_sata);
+}
+
+void dump_set_sata_type_1(void)
+{
+    _dump_set_sata_type(1);
+}
+
+void dump_set_sata_type_2(void)
+{
+    _dump_set_sata_type(2);
+}
+
+void dump_set_sata_type_3(void)
+{
+    _dump_set_sata_type(3);
+}
+
+void dump_set_sata_type_4(void)
+{
+    _dump_set_sata_type(4);
+}
+
+void dump_set_sata_type_5(void)
+{
+    _dump_set_sata_type(5);
+}
+
+void dump_set_sata_type_6(void)
+{
+    _dump_set_sata_type(6);
+}
+
+void dump_set_sata_type_7(void)
+{
+    _dump_set_sata_type(7);
+}
+
+void dump_set_sata_type_8(void)
+{
+    _dump_set_sata_type(8);
 }
 
 void dump_restore_seeprom(void)
