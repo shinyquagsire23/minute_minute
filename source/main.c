@@ -423,6 +423,7 @@ menu menu_main = {
             {"Boot PowerPC ELF file", &main_boot_ppc},
             {"Backup and Restore", &dump_menu_show},
             {"Interactive debug console", &main_interactive_console},
+            {"PRSH tweaks", &prsh_menu},
             {"Display crash log", &main_get_crash},
             {"Clear crash log", &main_reset_crash},
             {"Restart minute", &main_reload},
@@ -431,7 +432,7 @@ menu menu_main = {
             {"Credits", &main_credits},
             //{"ISFS test", &isfs_test},
     },
-    12, // number of options
+    13, // number of options
     0,
     0
 };

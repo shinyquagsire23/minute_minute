@@ -16,6 +16,8 @@
 #include "gfx.h"
 #include "crypto.h"
 #include "memory.h"
+#include "rtc.h"
+#include "menu.h"
 
 typedef struct {
     char name[0x100];
@@ -87,6 +89,74 @@ static prst_entry* prst = NULL;
 static prsh_header* header = NULL;
 static bool initialized = false;
 extern otp_t otp;
+
+void prsh_set_dev_mode();
+void prsh_mcp_recovery();
+void prsh_mcp_recovery_alt();
+
+menu menu_prsh = {
+    "minute", // title
+    {
+            "Backup and Restore", // subtitles
+    },
+    1, // number of subtitles
+    {
+            {"Set dev_mode", &prsh_set_dev_mode},
+            {"Trigger mcp_recovery", &prsh_mcp_recovery},
+            {"Trigger mcp_recovery (alt)", &prsh_mcp_recovery_alt},
+            {"Return to Main Menu", &menu_close},
+    },
+    4, // number of options
+    0,
+    0
+};
+
+void prsh_menu()
+{
+    menu_init(&menu_prsh);
+}
+
+void prsh_set_dev_mode()
+{
+    boot_info_t* boot_info = NULL;
+    prsh_get_entry("boot_info", &boot_info, NULL);
+    if (!boot_info) {
+        boot_info = (boot_info_t*)0x10008000;
+    }
+
+    boot_info->boot_flags &= ~PRSH_FLAG_RETAIL;
+
+    prsh_recompute_checksum();
+}
+
+void prsh_mcp_recovery()
+{
+    boot_info_t* boot_info = NULL;
+    prsh_get_entry("boot_info", &boot_info, NULL);
+    if (!boot_info) {
+        boot_info = (boot_info_t*)0x10008000;
+    }
+
+    boot_info->boot_flags &= ~PRSH_FLAG_RETAIL;
+    boot_info->boot_state = PON_POWER_BTN | PON_EJECT_BTN | PFLAG_PON_COLDBOOT;
+
+    prsh_recompute_checksum();
+}
+
+void prsh_mcp_recovery_alt()
+{
+    boot_info_t* boot_info = NULL;
+    prsh_get_entry("boot_info", &boot_info, NULL);
+    if (!boot_info) {
+        boot_info = (boot_info_t*)0x10008000;
+    }
+
+    boot_info->boot_flags &= ~PRSH_FLAG_RETAIL;
+    boot_info->boot_state = PON_POWER_BTN | PON_EJECT_BTN | PFLAG_PON_COLDBOOT;
+    boot_info->field_14 = 0x40000;
+
+    prsh_recompute_checksum();
+}
 
 void prsh_dump_entry(char* name) {
     void* data = NULL;

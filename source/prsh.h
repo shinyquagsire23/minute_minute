@@ -27,4 +27,6 @@ void prsh_recompute_checksum();
 void prsh_decrypt();
 void prsh_encrypt();
 
+void prsh_menu();
+
 #endif
