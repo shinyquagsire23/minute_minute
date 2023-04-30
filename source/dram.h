@@ -13,28 +13,6 @@
 
 #include "types.h"
 
-typedef struct bsp_pll_cfg
-{
-    u32 fastEn;
-    u32 dithEn;
-    u32 satEn;
-    u32 ssEn;
-    u32 bypOut;
-    u32 bypVco;
-    u32 operational;
-    u16 clkR;
-    u16 clkFMsb;
-    u16 clkFLsb;
-    u16 clkO0Div;
-    u16 clkO1Div;
-    u16 clkO2Div;
-    u16 clkS;
-    u16 clkVMsb;
-    u16 clkVLsb;
-    u32 bwAdj;
-    u32 options;
-} bsp_pll_cfg;
-
 typedef struct bsp_system_clock_info
 {
     u32 systemClockFrequency;

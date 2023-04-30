@@ -93,5 +93,6 @@ void* gpu_drc_primary_surface_addr(void);
 void gpu_test(void);
 void gpu_display_init(void);
 void gpu_cleanup(void);
+int gpu_idk_upll();
 
 #endif // __GPU_H__

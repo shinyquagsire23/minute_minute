@@ -14,6 +14,8 @@
 #include "asic.h"
 #include "utils.h"
 #include "gpio.h"
+#include "pll.h"
+#include "gpu.h"
 #include <string.h>
 
 // This entire file is *heavily* lifted from boot1/c2w, because frankly
@@ -23,26 +25,6 @@
 
 extern seeprom_t seeprom;
 
-bsp_pll_cfg bspSysPllCfg248 =
-{
-    0, 1, 1, 0, 0, 0, 0, 0, 0x37, 0x1000, 0xC, 0x18, 0, 0x1C2, 0, 0xA, 5, 0
-};
-
-bsp_pll_cfg bspSysPllCfg240 =
-{
-    0, 1, 1, 0, 0, 0, 0, 0, 0x35, 0x1000, 0xC, 0x18, 0, 0x1C2, 0, 9, 5, 0
-};
-
-bsp_pll_cfg bspSysPllCfg243 =
-{
-    0, 1, 1, 0, 0, 0, 0, 0, 0x36, 0x0000, 0xC, 0x18, 0, 0x1C2, 0, 9, 5, 0
-};
-
-bsp_pll_cfg unkPllCfg1 = {0, 1, 1, 0, 1, 0, 1, 0, 0x3B, 0,      2, 0, 0, 0x1C2, 0, 0xA, 6, 0};
-bsp_pll_cfg unkPllCfg2 = {0, 1, 1, 0, 1, 0, 1, 0, 0x35, 0,      2, 0, 0, 0x1C2, 0, 0xA, 5, 0};
-bsp_pll_cfg unkPllCfg3 = {0, 1, 1, 0, 0, 0, 1, 0, 0x40, 0,      4, 0, 0, 0x1C2, 0, 0xB, 7, 0};
-bsp_pll_cfg unkPllCfg4 = {0, 1, 1, 1, 0, 0, 0, 0, 0x28, 0x2F68, 4, 4, 0, 0x1C2, 0, 0x7, 4, 0};
-
 bsp_system_clock_info latte_clk_info = { 248625000, 1942382 };
 u32 latte_hw_version = 0x25100028;
 u32 dram_size_hi = 0;
@@ -50,88 +32,12 @@ u32 dram_size_lo = 0;
 u32 bspHardwareVersion = 0;
 
 int bsp_get_sys_clock_info(bsp_system_clock_info *pOut);
-int get_default_syspll_cfg(bsp_pll_cfg **ppCfg, u32 *pSysClkFreq);
 int dram_remove_memory_compat_mode(u16 mode);
-int init_br_pll_cfg_from_regs(bsp_pll_cfg *pOut);
 void ddr_seq_write16(u16 seqAddr, u16 seqVal);
 
-int gpu_related_1()
+int to_pll_spll_write()
 {
-    u32 val_5E0 = read32(LT_RESETS);
-    if ( (val_5E0 & 4) == 0 )
-    {
-        write32(LT_RESETS, val_5E0 | 4);
-        udelay(10);
-    }
-
-    abif_gpu_mask32(0x5930u, 0x1FF, 0x49);
-    abif_gpu_mask32(0x5938u, 0x1FF, 0x49);
-
-    set32(LT_UNK628, 1u);
-    return 0;
-}
-
-int abif_related_1(bsp_pll_cfg *pPllCfg)
-{
-    int v3; // r1
-    int v4; // r2
-    int v5; // r1
-    int v6; // r2
-    int v7; // r1
-    int v8; // r0
-
-    gpu_related_1();
-    abif_cpl_ct_write32(0x874u, 1);
-    abif_cpl_ct_write32(0x864u, (pPllCfg->clkO0Div << 18) | pPllCfg->clkR | (pPllCfg->clkFMsb << 6) | 0x18000000);
-    udelay(5);
-    abif_cpl_ct_write32(0x864u, (pPllCfg->clkO0Div << 18) | (pPllCfg->clkR) | (pPllCfg->clkFMsb << 6) | 0x98000000);
-    udelay(10);
-
-    if ( pPllCfg->satEn )
-        v3 = 0x8000000;
-    else
-        v3 = 0;
-
-    if ( pPllCfg->fastEn )
-        v4 = 0x10000000;
-    else
-        v4 = 0;
-
-    abif_cpl_ct_write32(0x868u, v3 | (pPllCfg->clkFLsb << 9) | pPllCfg->clkO1Div | v4);
-    if ( pPllCfg->ssEn )
-        v5 = 0x4000000;
-    else
-        v5 = 0;
-
-    if ( pPllCfg->dithEn )
-        v6 = 0x8000000;
-    else
-        v6 = 0;
-
-    abif_cpl_ct_write32(0x86Cu, v5 | (pPllCfg->clkVMsb << 16) | pPllCfg->clkVLsb | v6);
-    abif_cpl_ct_write32(0x870u, (pPllCfg->clkS) | (pPllCfg->bwAdj << 12));
-    udelay(5);
-    abif_cpl_ct_write32(0x864u, (pPllCfg->clkO0Div << 18) | (pPllCfg->clkR) | (pPllCfg->clkFMsb << 6) | 0x18000000);
-    udelay(200);
-    if ( pPllCfg->bypVco )
-        v7 = 0x8000000;
-    else
-        v7 = 0;
-    if ( pPllCfg->bypOut )
-        v8 = 0x10000000;
-    else
-        v8 = 0;
-    abif_cpl_ct_write32(0x864u, v7 | (pPllCfg->clkFMsb << 6) | (pPllCfg->clkR) | (pPllCfg->clkO0Div << 18) | v8);
-    abif_cpl_ct_write32(0x874u, 2);
-    abif_cpl_ct_write32(0x7D4u, ~0x360000u);
-    abif_gpu_write32(0xF4B0u, 1);
-    abif_gpu_write32(0xF4A8u, 0x3FFFF);
-    return 0;
-}
-
-int to_abif_related_1()
-{
-    return abif_related_1(&unkPllCfg4);
+    return pll_spll_write(&unkPllCfg4);
 }
 
 int mem_clocks_related_2__3()
@@ -237,57 +143,6 @@ LABEL_11:
     return v1;
 }
 
-int ddrBrIdk(bsp_pll_cfg *pCfg)
-{
-    u16 v2; // r1
-    u16 v3; // r3
-    u16 v5; // r1
-    u16 v6; // r2
-    u16 v8; // r1
-    u16 v9; // r2
-    u16 v10; // r1
-    u16 v11; // r3
-    u16 v12; // r1
-    u16 v13; // r2
-    u16 v14; // r1
-    u16 v15; // r2
-
-    v2 = pCfg->satEn ? 0x800 : 0;
-    v3 = pCfg->fastEn ? 0x1000 : 0;
-    abif_cpl_br_write16(0x20u, v2 | v3);
-    udelay(5000);
-    abif_cpl_br_write16(0x10, pCfg->clkVLsb);
-    
-    v5 = pCfg->ssEn ? 0x400 : 0;
-    v6 = pCfg->dithEn ? 0x800 : 0;
-    abif_cpl_br_write16(0x12, v5 | pCfg->clkVMsb | v6);
-    abif_cpl_br_write16(0x14, pCfg->clkS);
-    abif_cpl_br_write16(0x16, pCfg->bwAdj);
-    abif_cpl_br_write16(0x18, pCfg->clkFLsb);
-    abif_cpl_br_write16(0x1C, (pCfg->clkO0Div << 6) | pCfg->clkR | 0x8000);
-    
-    v8 = pCfg->bypVco ? 0x1000 : 0;
-    v9 = pCfg->bypOut ? 0x2000 : 0;
-    abif_cpl_br_write16(0x1Eu, v8 | pCfg->clkFMsb | v9);
-    
-    v10 = pCfg->satEn ? 0x800 : 0;
-    v11 = pCfg->fastEn ? 0x1000 : 0;
-    abif_cpl_br_write16(0x20u, v10 | v11);
-    udelay(5);
-    
-    v12 = pCfg->satEn ? 0x4800 : 0x4000;
-    v13 = pCfg->fastEn ? 0x1000 : 0;
-    abif_cpl_br_write16(0x20u, v12 | v13);
-    udelay(5000);
-    
-    v14 = pCfg->satEn ? 0xC800 : 0xC000;
-    v15 = pCfg->fastEn ? 0x1000 : 0;
-    abif_cpl_br_write16(0x20u, v14 | v15);
-
-    udelay(5000);
-    return 0;
-}
-
 int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
 {
     int v1; // lr
@@ -384,7 +239,7 @@ int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
         if (mode & DRAM_MODE_20)
         {
             memset(&pllCfg2, 0, sizeof(pllCfg2));
-            v5 = init_br_pll_cfg_from_regs(&pllCfg2);
+            v5 = pll_dram_read(&pllCfg2);
             if ( v5 )
             {
 LABEL_36:
@@ -404,7 +259,7 @@ LABEL_35:
         }
         else
         {
-            v5 = ddrBrIdk(&pllCfg);
+            v5 = pll_dram_write(&pllCfg);
             if ( v5 )
                 goto LABEL_36;
         }
@@ -725,50 +580,6 @@ int dram_remove_memory_compat_mode(u16 mode)
     return 16;
 }
 
-// This one had a ton of HIBYTEs
-int init_br_pll_cfg_from_regs(bsp_pll_cfg *pOut)
-{
-    u16 v2; // r0
-    int v8; // r0
-    u16 v11; // r0
-    int v12; // r2
-    int v13; // r0
-    u16 v14; // r0
-    int v17; // r0
-
-    memset(pOut, 0, sizeof(bsp_pll_cfg));
-    pOut->clkVLsb = abif_cpl_br_read16(0x10);
-
-    v2 = abif_cpl_br_read16(0x12);
-    pOut->clkVMsb = (v2 & 0x3FFu);
-    pOut->ssEn = !!(v2 & 0x400);
-    pOut->dithEn = !!(v2 & 0x800);
-
-    pOut->clkS = abif_cpl_br_read16(0x14) & 0xFFF;
-    pOut->bwAdj = abif_cpl_br_read16(0x16) & 0xFFF;
-
-    pOut->clkFLsb = abif_cpl_br_read16(0x18) & 0x3FFF;
-    v8 = abif_cpl_br_read16(0x1C);
-    pOut->clkR = v8 & 0x3F;
-    pOut->clkO0Div = (unsigned int)(v8 << 17) >> 23;
-    v11 = abif_cpl_br_read16(0x1Eu);
-    pOut->clkFMsb = (v11 & 0xFFFu);
-    v12 = (u16)(v11 & 0x2000) >> 13;
-    v13 = (u16)(v11 & 0x1000) >> 12;
-    pOut->bypOut = v12 & 0xFF;
-    pOut->bypVco = v13 & 0xFF;
-    v14 = abif_cpl_br_read16(0x20u);
-    pOut->satEn = !!(v14 & 0x800);
-    pOut->fastEn = !!(v14 & 0x1000);
-
-    v17 = abif_cpl_br_read16(0x20u);
-    if ( (v17 & 0x4000) != 0 && (unsigned int)(v17 << 16) >> 31 == 1 )
-    {
-        pOut->operational = 1;
-    }
-    return 0;
-}
-
 void ddr_seq_write16(u16 seqAddr, u16 seqVal)
 {
     write16(MEM_SEQ_REG_ADDR, seqAddr);
@@ -785,7 +596,7 @@ int mem_clocks_related_3__2___MCP_HWSetMEM2SelfRefreshMode(u16 mode)
     int v8; // [sp+54h] [bp+0h] BYREF
 
     memset(&v4, 0, sizeof(v4));
-    v2 = init_br_pll_cfg_from_regs(&v4);
+    v2 = pll_dram_read(&v4);
     if ( !v2 )
     {
         if ( v4.operational && (read32(LT_RESETS_COMPAT) & RSTB_MEM) != 0 )
@@ -827,99 +638,6 @@ int mem_clocks_related_3(u16 mode)
     return mem_clocks_related_3__3___DdrCafeInit(mode);
 }
 
-int bsp_init_sys_pll(bsp_pll_cfg *pParams)
-{
-    int v1; // lr
-    u16 v3; // r0
-    u16 v4; // r1
-    u16 v5; // r2
-    u16 v6; // r0
-    u16 v7; // r1
-    u16 v8; // r2
-    u16 v9; // r0
-    u16 v10; // r1
-    u16 v11; // r2
-    int v13; // [sp+0h] [bp-2Ch]
-    int v17; // [sp+2Ch] [bp+0h] BYREF
-    u32 bspVer;
-
-    v13 = 0;
-    bspVer = latte_get_hw_version();
-    if ( bspVer && (bspVer & 0xF000000) != 0 )
-    {
-        set32(LT_CLOCKINFO, 1);
-        udelay(10);
-        clear32(LT_RESETS_COMPAT, RSTB_DSKPLL);
-        udelay(10);
-        clear32(LT_RESETS_COMPAT, NLCKB_SYSPLL);
-        udelay(20);
-        clear32(LT_RESETS_COMPAT, RSTB_SYSPLL);
-        abif_cpl_tl_write16(0x20u, pParams->clkR | (pParams->clkO0Div << 6));
-        v3 = pParams->clkFMsb;
-        if (pParams->bypVco)
-            v4 = 0x1000;
-        else
-            v4 = 0;
-        if (pParams->bypOut)
-            v5 = 0x2000;
-        else
-            v5 = 0;
-        abif_cpl_tl_write16(0x22u, v4 | v3 | v5);
-        v6 = pParams->clkO1Div;
-        if (pParams->satEn)
-            v7 = 0x800;
-        else
-            v7 = 0;
-        if (pParams->fastEn)
-            v8 = 0x1000;
-        else
-            v8 = 0;
-        abif_cpl_tl_write16(0x24u, v7 | v6 | v8);
-        abif_cpl_tl_write16(0x26u, pParams->clkFLsb);
-        abif_cpl_tl_write16(0x28u, pParams->clkVLsb);
-        v9 = pParams->clkVMsb;
-        if ( pParams->ssEn)
-            v10 = 0x800;
-        else
-            v10 = 0;
-        if (pParams->dithEn)
-            v11 = 0x1000;
-        else
-            v11 = 0;
-        abif_cpl_tl_write16(0x2Au, v10 | v9 | v11);
-        abif_cpl_tl_write16(0x2Cu, pParams->clkS);
-        abif_cpl_tl_write16(0x2Eu, pParams->bwAdj);
-        clear32(LT_CLOCKINFO, 2);
-        set32(LT_SYSPLL_CFG, pParams->options & 1);
-        udelay(5);
-        set32(LT_RESETS_COMPAT, RSTB_SYSPLL);
-        udelay(200);
-        set32(LT_RESETS_COMPAT, NLCKB_SYSPLL);
-        set32(LT_RESETS_COMPAT, RSTB_DSKPLL);
-        udelay(200);
-        clear32(LT_CLOCKINFO, 1);
-    }
-    return v13;
-}
-
-int bsp_init_default_syspll(int bIdk)
-{
-    int result = 0;
-    bsp_pll_cfg cfg;
-    bsp_pll_cfg *ppCfg;
-
-    ppCfg = 0;
-    result = get_default_syspll_cfg(&ppCfg, 0);
-    if ( !result )
-    {
-        memcpy(&cfg, ppCfg, sizeof(cfg));
-        if ( bIdk )
-            cfg.options |= 1;
-        result = bsp_init_sys_pll(&cfg);
-    }
-    return result;
-}
-
 int mem_clocks_related_2(u16 mode)
 {
     int ret = 0;
@@ -927,8 +645,8 @@ int mem_clocks_related_2(u16 mode)
     ret = ret | mem_clocks_related_2__2();
     ret = ret | mem_clocks_related_2__3();
     if ( !(mode & DRAM_MODE_CCBOOT) )
-        ret |= to_abif_related_1();
-    return bsp_init_default_syspll(!!(mode & DRAM_MODE_CCBOOT)) | ret;
+        ret |= to_pll_spll_write();
+    return pll_syspll_init(!!(mode & DRAM_MODE_CCBOOT)) | ret;
 }
 
 int mem2_get_clk_info()
@@ -941,45 +659,6 @@ int mem2_get_clk_info()
         result = -2;
     else
         result = 0;
-    return result;
-}
-
-int get_default_syspll_cfg(bsp_pll_cfg **ppCfg, u32 *pSysClkFreq)
-{
-    bsp_pll_cfg *pCfg = NULL;
-    u32 freq = 0;
-    int result = 0;
-
-    u32 bspVer = latte_get_hw_version();
-    if (!bspVer)
-        return -1;
-
-    if ( (seeprom.bc.library_version) <= 2u )
-    {
-        pCfg = &bspSysPllCfg243;
-        freq = 243000000;
-    }
-    else if ( seeprom.bc.sys_pll_speed == 0xF0 )
-    {
-        pCfg = &bspSysPllCfg240;
-        freq = 239625000;
-    }
-    else if ( seeprom.bc.sys_pll_speed == 0xF8 )
-    {
-        pCfg = &bspSysPllCfg248;
-        freq = 248625000;
-    }
-    else
-    {
-        pCfg = &bspSysPllCfg243;
-        freq = 243000000;
-    }
-
-    if ( ppCfg )
-        *ppCfg = pCfg;
-
-    if ( pSysClkFreq )
-        *pSysClkFreq = freq;
     return result;
 }
 
@@ -996,7 +675,7 @@ int bsp_get_sys_clock_info(bsp_system_clock_info *pOut)
     {
         if (bspVer & 0x0F000000)
         {
-            ret = get_default_syspll_cfg(0, &v7.systemClockFrequency);
+            ret = pll_syspll_read(0, &v7.systemClockFrequency);
             if (read32(LT_SYSPLL_CFG) & 1)
             {
                 v7.systemClockFrequency >>= 1;
