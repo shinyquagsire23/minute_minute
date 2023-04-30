@@ -21,10 +21,14 @@ int border_color = 0x3F7C7C;
 int lines = 0;
 int console_x = CONSOLE_X, console_y = CONSOLE_Y, console_w = CONSOLE_WIDTH, console_h = CONSOLE_HEIGHT;
 int border_width = 3;
+int console_tv_x = CONSOLE_TV_X, console_tv_y = CONSOLE_TV_Y, console_tv_w = CONSOLE_TV_WIDTH, console_tv_h = CONSOLE_TV_HEIGHT;
+
 
 void console_init()
 {
     console_flush();
+    gfx_clear(GFX_TV, BLACK);
+    gfx_clear(GFX_DRC, BLACK);
 }
 
 void console_set_xy(int x, int y)
@@ -67,16 +71,34 @@ void console_show()
                (x >= console_w + console_x - 1 && x <= console_w + console_x - 1 + border_width) ||
                (y >= console_h + console_y - 1 && y <= console_h + console_y - 1 + border_width)) {
                 gfx_draw_plot(GFX_DRC, x, y, border_color);
+            }
+            else {
+                //gfx_draw_plot(GFX_DRC, x, y, background_color);
+            }
+        }
+    }
+
+    for(y = console_tv_y; y < console_tv_h + console_tv_y + border_width; y++)
+    {
+        for(x = console_tv_x; x < console_tv_w + console_tv_x + border_width; x++)
+        {
+            if((x >= console_tv_x && x <= console_tv_x + border_width) ||
+               (y >= console_tv_y && y <= console_tv_y + border_width) ||
+               (x >= console_tv_w + console_tv_x - 1 && x <= console_tv_w + console_tv_x - 1 + border_width) ||
+               (y >= console_tv_h + console_tv_y - 1 && y <= console_tv_h + console_tv_y - 1 + border_width)) {
                 gfx_draw_plot(GFX_TV, x, y, border_color);
             }
-                
             else {
-                gfx_draw_plot(GFX_DRC, x, y, background_color);
+                //gfx_draw_plot(GFX_DRC, x, y, background_color);
             }
         }
     }
 
     for(i = 0; i < lines; i++) {
+        for (int j = console_x; j < console_w-CHAR_WIDTH; j += CHAR_WIDTH) {
+            gfx_draw_string(GFX_DRC, " ", j + CHAR_WIDTH * 1, i * CHAR_WIDTH + console_y + CHAR_WIDTH * 2, background_color);
+            gfx_draw_string(GFX_TV, " ", j + CHAR_WIDTH * 1, i * CHAR_WIDTH + console_y + CHAR_WIDTH * 2, background_color);
+        }
         gfx_draw_string(GFX_DRC, console[i], console_x + CHAR_WIDTH * 1, i * CHAR_WIDTH + console_y + CHAR_WIDTH * 2, text_color);
         gfx_draw_string(GFX_TV, console[i], console_x + CHAR_WIDTH * 1, i * CHAR_WIDTH + console_y + CHAR_WIDTH * 2, text_color);
         //if (gfx_is_currently_headless()) 
@@ -93,8 +115,6 @@ void console_flush()
         serial_clear();
     }
 
-    gfx_clear(GFX_TV, BLACK);
-    gfx_clear(GFX_DRC, BLACK);
     lines = 0;
 }
 

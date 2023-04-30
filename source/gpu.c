@@ -156,6 +156,11 @@ void gpu_display_init(void) {
     //gpu_switch_endianness();
     ave_i2c_init(400000, 0);
 
+    int needs_ave_init = 1;
+    if (gpu_tv_primary_surface_addr()) {
+        needs_ave_init = 0;
+    }
+
     //pll_vi1_shutdown_alt();
     //pll_vi2_shutdown();
 
@@ -179,10 +184,13 @@ void gpu_display_init(void) {
     abif_gpu_write32(D2GRPH_PRIMARY_SURFACE_ADDRESS, FB_DRC_ADDR);
 
     // HACK: I can't get the endianness swap to work :/
-    if (read16(MEM_GPU_ENDIANNESS) & 3 != 1)
+    if ((read16(MEM_GPU_ENDIANNESS) & 3) != 2) {
         abif_gpu_write32(D1GRPH_SWAP_CNTL, 0x222);
+    }
+    else {
+        abif_gpu_write32(D1GRPH_SWAP_CNTL, 0x220);
+    }
 
-    //BSP_60XeDataStreaming_write(1);
     pll_upll_init();
 }
 
@@ -192,6 +200,6 @@ void gpu_cleanup()
     abif_gpu_write32(0x898, 0xFFFFFFFF);
 
     // HACK: I can't get the endianness swap to work :/
-    if (read16(MEM_GPU_ENDIANNESS) & 3 != 1)
+    if ((read16(MEM_GPU_ENDIANNESS) & 3) != 2)
         abif_gpu_write32(D1GRPH_SWAP_CNTL, 0x220);
 }

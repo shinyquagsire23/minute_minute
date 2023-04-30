@@ -43,6 +43,7 @@ void menu_init(menu* new_menu)
 
     smc_get_events(); // Eat all existing events
 
+    console_init();
     __menu = new_menu;
     __menu->selected = 0;
     __menu->showed = 0;
@@ -98,7 +99,7 @@ void menu_draw()
     if (__menu->showed) {
         serial_line_noscroll();
     }
-    console_init();
+    console_flush();
     snprintf(tmp, sizeof(tmp), " %s", __menu->title);
     console_add_text(tmp);
     console_add_text("");
