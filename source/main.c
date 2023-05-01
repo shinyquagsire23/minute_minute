@@ -410,6 +410,8 @@ fat_fail:
 }
 #else // MINUTE_BOOT1
 
+void main_swapboot_patch(void);
+
 menu menu_main = {
     "minute", // title
     {
@@ -418,6 +420,7 @@ menu menu_main = {
     1, // number of subtitles
     {
             {"Patch and boot IOS", &main_quickboot_patch}, // options
+            {"Patch and boot ios_orig.img", &main_swapboot_patch}, // options
             {"Boot 'ios.img'", &main_quickboot_fw},
             {"Boot IOP firmware file", &main_boot_fw},
             {"Boot PowerPC ELF file", &main_boot_ppc},
@@ -432,7 +435,7 @@ menu menu_main = {
             {"Credits", &main_credits},
             //{"ISFS test", &isfs_test},
     },
-    13, // number of options
+    14, // number of options
     0,
     0
 };
@@ -829,6 +832,22 @@ void main_quickboot_patch(void)
         printf("Failed to load IOS with patches!\n");
         console_power_to_continue();
     }
+}
+
+void main_swapboot_patch(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch"); // 
+    boot.is_patched = 1;
+    boot.needs_otp = 1;
+
+    if(boot.vector) {
+        boot.mode = 0;
+        menu_reset();
+    } else {
+        printf("Failed to load IOS with patches!\n");
+    }
+    console_power_to_continue();
 }
 
 void main_quickboot_fw(void)
