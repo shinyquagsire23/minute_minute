@@ -57,6 +57,7 @@ void menu_init(menu* new_menu)
         menu_show();
 
         int console_input = console_select_poll();
+        int do_select = 0;
 
         if ((console_input & CONSOLE_KEY_UP) || (console_input & CONSOLE_KEY_W)) {
             menu_prev_selection();
@@ -71,23 +72,28 @@ void menu_init(menu* new_menu)
             menu_next_jump();
         }
         if (console_input & CONSOLE_KEY_ENTER) {
-            menu_select();
+            do_select = 1;
         }
+        
+        if ((console_input & CONSOLE_KEY_EJECT) || (console_input & CONSOLE_KEY_P)) {
+            do_select = 1;
+        }
+        else if ((console_input & CONSOLE_KEY_POWER) || (console_input & CONSOLE_KEY_Q)) {
+            menu_next_selection();
+        }
+        
         if (console_input & CONSOLE_KEY_INTCON) {
             // Kinda hacky but whatever.
             for (int j = 0; j < __menu->entries; j++) {
                 if (__menu->option[j].callback == main_interactive_console) {
                     __menu->selected = j;
-                    menu_select();
+                    do_select = 1;
                 }
             }
         }
-        if ((console_input & CONSOLE_KEY_EJECT) || (console_input & CONSOLE_KEY_P)) {
+
+        if (do_select)
             menu_select();
-        }
-        else if ((console_input & CONSOLE_KEY_POWER) || (console_input & CONSOLE_KEY_Q)) {
-            menu_next_selection();
-        }
     }
 }
 

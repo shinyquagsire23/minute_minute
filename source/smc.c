@@ -96,6 +96,7 @@
 // 0x70 quickly switches from 0x0 to 0x1c
 // 0x90-0xff = 0xF4
 
+static int smc_perma_disable = 0;
 
 int smc_read_register(u8 offset, u8* data)
 {
@@ -271,7 +272,18 @@ int smc_set_wifi_idk(int state)
 
 u8 smc_get_events(void)
 {
+    if (smc_perma_disable) return 0;
+
     u8 data = 0;
+
+    // Extra safety???
+    smc_read_register(0x40, &data);
+    if (data == 0 || data == 0xFF) {
+        smc_perma_disable = 1;
+        return 0;
+    }
+
+    data = 0;
     smc_read_register(0x41, &data);
 
     // SMC failed to init...?
