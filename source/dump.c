@@ -64,13 +64,13 @@ menu menu_dump = {
     },
     1, // number of subtitles
     {
-            {"Format redNAND", &dump_format_rednand},
             {"Dump SEEPROM & OTP", &dump_seeprom_otp},
             {"Dump OTP via PRSHhax", &dump_otp_via_prshhax},
             {"Dump SLC.RAW", &dump_slc_raw},
             {"Dump SLCCMPT.RAW", &dump_slccmpt_raw},
             {"Dump BOOT1_SLC.RAW", &dump_boot1_raw},
             {"Dump factory log", &dump_factory_log},
+            {"Format redNAND", &dump_format_rednand},
             {"Restore SLC.RAW", &dump_restore_slc_raw},
             {"Restore SLCCMPT.RAW", &dump_restore_slccmpt_raw},
             {"Restore BOOT1_SLC.RAW", &dump_restore_boot1_raw},
@@ -1163,7 +1163,7 @@ int _dump_partition_rednand(void)
         printf("ALL DATA ON THE SD CARD WILL BE OVERWRITTEN!\n");
         printf("THIS CANNOT BE UNDONE!\n");
 
-        if(console_abort_confirmation_power_no_eject_yes()) return 0;
+        if(console_abort_confirmation_power_no_eject_yes()) return -1;
     }
 
     printf("Partitioning SD card...\n");
