@@ -67,6 +67,7 @@ u32 autoboot_timeout_s = 3;
 char autoboot_file[256] = "ios.patch";
 int main_loaded_from_boot1 = 0;
 int main_is_de_Fused = 0;
+int main_force_pause = 0;
 
 int main_autoboot(void);
 
@@ -654,6 +655,12 @@ skip_menu:
 
     switch(boot.mode) {
         case 0:
+            if (boot.vector && main_force_pause) {
+                printf("IOS is loaded and ready to launch!\n");
+                printf("Swap SD card now...\n");
+                console_power_to_continue();
+            }
+
             if(boot.vector) {
                 printf("Vectoring to 0x%08lX...\n", boot.vector);
             } else {
@@ -714,6 +721,8 @@ int boot_ini(const char* key, const char* value)
         strncpy(autoboot_file, value, sizeof(autoboot_file));
     if(!strcmp(key, "autoboot_timeout"))
         autoboot_timeout_s = (u32)minini_get_uint(value, 3);
+    if(!strcmp(key, "force_pause"))
+        main_force_pause = minini_get_bool(value, 0);
 
     return 0;
 }
@@ -846,8 +855,8 @@ void main_swapboot_patch(void)
         menu_reset();
     } else {
         printf("Failed to load IOS with patches!\n");
+        console_power_to_continue();
     }
-    console_power_to_continue();
 }
 
 void main_quickboot_fw(void)
