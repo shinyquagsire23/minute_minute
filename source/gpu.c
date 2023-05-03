@@ -153,6 +153,8 @@ int gpu_idk_upll()
 //abifr 0x01000002
 
 void gpu_display_init(void) {
+    //pll_spll_write(&spll_cfg_overclock);
+
     //gpu_switch_endianness();
     ave_i2c_init(400000, 0);
 
@@ -192,6 +194,17 @@ void gpu_display_init(void) {
     }
 
     pll_upll_init();
+
+    // 0x800~0x84C
+    // 0x864~0x89C
+    /*for (int i = 0x800; i < 0x84C; i += 4)
+    {
+        printf("%04x: %08x\n", i, abif_cpl_ct_read32(i));
+    }
+    for (int i = 0x864; i < 0x89C; i += 4)
+    {
+        printf("%04x: %08x\n", i, abif_cpl_ct_read32(i));
+    }*/
 }
 
 void gpu_cleanup()

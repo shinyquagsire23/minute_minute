@@ -47,8 +47,8 @@
 #define LT_AVE_I2C_INT_MASK           (LT_REG_BASE + 0x068)
 #define LT_AVE_I2C_INT_STATE          (LT_REG_BASE + 0x06C)
 #define LT_EXICTRL                    (LT_REG_BASE + 0x070)
-#define LT_UNK074                     (LT_REG_BASE + 0x074)
-#define LT_UNK088                     (LT_REG_BASE + 0x088)
+#define LT_AIPIOCTRL                  (LT_REG_BASE + 0x074)
+#define LT_USBFRCRST                  (LT_REG_BASE + 0x088)
 
 #define LT_GPIOE_OUT                  (LT_REG_BASE + 0x0C0)
 #define LT_GPIOE_DIR                  (LT_REG_BASE + 0x0C4)

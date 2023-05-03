@@ -16,29 +16,67 @@
 #include "crypto.h"
 #include <string.h>
 
-bsp_pll_cfg bspSysPllCfg248 =
-{
-    0, 1, 1, 0, 0, 0, 0, 0, 0x37, 0x1000, 0xC, 0x18, 0, 0x1C2, 0, 0xA, 5, 0
-};
+// div_select = ?
+// clkO = div_select == 0 ? clkO0Div : div_select == 1 ? clkO1Div : clkO2Div
+// clkF = (clkFMsb << 16) | (clkFLsb << 1)
+// freqMhz = 27 * (clkF/0x10000) / (clkR+1) / (clkO/2)
+// clkV is spread spectrum related maybe?
+// clkS is clock source...?
 
-bsp_pll_cfg bspSysPllCfg240 =
-{
-    0, 1, 1, 0, 0, 0, 0, 0, 0x35, 0x1000, 0xC, 0x18, 0, 0x1C2, 0, 9, 5, 0
-};
+// calculations:
+// 27 * (0x372000 / 0x10000) / (0+1) / (0xc/2)
+// 27 * (0x352000 / 0x10000) / (0+1) / (0xc/2)
+// 27 * (0x360000 / 0x10000) / (0+1) / (0xc/2)
+// 27 * (0x3B0000 / 0x10000) / (0+1) / (0x2/2)
+// 27 * (0x350000 / 0x10000) / (0+1) / (0x2/2)
+// 27 * (0x400000 / 0x10000) / (0+1) / (0x4/2)
+// 27 * (0x285ED0 / 0x10000) / (0+1) / (0x4/2)
+// 27 * (0x1F40000 / 0x10000) / (0xC+1) / (0xC/2)
+// 27 * (0x2C0000 / 0x10000) / (0+1) / (0x2C/2)
+// 27 * (0x480000 / 0x10000) / (0+1) / (0x8/2)
+// 27 * (0x3F0000 / 0x10000) / (0+1) / (0x48/2)
+// 27 * (0x320000 / 0x10000) / (0+1) / (0x36/2)
+// 27 * (0x320000 / 0x10000) / (0+1) / (0x36/2)
 
-bsp_pll_cfg bspSysPllCfg243 =
-{
-    0, 1, 1, 0, 0, 0, 0, 0, 0x36, 0x0000, 0xC, 0x18, 0, 0x1C2, 0, 9, 5, 0
-};
+// clock rates:
+// syspll_248_cfg   = 248.0625MHz
+// syspll_240_cfg   = 239.0625MHz
+// syspll_243_cfg   = 243MHz
+// dram_1_pllcfg    = 1593MHz
+// dram_2_pllcfg    = 1431MHz
+// dram_3_pllcfg    = 864MHz
+// spll_cfg         = 544.9998MHz (AKA GFX pll)
+// vi1_pllcfg       = 173.0769MHz?
+// vi2_pllcfg       = 54MHz?
+// upll_cfg         = 486MHz (also GFX?)
+// usbpll_cfg       = 47.25MHz
+// sata_1_pllcfg    = 50MHz
+// sata_2_pllcfg    = 50MHz
 
-bsp_pll_cfg unkPllCfg1 = {0, 1, 1, 0, 1, 0, 1, 0, 0x3B, 0,      2, 0, 0, 0x1C2, 0, 0xA, 6, 0};
-bsp_pll_cfg unkPllCfg2 = {0, 1, 1, 0, 1, 0, 1, 0, 0x35, 0,      2, 0, 0, 0x1C2, 0, 0xA, 5, 0};
-bsp_pll_cfg unkPllCfg3 = {0, 1, 1, 0, 0, 0, 1, 0, 0x40, 0,      4, 0, 0, 0x1C2, 0, 0xB, 7, 0};
-bsp_pll_cfg unkPllCfg4 = {0, 1, 1, 1, 0, 0, 0, 0, 0x28, 0x2F68, 4, 4, 0, 0x1C2, 0, 0x7, 4, 0};
+// TR: vi1, vi2, upll...?
+// BR: DRAM
+// TL: syspll
+// BL: usb, sata
+// CT: upll, spll, 
 
-bsp_pll_cfg vi1_pllcfg = {0,  1,  1,  0,  0,  0, 0, 0xC, 0x1F4,  0, 0xC, 0xC, 0xC,  0,  0,  0, 0x3D, 0x1C}; 
-bsp_pll_cfg vi2_pllcfg = {0,  1,  1,  0,  0,  0,  0,  0, 0x2C,  0, 0x2C,  4, 0x2C,  0,  0,  0,  4,  0};
-bsp_pll_cfg upll_cfg = {0, 1, 1, 0, 0, 0, 1, 0, 0x48, 0, 8, 0xA, 0x54, 0x1C2, 0, 0xd, 0x8, 0x0};
+//                            fastEn dithEn satEn ssEn bypOut bypVco operational clkR clkFMsb clkFLsb clkO0Div clkO1Div clkO2Div clkS   clkVMsb clkVLsb bwAdj options
+bsp_pll_cfg syspll_248_cfg  = {0,    1,     1,    0,   0,     0,     0,          0,   0x37,   0x1000, 0xC,     0x18,    0,       0x1C2, 0,      0xA,    0x5,  0x0};
+bsp_pll_cfg syspll_240_cfg  = {0,    1,     1,    0,   0,     0,     0,          0,   0x35,   0x1000, 0xC,     0x18,    0,       0x1C2, 0,      0x9,    0x5,  0x0};
+bsp_pll_cfg syspll_243_cfg  = {0,    1,     1,    0,   0,     0,     0,          0,   0x36,   0x0000, 0xC,     0x18,    0,       0x1C2, 0,      0x9,    0x5,  0x0};
+bsp_pll_cfg dram_1_pllcfg   = {0,    1,     1,    0,   1,     0,     1,          0,   0x3B,   0,      0x2,     0x0,     0,       0x1C2, 0,      0xA,    0x6,  0x0};
+bsp_pll_cfg dram_2_pllcfg   = {0,    1,     1,    0,   1,     0,     1,          0,   0x35,   0,      0x2,     0x0,     0,       0x1C2, 0,      0xA,    0x5,  0x0};
+bsp_pll_cfg dram_3_pllcfg   = {0,    1,     1,    0,   0,     0,     1,          0,   0x40,   0,      0x4,     0x0,     0,       0x1C2, 0,      0xB,    0x7,  0x0};
+bsp_pll_cfg spll_cfg        = {0,    1,     1,    1,   0,     0,     0,          0,   0x28,   0x2F68, 0x4,     0x4,     0,       0x1C2, 0,      0x7,    0x4,  0x0};
+bsp_pll_cfg vi1_pllcfg      = {0,    1,     1,    0,   0,     0,     0,          0xC, 0x1F4,  0,      0xC,     0xC,     0xC,     0,     0,      0x0,    0x3D, 0x1C}; 
+bsp_pll_cfg vi2_pllcfg      = {0,    1,     1,    0,   0,     0,     0,          0,   0x2C,   0,      0x2C,    0x4,     0x2C,    0,     0,      0x0,    0x4,  0x0};
+bsp_pll_cfg upll_cfg        = {0,    1,     1,    0,   0,     0,     1,          0,   0x48,   0,      0x8,     0xA,     0x54,    0x1C2, 0,      0xD,    0x8,  0x0};
+bsp_pll_cfg usbpll_cfg      = {0,    0,     0,    0,   0,     0,     1,          0,   0x3F,   0,      0x48,    0x120,   0x20,    0,     0,      0x0,    0x3,  0x0};
+bsp_pll_cfg sata_1_pllcfg   = {0,    1,     0,    0,   0,     0,     1,          0,   0x32,   0,      0x36,    0,       0,       0x1B3, 0,      0x7,    0x4,  0x0};
+bsp_pll_cfg sata_2_pllcfg   = {0,    1,     0,    1,   0,     0,     1,          0,   0x32,   0,      0x36,    0,       0,       0x1B3, 0,      0x7,    0x4,  0x0};
+
+bsp_pll_cfg spll_cfg_underclock = {0,1,     1,    1,   0,     0,     0,          0,   0xA,   0x2F68, 0x4,     0x4,     0,       0x1C2, 0,      0x7,    0x4,  0x0};
+bsp_pll_cfg spll_cfg_overclock  = {0,1,     1,    1,   0,     0,     0,          0,   0x36,   0x2F68, 0x4,     0x4,     0,       0x1C2, 0,      0x7,    0x4,  0x0};
+
 
 int pll_vi1_shutdown()
 {
@@ -320,22 +358,22 @@ int pll_syspll_read(bsp_pll_cfg **ppCfg, u32 *pSysClkFreq)
 
     if ( (seeprom.bc.library_version) <= 2u )
     {
-        pCfg = &bspSysPllCfg243;
+        pCfg = &syspll_243_cfg;
         freq = 243000000;
     }
     else if ( seeprom.bc.sys_pll_speed == 0xF0 )
     {
-        pCfg = &bspSysPllCfg240;
+        pCfg = &syspll_240_cfg;
         freq = 239625000;
     }
     else if ( seeprom.bc.sys_pll_speed == 0xF8 )
     {
-        pCfg = &bspSysPllCfg248;
+        pCfg = &syspll_248_cfg;
         freq = 248625000;
     }
     else
     {
-        pCfg = &bspSysPllCfg243;
+        pCfg = &syspll_243_cfg;
         freq = 243000000;
     }
 
@@ -590,4 +628,80 @@ int pll_dram_write(bsp_pll_cfg *pCfg)
 
     udelay(5000);
     return 0;
+}
+
+int pll_usb_read(bsp_pll_cfg *pOut)
+{
+    u16 v5; // r0
+    u16 v6; // r0
+    int v7; // r3
+    int v9; // r0
+    u16 v13; // r0
+
+    memset(pOut, 0, sizeof(bsp_pll_cfg));
+
+    pOut->clkO2Div = abif_cpl_bl_read16(0x24) & 0x01FF;
+    v5 = abif_cpl_bl_read16(0x26);
+    pOut->bwAdj = v5 & 0xFFF;
+    v6 = abif_cpl_bl_read16(0x28);
+    v7 = (v6 & 0x7FC0) >> 6;
+    pOut->clkR = v6 & 0x3F;
+    pOut->clkO0Div = v7;
+    pOut->clkFMsb = abif_cpl_bl_read16(0x2A) & 0x0FFF;
+    v9 = abif_cpl_bl_read16(0x2C);
+    pOut->satEn = !!(v9 & 0x800);
+    pOut->clkO1Div = v9 & 0x01FF;
+    pOut->fastEn = !!(v9 & 0x1000);
+    v13 = abif_cpl_bl_read16(0x2C);
+    if ( (v13 & 0x4000) != 0 && (u16)(v13 & 0x8000) >> 15 == 1 )
+    {
+        pOut->operational = 1;
+    }
+    return 0;
+}
+
+int pll_usb_write(bsp_pll_cfg *pCfg)
+{
+    u16 v2; // r0
+    u16 v3; // r4
+    u16 v4; // r1
+    u16 v5; // r3
+    u16 v6; // r2
+    u16 v7; // r1
+    u16 v8; // r3
+    u16 v9; // r2
+    u16 v10; // r1
+    u16 v11; // r3
+
+    clear32(LT_CLOCKGATE_COMPAT, 0x360000);
+    v2 = abif_cpl_bl_read16(0x2C);
+    v3 = v2;
+    if (v2 & 0x8000)
+    {
+        v3 = v2 & ~0x8000;
+        abif_cpl_bl_write16(0x2C, v2 & ~0x8000);
+        udelay(10);
+    }
+
+    abif_cpl_bl_write16(0x2C, v3 & ~0x4000);
+    abif_cpl_bl_write16(0x24, pCfg->clkO2Div);
+    abif_cpl_bl_write16(0x26, pCfg->bwAdj);
+    abif_cpl_bl_write16(0x28,pCfg->clkR | 0x8000 | (u16)(pCfg->clkO0Div << 6));
+    abif_cpl_bl_write16(0x2A, pCfg->clkFMsb);
+    v4 = pCfg->satEn ? 0x800 : 0;
+    v5 = pCfg->fastEn ? 0x1000 : 0;
+    abif_cpl_bl_write16(0x2C, (u16)v4 | (u16)(v5 | pCfg->clkO1Div));
+    udelay(5);
+    v7 = pCfg->satEn ? 0x4800 : 0x4000;
+    v8 = pCfg->fastEn ? 0x1000 : 0;
+    abif_cpl_bl_write16(0x2C, (u16)v7 | (u16)(v8 | pCfg->clkO1Div));
+    udelay(100);
+    v10 = pCfg->satEn ? 0xC800 : 0xC000;
+    v11 = pCfg->fastEn ? 0x1000 : 0;
+    abif_cpl_bl_write16(0x2C, (u16)v10 | (u16)(v11 | pCfg->clkO1Div));
+    udelay(100);
+
+  set32(LT_CLOCKGATE_COMPAT, 0x360000);
+
+  return 0;
 }

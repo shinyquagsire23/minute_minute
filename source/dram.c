@@ -37,7 +37,7 @@ void ddr_seq_write16(u16 seqAddr, u16 seqVal);
 
 int to_pll_spll_write()
 {
-    return pll_spll_write(&unkPllCfg4);
+    return pll_spll_write(&spll_cfg);
 }
 
 int mem_clocks_related_2__3()
@@ -177,7 +177,7 @@ int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
         v2 = seeprom.bc.ddr3_speed;
         if ( (mode & DRAM_MODE_CCBOOT) || v2 == 1 )
         {
-            memcpy(&pllCfg, &unkPllCfg3, sizeof(pllCfg));
+            memcpy(&pllCfg, &dram_3_pllcfg, sizeof(pllCfg));
             recen1 = 0;
             v19 = 864;
             ddr_seq_madj = 0xFA;
@@ -188,7 +188,7 @@ int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
         }
         else if ( v2 == 3 )
         {
-            memcpy(&pllCfg, &unkPllCfg2, sizeof(pllCfg));
+            memcpy(&pllCfg, &dram_2_pllcfg, sizeof(pllCfg));
             recen1 = 0;
             ddr_seq_tcl = 0xB;
             ddr_seq_madj = 0x82;
@@ -199,7 +199,7 @@ int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
         }
         else
         {
-            memcpy(&pllCfg, &unkPllCfg1, sizeof(pllCfg));
+            memcpy(&pllCfg, &dram_1_pllcfg, sizeof(pllCfg));
             if ( (bspVer & 0xFFFF) == 16 )
             {
                 recen1 = 1;

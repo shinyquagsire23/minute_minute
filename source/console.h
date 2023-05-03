@@ -68,6 +68,7 @@ void console_power_to_continue();
 int console_abort_confirmation_power_no_eject_yes();
 int console_abort_confirmation_power_exit_eject_continue();
 int console_abort_confirmation_power_skip_eject_dump();
+void console_select_flush();
 int console_select_poll();
 
 #endif

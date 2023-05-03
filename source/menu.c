@@ -41,7 +41,7 @@ void menu_init(menu* new_menu)
 {
     menu_set_state(0); // Set state to in-menu.
 
-    smc_get_events(); // Eat all existing events
+    console_select_flush(); // Eat all existing events
 
     console_init();
     __menu = new_menu;
@@ -51,6 +51,7 @@ void menu_init(menu* new_menu)
     menu_draw();
 
     menu_active = true;
+    console_select_flush(); // Eat all existing events
 
     while(menu_active)
     {

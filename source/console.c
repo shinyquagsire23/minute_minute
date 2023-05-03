@@ -167,6 +167,7 @@ int console_get_text_color()
 
 void console_wait_power_or_q()
 {
+    console_select_flush();
     while (1)
     {
         int input = console_select_poll();
@@ -176,6 +177,7 @@ void console_wait_power_or_q()
 
 void console_wait_power_q_eject_or_p()
 {
+    console_select_flush();
     while (1)
     {
         int input = console_select_poll();
@@ -186,21 +188,21 @@ void console_wait_power_q_eject_or_p()
 
 void console_power_or_eject_to_return()
 {
-    smc_get_events(); // Eat all existing events
+    console_select_flush(); // Eat all existing events
     printf("Press POWER/Q or EJECT/P to return...\n");
     console_wait_power_q_eject_or_p();
 }
 
 void console_power_to_exit()
 {
-    smc_get_events(); // Eat all existing events
+    console_select_flush(); // Eat all existing events
     printf("Press POWER/Q to exit.\n");
     console_wait_power_or_q();
 }
 
 void console_power_to_continue()
 {
-    smc_get_events(); // Eat all existing events
+    console_select_flush(); // Eat all existing events
     printf("Press POWER/Q to continue.\n");
     console_wait_power_or_q();
 }
@@ -208,6 +210,8 @@ void console_power_to_continue()
 int console_abort_confirmation(const char* text_power, const char* text_eject)
 {
     printf("[POWER/Q] %s | [EJECT/P] %s...\n", text_power, text_eject);
+
+    console_select_flush();
 
     while (1)
     {
@@ -245,6 +249,8 @@ int console_konami_code()
     printf("Please enter the Konami code to continue.\n");
     printf("[POWER/Q] Abort\n");
     printf("[^ ^ v v < > < > B A ENTER] Continue...\n");
+
+    console_select_flush();
 
     while (true)
     {
@@ -293,6 +299,16 @@ int console_konami_code()
         printf("nope \n");
     }
     return 0;
+}
+
+void console_select_flush()
+{
+    memset(console_serial_tmp, 0, sizeof(console_serial_tmp));
+    console_serial_len = 0;
+    parsing_escape_code = 0;
+    parsing_csi = 0;
+
+    smc_get_events();
 }
 
 int console_select_poll()

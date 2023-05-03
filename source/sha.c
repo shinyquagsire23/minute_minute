@@ -43,7 +43,7 @@ static void sha_transform(u32 state[SHA_HASH_WORDS], u8 buffer[SHA_BLOCK_SIZE], 
     write32(SHA_H4, state[4]);
 
     // assign block to local copy which is 64-byte aligned
-    u8 *block = memalign(64, SHA_BLOCK_SIZE * blocks);
+    u8 *block = memalign(128, SHA_BLOCK_SIZE * blocks);
     memcpy(block, buffer, SHA_BLOCK_SIZE * blocks);
 
     // royal flush :)

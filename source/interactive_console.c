@@ -352,7 +352,7 @@ void intcon_memory_cmd(int argc, char** argv)
     }
 }
 
-void intcon_upload()
+int intcon_upload(const char* fpath)
 {
     u8 serial_tmp[256];
     u8 last_12[12];
@@ -373,6 +373,7 @@ void intcon_upload()
     for (int i = 0; i < sizeof(magic_upld); i++) {
         serial_send(magic_upld[i]);
     }
+    serial_printf("%s\n", fpath);
 
     out_iter = (u8*)ALL_PURPOSE_TMP_BUF;
 
@@ -406,7 +407,6 @@ void intcon_upload()
         goto fail;
     }
 
-    const char* fpath = "sdmc:/fw.img";
     f_fw = fopen(fpath, "wb");
     if(!f_fw)
     {
@@ -473,16 +473,14 @@ done:
     printf("sha1:   %08lX%08lX%08lX%08lX%08lX\n", hash[0], hash[1], hash[2], hash[3], hash[4]);
     fclose(f_fw);
 
-    main_reload();
-    return;
+    return 0;
 fail:
     serial_disallow_zeros();
     printf("Transfer failed.\n");
     fclose(f_fw);
 
-    smc_get_events(); // Eat all existing events
-    printf("Press POWER to exit.\n");
-    smc_wait_events(SMC_POWER_BUTTON);
+    console_power_to_exit();
+    return 1;
 }
 
 void intcon_handle_cmd(const char* pCmd)
@@ -526,8 +524,17 @@ void intcon_handle_cmd(const char* pCmd)
         intcon_active = 0;
     }
     else if (!strcmp(cmd, "up") || !strcmp(cmd, "upload")) {
-        intcon_upload();
-        intcon_active = 0;
+        if (!intcon_upload("sdmc:/fw.img")) {
+            main_reload();
+            intcon_active = 0;
+        }
+        
+    }
+    else if (!strcmp(cmd, "upp") || !strcmp(cmd, "uploadpatch")) {
+        if (!intcon_upload("sdmc:/ios.patch")) {
+            main_quickboot_patch();
+            intcon_active = 0;
+        }
     }
     else if (!strcmp(cmd, "smc")) {
         intcon_smc_cmd(argc, argv);

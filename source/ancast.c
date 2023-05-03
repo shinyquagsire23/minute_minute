@@ -326,6 +326,17 @@ int ancast_load(ancast_ctx* ctx)
         printf("ancast: body hash check failed.\n");
         printf("        expected:   %08lX%08lX%08lX%08lX%08lX\n", h1[0], h1[1], h1[2], h1[3], h1[4]);
         printf("        calculated: %08lX%08lX%08lX%08lX%08lX\n", h2[0], h2[1], h2[2], h2[3], h2[4]);
+
+        FILE* f_test = fopen("sdmc:/test_sha.bin", "wb");
+        if(!f_test)
+        {
+            printf("ancast: failed to open file.\n");
+            return -3;
+        }
+        
+        fwrite((void*)ctx->body, 1, ctx->header.body_size, f_test);
+        fclose(f_test);
+
         return -3;
     }
 #endif

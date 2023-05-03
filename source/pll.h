@@ -53,12 +53,20 @@ int pll_spll_write(bsp_pll_cfg *pPllCfg);
 int pll_dram_read(bsp_pll_cfg *pOut);
 int pll_dram_write(bsp_pll_cfg *pCfg);
 
-extern bsp_pll_cfg unkPllCfg1;
-extern bsp_pll_cfg unkPllCfg2;
-extern bsp_pll_cfg unkPllCfg3;
-extern bsp_pll_cfg unkPllCfg4;
+int pll_usb_read(bsp_pll_cfg *pOut);
+int pll_usb_write(bsp_pll_cfg *pCfg);
+
+extern bsp_pll_cfg dram_1_pllcfg;
+extern bsp_pll_cfg dram_2_pllcfg;
+extern bsp_pll_cfg dram_3_pllcfg;
+extern bsp_pll_cfg spll_cfg;
 
 extern bsp_pll_cfg vi1_pllcfg;
 extern bsp_pll_cfg vi2_pllcfg;
+
+extern bsp_pll_cfg usbpll_cfg;
+
+extern bsp_pll_cfg spll_cfg_overclock;
+extern bsp_pll_cfg spll_cfg_underclock;
 
 #endif // __PLL_H__
