@@ -15,6 +15,7 @@
 
 #include "ini.h"
 #include "minini.h"
+#include "gpu.h"
 
 struct {
     const char* section;
@@ -22,6 +23,7 @@ struct {
 } minini_handlers[] = {
     {"mcp", mcp_ini},
     {"boot", boot_ini},
+    {"clocks", clocks_ini},
 
     {NULL, NULL}
 };
@@ -32,7 +34,7 @@ static int _minini_handler(void* user, const char* section, const char* name, co
 {
     int i = 0;
 
-    printf("minini: %s %s %s\n", section, name, value);
+    //printf("minini: %s %s %s\n", section, name, value);
 
     while(true)
     {

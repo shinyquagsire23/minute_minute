@@ -327,6 +327,7 @@ int ancast_load(ancast_ctx* ctx)
         printf("        expected:   %08lX%08lX%08lX%08lX%08lX\n", h1[0], h1[1], h1[2], h1[3], h1[4]);
         printf("        calculated: %08lX%08lX%08lX%08lX%08lX\n", h2[0], h2[1], h2[2], h2[3], h2[4]);
 
+#if 0
         FILE* f_test = fopen("sdmc:/test_sha.bin", "wb");
         if(!f_test)
         {
@@ -336,6 +337,7 @@ int ancast_load(ancast_ctx* ctx)
         
         fwrite((void*)ctx->body, 1, ctx->header.body_size, f_test);
         fclose(f_test);
+#endif
 
         return -3;
     }

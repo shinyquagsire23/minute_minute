@@ -74,9 +74,18 @@ bsp_pll_cfg usbpll_cfg      = {0,    0,     0,    0,   0,     0,     1,         
 bsp_pll_cfg sata_1_pllcfg   = {0,    1,     0,    0,   0,     0,     1,          0,   0x32,   0,      0x36,    0,       0,       0x1B3, 0,      0x7,    0x4,  0x0};
 bsp_pll_cfg sata_2_pllcfg   = {0,    1,     0,    1,   0,     0,     1,          0,   0x32,   0,      0x36,    0,       0,       0x1B3, 0,      0x7,    0x4,  0x0};
 
-bsp_pll_cfg spll_cfg_underclock = {0,1,     1,    1,   0,     0,     0,          0,   0xA,   0x2F68, 0x4,     0x4,     0,       0x1C2, 0,      0x7,    0x4,  0x0};
-bsp_pll_cfg spll_cfg_overclock  = {0,1,     1,    1,   0,     0,     0,          0,   0x36,   0x2F68, 0x4,     0x4,     0,       0x1C2, 0,      0x7,    0x4,  0x0};
+bsp_pll_cfg spll_cfg_customclock = {0,1,    1,    1,   0,     0,     0,          0,   0x28,   0x2F68, 0x4,     0x4,     0,       0x1C2, 0,      0x7,    0x4,  0x0};
+bsp_pll_cfg spll_cfg_underclock  = {0,1,    1,    1,   0,     0,     0,          0,   0xA,   0x2F68, 0x4,     0x4,     0,       0x1C2, 0,      0x7,    0x4,  0x0};
+bsp_pll_cfg spll_cfg_overclock   = {0,1,    1,    1,   0,     0,     0,          0,   0x32,   0x2F68, 0x4,     0x4,     0,       0x1C2, 0,      0x7,    0x4,  0x0};
 
+u64 pll_calc_frequency(bsp_pll_cfg* pCfg)
+{
+    u64 clkF = (pCfg->clkFMsb << 16 | ((pCfg->clkFLsb & 0x7FFF) << 1));
+    u64 clkR = pCfg->clkR;
+    u64 clkO = pCfg->clkO0Div; // TODO?
+
+    return (((27000000 * clkF) / (clkR+1)) / (clkO/2)) / 0x10000;
+}
 
 int pll_vi1_shutdown()
 {

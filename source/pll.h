@@ -34,6 +34,8 @@ typedef struct bsp_pll_cfg
     u32 options;
 } bsp_pll_cfg;
 
+u64 pll_calc_frequency(bsp_pll_cfg* pCfg);
+
 int pll_vi1_shutdown();
 int pll_vi1_shutdown_alt();
 int pll_vi2_shutdown();
@@ -66,6 +68,7 @@ extern bsp_pll_cfg vi2_pllcfg;
 
 extern bsp_pll_cfg usbpll_cfg;
 
+extern bsp_pll_cfg spll_cfg_customclock;
 extern bsp_pll_cfg spll_cfg_overclock;
 extern bsp_pll_cfg spll_cfg_underclock;
 

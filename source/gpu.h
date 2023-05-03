@@ -114,4 +114,6 @@ void gpu_display_init(void);
 void gpu_cleanup(void);
 int gpu_idk_upll();
 
+int clocks_ini(const char* key, const char* value);
+
 #endif // __GPU_H__
