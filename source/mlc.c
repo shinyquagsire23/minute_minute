@@ -24,8 +24,8 @@
 #include "irq.h"
 #endif
 
-//#define MLC_DEBUG
-//#define MLC_SUPPORT_WRITE
+// #define MLC_DEBUG
+#define MLC_SUPPORT_WRITE
 
 #ifdef MLC_DEBUG
 static int mlcdebug = 3;
