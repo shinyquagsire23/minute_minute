@@ -310,7 +310,7 @@ static int _isfs_load_super(isfs_ctx* ctx)
 {
     int res = 0;
 
-    const u32 start = 0x3F800;
+    const u32 start = 0x3E000;
     const u32 end = NAND_MAX_PAGE;
     const u32 size = 0x80;
 
