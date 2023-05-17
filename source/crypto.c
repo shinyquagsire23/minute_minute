@@ -273,26 +273,28 @@ void aes_reset(void)
 
 void aes_set_iv(u8 *iv)
 {
-    int i;
-    for(i = 0; i < 4; i++) {
-        write32(AES_IV, *(u32 *)iv);
-        iv += 4;
+    u32 iv_tmp[4];
+    memcpy(iv_tmp, iv, 4*sizeof(u32));
+
+    for(int i = 0; i < 4; i++) {
+        write32(AES_IV, iv_tmp[i]);
     }
 }
 
 void aes_empty_iv(void)
 {
-    int i;
-    for(i = 0; i < 4; i++)
+    for(int i = 0; i < 4; i++) {
         write32(AES_IV, 0);
+    }
 }
 
 void aes_set_key(u8 *key)
 {
-    int i;
-    for(i = 0; i < 4; i++) {
-        write32(AES_KEY, *(u32 *)key);
-        key += 4;
+    u32 key_tmp[4];
+    memcpy(key_tmp, key, 4*sizeof(u32));
+
+    for(int i = 0; i < 4; i++) {
+        write32(AES_KEY, key_tmp[i]);
     }
 }
 

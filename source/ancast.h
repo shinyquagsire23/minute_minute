@@ -34,8 +34,18 @@ u32 ancast_iop_load_from_raw_sector(int sector_idx);
 u32 ancast_iop_load_from_memory(void* ancast_mem);
 u32 ancast_patch_load(const char* fn_ios, const char* fn_patch);
 
+u32 ancast_plugins_load();
+
 // Used for patches on IOS boot, and the passalong magic otherwise.
 #define ALL_PURPOSE_TMP_BUF (0x00800000)
+
+// TODO: determine this based on plugins
+#define CARVEOUT_SZ (0x400000)
+#define MAGIC_PLUG (0x504C5547)
+
+#define RAMDISK_END_ADDR (0x28000000)
+#define PLUGIN_CARVEOUT (RAMDISK_END_ADDR - CARVEOUT_SZ)
+#define MAGIC_PLUG_ADDR (RAMDISK_END_ADDR-8)
 
 #define PASSALONG_MAGIC_BOOT1 ("MINTBT01")
 

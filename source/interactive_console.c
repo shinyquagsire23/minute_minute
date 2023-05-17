@@ -536,6 +536,12 @@ void intcon_handle_cmd(const char* pCmd)
             intcon_active = 0;
         }
     }
+    else if (!strcmp(cmd, "uppl") || !strcmp(cmd, "uploadplugin")) {
+        if (!intcon_upload("sdmc:/wiiu/ios_plugins/base.ipx")) {
+            main_quickboot_patch();
+            intcon_active = 0;
+        }
+    }
     else if (!strcmp(cmd, "smc")) {
         intcon_smc_cmd(argc, argv);
     }

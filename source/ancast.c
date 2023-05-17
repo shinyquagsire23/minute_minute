@@ -18,6 +18,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/errno.h>
+#include <elf.h>
+#include <stddef.h>
 
 #include "sha.h"
 #include "crypto.h"
@@ -595,7 +597,32 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
 
     *(u32*)hook_base = ALL_PURPOSE_TMP_BUF;
     // copy code out
-    memcpy((void*)ALL_PURPOSE_TMP_BUF, elfldr_patch, sizeof(elfldr_patch));
+    memcpy((void*)ALL_PURPOSE_TMP_BUF, elfldr_patch, elfldr_patch_len);
+
+    ancast_plugins_load();
     
     return vector;
+}
+
+u32 ancast_plugins_load()
+{
+    u8* plugin_base = (u8*)(0x28000000 - CARVEOUT_SZ); // TODO dynamic
+
+    const char* fn_plugin = "sdmc:/wiiu/ios_plugins/base.ipx";
+    FILE* f_plugin = fopen(fn_plugin, "rb");
+    if(!f_plugin)
+    {
+        printf("ancast: failed to open base plugin `%s` .\n", fn_plugin);
+        return 0;
+    }
+    fread(plugin_base, CARVEOUT_SZ, 1, f_plugin);
+    fclose(f_plugin);
+
+    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)plugin_base;
+
+    u32* plugin_jump = (u32*)(0x28000000-8);
+    plugin_jump[0] = MAGIC_PLUG; //PLUG
+    plugin_jump[1] = (u32)(plugin_base + ehdr->e_entry); // jumpout location (TODO read ELF)
+
+    return 0;
 }

@@ -451,6 +451,10 @@ u32 _main(void *base)
         main_loaded_from_boot1 = 1;
         memset((char*)ALL_PURPOSE_TMP_BUF, 0, 8);
     }
+    if (read32(MAGIC_PLUG_ADDR) == MAGIC_PLUG)
+    {
+        write32(MAGIC_PLUG_ADDR, 0xBADBADBA);
+    }
 
     write32(LT_SRNPROT, 0x7BF);
 
@@ -694,6 +698,22 @@ skip_menu:
             printf("Searching for OTP store in IOS...\n");
             u32* search = (u32*)0x01000200;
             for (int i = 0; i < 0x1000000; i += 4) {
+                if (search[0] == 0x4F545053) {
+                    if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
+                        printf("OTP store at: %08x\n", (u32)search);
+                        memcpy((void*)search, &otp, sizeof(otp));
+                        break;
+                    }
+                }
+                search++;
+            }
+        }
+
+        if (read32(MAGIC_PLUG_ADDR) == MAGIC_PLUG)
+        {
+            printf("Searching for OTP store in plugins...\n");
+            u32* search = (u32*)PLUGIN_CARVEOUT;
+            for (int i = 0; i < CARVEOUT_SZ; i += 4) {
                 if (search[0] == 0x4F545053) {
                     if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
                         printf("OTP store at: %08x\n", (u32)search);
