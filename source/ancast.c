@@ -541,15 +541,22 @@ u32 ancast_iop_load_from_memory(void* ancast_mem)
 u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
 {
     u32* patch_base = (u32*)0x100;
+
+    // Insert end stub just in case file is short
+    patch_base[0x20] = 0xFF;
+
     FILE* f_patch = fopen(fn_patch, "rb");
     if(!f_patch)
     {
-        printf("ancast: failed to open patch file %s .\n", fn_patch);
-        return 0;
+        printf("ancast: no patch file `%s`, stubbing...\n", fn_patch);
+        strcpy(patch_base, "SALTPTCH");
+        patch_base[2] = 1;
+        patch_base[0x20] = 0xFF;
     }
-    
-    fread((void*)patch_base, 1, ALL_PURPOSE_TMP_BUF-0x100, f_patch);
-    fclose(f_patch);
+    else {
+        fread((void*)patch_base, 1, ALL_PURPOSE_TMP_BUF-0x100, f_patch);
+        fclose(f_patch);
+    }
     
     // sanity-check our patches
     if(memcmp(patch_base, "SALTPTCH", 8))
@@ -615,6 +622,9 @@ u32 ancast_plugins_load()
         printf("ancast: failed to open base plugin `%s` .\n", fn_plugin);
         return 0;
     }
+    else {
+        printf("Loading `%s`\n", fn_plugin);
+    }
     fread(plugin_base, CARVEOUT_SZ, 1, f_plugin);
     fclose(f_plugin);
 
@@ -622,7 +632,9 @@ u32 ancast_plugins_load()
 
     u32* plugin_jump = (u32*)(0x28000000-8);
     plugin_jump[0] = MAGIC_PLUG; //PLUG
-    plugin_jump[1] = (u32)(plugin_base + ehdr->e_entry); // jumpout location (TODO read ELF)
+    plugin_jump[1] = (u32)(plugin_base + ehdr->e_entry); // jumpout location
+
+    // TODO: read other plugins
 
     return 0;
 }
