@@ -543,7 +543,7 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
     u32* patch_base = (u32*)0x100;
 
     // Insert end stub just in case file is short
-    patch_base[0x20] = 0xFF;
+    patch_base[8] = 0xFF;
 
     FILE* f_patch = fopen(fn_patch, "rb");
     if(!f_patch)
@@ -551,7 +551,7 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
         printf("ancast: no patch file `%s`, stubbing...\n", fn_patch);
         strcpy(patch_base, "SALTPTCH");
         patch_base[2] = 1;
-        patch_base[0x20] = 0xFF;
+        patch_base[8] = 0xFF;
     }
     else {
         fread((void*)patch_base, 1, ALL_PURPOSE_TMP_BUF-0x100, f_patch);
@@ -577,12 +577,22 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
     
     // check to be sure IOS image is 5.5.0 (todo: move this to patches somehow?)
     u32 hash[SHA_HASH_WORDS] = {0};
-    u8 expected_hash[20] = {0x12, 0x2D, 0x17, 0x82, 0x32, 0x5C, 0x73, 0x0F, 0x0A, 
+    u8 expected_hash_550[20] = {0x12, 0x2D, 0x17, 0x82, 0x32, 0x5C, 0x73, 0x0F, 0x0A, 
     0x5D, 0x25, 0xEA, 0xE4, 0x91, 0xFA, 0xB4, 0xEC, 0xF2, 0x90, 0x37};
+    u8 expected_hash_555[20] = {0x85, 0xE5, 0x22, 0x8B, 0x45, 0x71, 0xE7, 0x45, 0xDE, 
+    0x5E, 0xC8, 0xAE, 0x2C, 0xD5, 0x70, 0xEB, 0xBC, 0x70, 0x96, 0x91};
     sha_hash((void*)0x01000000, hash, 0x200);
-    if(memcmp(hash, expected_hash, sizeof(hash)))
+    if(!memcmp(hash, expected_hash_550, sizeof(hash)))
     {
-        printf("ancast: IOS image might not be 5.5!\n");
+        printf("ancast: IOS image is prod 5.5.0 ~ 5.5.4\n");
+    }
+    else if(!memcmp(hash, expected_hash_555, sizeof(hash)))
+    {
+        printf("ancast: IOS image is prod 5.5.5+\n");
+    }
+    else
+    {
+        printf("ancast: IOS image might not be 5.5?\n");
         //return 0;
     }
     
@@ -623,7 +633,7 @@ u32 ancast_plugins_load()
         return 0;
     }
     else {
-        printf("Loading `%s`\n", fn_plugin);
+        printf("ancast: loading plugin `%s`\n", fn_plugin);
     }
     fread(plugin_base, CARVEOUT_SZ, 1, f_plugin);
     fclose(f_plugin);
