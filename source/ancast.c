@@ -625,7 +625,7 @@ u32 ancast_plugins_load()
 {
     u8* plugin_base = (u8*)(0x28000000 - CARVEOUT_SZ); // TODO dynamic
 
-    const char* fn_plugin = "sdmc:/wiiu/ios_plugins/base.ipx";
+    const char* fn_plugin = "sdmc:/wiiu/ios_plugins/wafel_core.ipx";
     FILE* f_plugin = fopen(fn_plugin, "rb");
     if(!f_plugin)
     {

@@ -537,7 +537,7 @@ void intcon_handle_cmd(const char* pCmd)
         }
     }
     else if (!strcmp(cmd, "uppl") || !strcmp(cmd, "uploadplugin")) {
-        if (!intcon_upload("sdmc:/wiiu/ios_plugins/base.ipx")) {
+        if (!intcon_upload("sdmc:/wiiu/ios_plugins/wafel_core.ipx")) {
             main_quickboot_patch();
             intcon_active = 0;
         }
