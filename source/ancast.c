@@ -621,6 +621,25 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
     return vector;
 }
 
+u32 ancast_plugin_load(const char* fn_plugin)
+{
+    u8* plugin_base = (u8*)(0x28000000 - CARVEOUT_SZ + 0x200000); // TODO dynamic
+
+    FILE* f_plugin = fopen(fn_plugin, "rb");
+    if(!f_plugin)
+    {
+        printf("ancast: failed to open plugin `%s` .\n", fn_plugin);
+        return 0;
+    }
+    else {
+        printf("ancast: loading plugin `%s`\n", fn_plugin);
+    }
+    fread(plugin_base, CARVEOUT_SZ, 1, f_plugin);
+    fclose(f_plugin);
+
+    return (u32)plugin_base;
+}
+
 u32 ancast_plugins_load()
 {
     u8* plugin_base = (u8*)(0x28000000 - CARVEOUT_SZ); // TODO dynamic
@@ -643,6 +662,8 @@ u32 ancast_plugins_load()
     u32* plugin_jump = (u32*)(0x28000000-8);
     plugin_jump[0] = MAGIC_PLUG; //PLUG
     plugin_jump[1] = (u32)(plugin_base + ehdr->e_entry); // jumpout location
+
+    write32(plugin_base + ehdr->e_entry + 0x10, ancast_plugin_load("sdmc:/wiiu/ios_plugins/wafel_plugin_example.ipx"));
 
     // TODO: read other plugins
 
