@@ -802,6 +802,9 @@ u32 ancast_plugins_load()
         total_size += ancast_plugin_check_size(ancast_plugins_list[i]);
     }
 
+    // IOS wants coarse page alignment for the carveout
+    total_size = ALIGN_FORWARD(total_size, 0x100000);
+
     ancast_plugins_base = RAMDISK_END_ADDR - total_size;
     ancast_plugin_next = ancast_plugins_base;
     ancast_plugin_last = 0;
