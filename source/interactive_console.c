@@ -157,16 +157,20 @@ smc_usage:
         u8 val = 0;
         u8 len = strtoll(argv[3], NULL, 0);
 
-        printf("read %02x:", addr);
+        printf("read %02x (len %02x):", addr, len);
+
+        u8* tmp = malloc(len);
+        memset(tmp, 0xFF, len);
+        smc_read_register_multiple(addr-1, tmp, len); // why the -1?
 
         for (int i = 0; i < len; i++) {
             if (i % 16 == 0) {
                 printf("\n");
             }
-            smc_read_register(addr, &val);
-            printf("%02x ", val);
+            printf("%02x ", tmp[i]);
         }
         printf("\n");
+        free(tmp);
     }
     else if (!strcmp(argv[1], "write")) {
         if (argc < 4) {
@@ -208,16 +212,19 @@ smc_usage:
         if (argc < 3) {
             goto smc_usage;
         }
-        u8 val = strtoll(argv[2], NULL, 0);
+        u16 addr = strtoll(argv[2], NULL, 0);
+        u8 val = 0;
         u8 last_val = 0xFF;
-        printf("test %02x\n", val);
+        printf("test %04x\n", addr);
 
-        smc_write_register(0x73, 0);
-        smc_write_register(0x74, val);
+        smc_write_register(0x73, (addr >> 8) & 0xFF);
+        smc_write_register(0x74, addr & 0xFF);
 
         smc_read_register(0x73, &val);
         printf("0x73: %02x\n", val);
         last_val = val;
+        smc_read_register(0x74, &val);
+        printf("0x74: %02x\n", val);
         for (int i = 0; i < 5; i++)
         {
             smc_read_register(0x73, &val);
@@ -226,6 +233,8 @@ smc_usage:
             }
             last_val = val;
         }
+        smc_read_register(0x74, &val);
+        printf("0x74: %02x\n", val);
 
         smc_read_register(0x76, &val);
         printf("0x76: %02x\n", val);
@@ -239,6 +248,138 @@ smc_usage:
             }
             last_val = val;
         }
+    }
+    else if (!strcmp(argv[1], "test2")) {
+        if (argc < 4) {
+            goto smc_usage;
+        }
+        u16 addr_start = strtoll(argv[2], NULL, 0);
+        u16 addr_len = strtoll(argv[3], NULL, 0);
+        printf("test %04x %04x\n", addr_start, addr_len);
+
+        int idx = 0;
+        for (u32 addr = addr_start; addr < addr_start+addr_len; addr++)
+        {
+            u8 val = 0;
+            u8 last_val = 0xFF;
+            
+            if (idx && idx % 16 == 0) {
+                printf("\n");
+            }
+            idx++;
+
+            smc_write_register(0x73, (addr >> 8) & 0xFF);
+            smc_write_register(0x74, addr & 0xFF);
+
+            int bad_addr = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                //if (!bad_addr)
+                {
+                    val = 0;
+                    smc_read_register(0x73, &val);
+                    if (val != (addr >> 8) & 0xFF) {
+                        bad_addr = 1;
+                    }
+                    else {
+                        bad_addr = 0;
+                    }
+                }
+
+                val = 0;
+                smc_read_register(0x70, &val);
+                if (val) {
+                    break;
+                }
+            }
+
+            if (val == 0xFF)
+            {
+                printf("?? ");
+            }
+            else if (!val) {
+                if (bad_addr) {
+                    printf("nn ");
+                }
+                else {
+                    printf("xx ");
+                }                
+            }
+            else {
+                //printf("%02x? ", val);
+                smc_read_register(0x76, &val);
+                printf("%02x ", val);
+            }
+            
+        }
+        printf("\n");
+    }
+    else if (!strcmp(argv[1], "test3")) {
+        if (argc < 4) {
+            goto smc_usage;
+        }
+        u16 addr_start = strtoll(argv[2], NULL, 0);
+        u16 addr_len = strtoll(argv[3], NULL, 0);
+        printf("test3 %04x %04x\n", addr_start, addr_len);
+
+        int idx = 0;
+        for (u32 addr = addr_start; addr < addr_start+addr_len; addr++)
+        {
+            u8 val = 0;
+            u8 last_val = 0xFF;
+            
+            if (idx && idx % 16 == 0) {
+                printf("\n");
+            }
+            idx++;
+
+            smc_write_register(0x72, addr & 0xFF);
+
+            smc_write_register(0x73, (addr >> 8) & 0xFF);
+            smc_write_register(0x74, 4);
+
+            int bad_addr = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                //if (!bad_addr)
+                {
+                    val = 0;
+                    smc_read_register(0x73, &val);
+                    if (val != (addr >> 8) & 0xFF) {
+                        bad_addr = 1;
+                    }
+                    else {
+                        bad_addr = 0;
+                    }
+                }
+
+                val = 0;
+                smc_read_register(0x70, &val);
+                if (val) {
+                    break;
+                }
+            }
+
+            if (val == 0xFF)
+            {
+                printf("?? ");
+            }
+            else if (!val) {
+                if (bad_addr) {
+                    printf("nn ");
+                }
+                else {
+                    printf("xx ");
+                }                
+            }
+            else {
+                //printf("%02x? ", val);
+                smc_read_register(0x76, &val);
+                printf("%02x ", val);
+            }
+            
+        }
+        printf("\n");
     }
 }
 
@@ -733,7 +874,8 @@ void intcon_show(void)
                     continue;
                 }
                 
-                parsing_escape_code++;
+                //parsing_escape_code++;
+                parsing_escape_code = 0;
             }
             else {
                 switch (serial_tmp[i])

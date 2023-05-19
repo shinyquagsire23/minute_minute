@@ -51,6 +51,7 @@
 
 int smc_read_register(u8 offset, u8* data);
 int smc_write_register(u8 offset, u8 data);
+int smc_read_register_multiple(u8 offset, u8* data, u32 count);
 int smc_write_register_multiple(u8 offset, u8* data, u32 count);
 int smc_mask_register(u8 offset, u8 mask, u8 val);
 

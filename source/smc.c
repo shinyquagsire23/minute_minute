@@ -96,6 +96,10 @@
 // 0x70 quickly switches from 0x0 to 0x1c
 // 0x90-0xff = 0xF4
 
+// Weird address thing:
+// 0x3xx, 0x7xx, 0xBxx, 0xFxx have weird stalls/reset?? if 0x72 is set 0x80
+// 0x33xx, 0x37xx, 0x3Bxx, 0x3Fxx also have weird stalls/reset?? if 0x72 is set 0x80
+
 static int smc_perma_disable = 0;
 
 int smc_read_register(u8 offset, u8* data)
@@ -132,6 +136,20 @@ int smc_write_register_multiple(u8 offset, u8* data, u32 count)
     int ret = i2c_write(I2C_SLAVE_SMC, tmp, count);
     free(tmp);
     return ret;
+}
+
+int smc_read_register_multiple(u8 offset, u8* data, u32 count)
+{
+    int res = 0;
+
+    // Clock is 10000 in C2W, but 5000 in IOS...
+    i2c_init(5000, 1);
+
+    res = i2c_write(I2C_SLAVE_SMC, &offset, 1);
+    if(res) return res;
+
+    res = i2c_read(I2C_SLAVE_SMC, data, count);
+    return res;
 }
 
 int smc_mask_register(u8 offset, u8 mask, u8 val)
