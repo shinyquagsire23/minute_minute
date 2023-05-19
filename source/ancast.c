@@ -15,11 +15,13 @@
 #include "utils.h"
 #include "memory.h"
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/errno.h>
 #include <elf.h>
 #include <stddef.h>
+#include <dirent.h>
 
 #include "sha.h"
 #include "crypto.h"
@@ -549,7 +551,7 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
     if(!f_patch)
     {
         printf("ancast: no patch file `%s`, stubbing...\n", fn_patch);
-        strcpy(patch_base, "SALTPTCH");
+        strcpy((char*)patch_base, "SALTPTCH");
         patch_base[2] = 1;
         patch_base[8] = 0xFF;
     }
@@ -621,51 +623,195 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
     return vector;
 }
 
-u32 ancast_plugin_load(const char* fn_plugin)
-{
-    u8* plugin_base = (u8*)(0x28000000 - CARVEOUT_SZ + 0x200000); // TODO dynamic
+#ifndef MINUTE_BOOT1
 
-    FILE* f_plugin = fopen(fn_plugin, "rb");
+char** ancast_plugins_list;
+int ancast_plugins_count;
+uintptr_t ancast_plugins_base = 0;
+uintptr_t ancast_plugin_last = 0;
+uintptr_t ancast_plugin_next = 0;
+
+int ancast_plugin_compare(const void* a, const void* b) {
+    return strcmp(*(const char**)a, *(const char**)b);
+}
+
+u32 ancast_plugins_search()
+{
+    DIR* dir;
+    struct dirent* entry;
+    const char* plugins_fpath = "sdmc:/wiiu/ios_plugins";
+    const char* plugins_ext = ".ipx";
+
+    if (!ancast_plugins_list) {
+        ancast_plugins_list = malloc(MAX_PLUGINS * sizeof(char*));
+    }
+    else {
+        for (int i = 0; i < ancast_plugins_count; i++)
+        {
+            free(ancast_plugins_list[i]);
+        }
+    }
+    memset(ancast_plugins_list, 0, MAX_PLUGINS * sizeof(char*));
+    ancast_plugins_count = 0;
+
+    // Open the directory
+    dir = opendir(plugins_fpath);
+    if (dir == NULL) {
+        perror("Failed to open directory");
+        return 1;
+    }
+
+    // Iterate through directory entries
+    while ((entry = readdir(dir)) != NULL && ancast_plugins_count < MAX_PLUGINS) {
+        if (entry->d_type != DT_DIR
+            && !strcmp(entry->d_name + strlen(entry->d_name) - strlen(plugins_ext), plugins_ext)
+            && strcmp(entry->d_name, "wafel_core.ipx")) 
+        {
+            ancast_plugins_list[ancast_plugins_count] = malloc(strlen(entry->d_name) + 1);
+            strcpy(ancast_plugins_list[ancast_plugins_count], entry->d_name);
+            ancast_plugins_count++;
+        }
+    }
+
+    closedir(dir);
+
+    // Sort the files array
+    qsort(ancast_plugins_list, ancast_plugins_count, sizeof(char*), ancast_plugin_compare);
+
+    // Print the sorted file names
+    for (int i = 0; i < ancast_plugins_count; i++) {
+        printf("%s\n", ancast_plugins_list[i]);
+    }
+}
+
+void ancast_plugin_set_next(uintptr_t base, uintptr_t next)
+{
+    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)base;
+    if (!base) {
+        u32* plugin_jump = (u32*)(RAMDISK_END_ADDR-8);
+        ehdr = (Elf32_Ehdr*)next;
+        plugin_jump[0] = MAGIC_PLUG; //PLUG
+        plugin_jump[1] = (u32)(next + ehdr->e_entry); // jumpout location
+
+        return;
+    }
+
+    *(u32*)(base + ehdr->e_entry + 0x10) = next;
+}
+
+Elf32_Phdr* wafel_get_plugin_phdrs(uintptr_t base)
+{
+    Elf32_Ehdr* hdr = (Elf32_Ehdr*)base;
+    return (Elf32_Phdr*)(base + hdr->e_phoff);
+}
+
+u32 wafel_get_plugin_num_phdrs(uintptr_t base)
+{
+    Elf32_Ehdr* hdr = (Elf32_Ehdr*)base;
+    return hdr->e_phnum;
+}
+
+uintptr_t wafel_plugin_max_addr(uintptr_t base)
+{
+    Elf32_Phdr* paPhdrs = wafel_get_plugin_phdrs(base);
+    u32 num_phdrs = wafel_get_plugin_num_phdrs(base);
+    uintptr_t ret = 0;
+
+    for (u32 i = 0; i < num_phdrs; i++)
+    {
+        uintptr_t end = base + paPhdrs[i].p_vaddr + paPhdrs[i].p_memsz;
+        if (end > ret) {
+            ret = end;
+        }
+    }
+    return ret;
+}
+
+u32 ancast_plugin_size(uintptr_t base)
+{
+    return ALIGN_FORWARD(wafel_plugin_max_addr(base) - base, 0x1000);
+}
+
+u32 ancast_plugin_check_size(const char* fn_plugin)
+{
+    char tmp[256];
+    Elf32_Ehdr hdr;
+    snprintf(tmp, sizeof(tmp)-1, "sdmc:/wiiu/ios_plugins/%s", fn_plugin);
+
+    FILE* f_plugin = fopen(tmp, "rb");
     if(!f_plugin)
     {
-        printf("ancast: failed to open plugin `%s` .\n", fn_plugin);
+        printf("ancast: failed to open plugin `%s` for pre-parsing!\n", tmp);
         return 0;
     }
     else {
-        printf("ancast: loading plugin `%s`\n", fn_plugin);
+        printf("ancast: pre-parsing plugin `%s`\n", tmp);
+    }
+    fread(&hdr, sizeof(hdr), 1, f_plugin);
+    fseek(f_plugin, hdr.e_phoff, SEEK_SET);
+    Elf32_Phdr* paPhdrs = malloc(sizeof(Elf32_Phdr) * hdr.e_phnum);
+    fread(paPhdrs, sizeof(Elf32_Phdr) * hdr.e_phnum, 1, f_plugin);
+
+    uintptr_t max_addr = 0;
+    for (u32 i = 0; i < hdr.e_phnum; i++)
+    {
+        uintptr_t end = paPhdrs[i].p_vaddr + paPhdrs[i].p_memsz;
+        if (end > max_addr) {
+            max_addr = end;
+        }
+    }
+    free(paPhdrs);
+
+    fclose(f_plugin);
+
+    return (u32)ALIGN_FORWARD(max_addr, 0x1000);
+}
+
+u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin)
+{
+    char tmp[256];
+    u8* plugin_base = (u8*)base; // TODO dynamic
+    snprintf(tmp, sizeof(tmp)-1, "sdmc:/wiiu/ios_plugins/%s", fn_plugin);
+
+    FILE* f_plugin = fopen(tmp, "rb");
+    if(!f_plugin)
+    {
+        printf("ancast: failed to open plugin `%s`!\n", tmp);
+        return base;
+    }
+    else {
+        printf("ancast: loading plugin `%s`\n", tmp);
     }
     fread(plugin_base, CARVEOUT_SZ, 1, f_plugin);
     fclose(f_plugin);
 
-    return (u32)plugin_base;
+    // Update last plugin's plugin_next
+    ancast_plugin_set_next(ancast_plugin_last, base);
+
+    ancast_plugin_last = base;
+    return (u32)base + ancast_plugin_size(base);
 }
 
 u32 ancast_plugins_load()
 {
-    u8* plugin_base = (u8*)(0x28000000 - CARVEOUT_SZ); // TODO dynamic
+    ancast_plugins_search();
 
-    const char* fn_plugin = "sdmc:/wiiu/ios_plugins/wafel_core.ipx";
-    FILE* f_plugin = fopen(fn_plugin, "rb");
-    if(!f_plugin)
+    u32 total_size = ancast_plugin_check_size("wafel_core.ipx") + 0x1000;
+    for (int i = 0; i < ancast_plugins_count; i++)
     {
-        printf("ancast: failed to open base plugin `%s` .\n", fn_plugin);
-        return 0;
+        total_size += ancast_plugin_check_size(ancast_plugins_list[i]);
     }
-    else {
-        printf("ancast: loading plugin `%s`\n", fn_plugin);
+
+    ancast_plugins_base = RAMDISK_END_ADDR - total_size;
+    ancast_plugin_next = ancast_plugins_base;
+    ancast_plugin_last = 0;
+
+    ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, "wafel_core.ipx");
+    for (int i = 0; i < ancast_plugins_count; i++)
+    {
+        ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, ancast_plugins_list[i]);
     }
-    fread(plugin_base, CARVEOUT_SZ, 1, f_plugin);
-    fclose(f_plugin);
-
-    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)plugin_base;
-
-    u32* plugin_jump = (u32*)(0x28000000-8);
-    plugin_jump[0] = MAGIC_PLUG; //PLUG
-    plugin_jump[1] = (u32)(plugin_base + ehdr->e_entry); // jumpout location
-
-    write32(plugin_base + ehdr->e_entry + 0x10, ancast_plugin_load("sdmc:/wiiu/ios_plugins/wafel_plugin_example.ipx"));
-
-    // TODO: read other plugins
 
     return 0;
 }
+#endif

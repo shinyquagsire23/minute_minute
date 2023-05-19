@@ -191,6 +191,10 @@ void *_main(void *base)
     ioshdr *hdr = (ioshdr*)base;
     u8 *elf;
     void *entry;
+#if 0
+    u8 dict[0x1000];
+    TINF_DATA d;
+#endif
 
     // boot1 doesn't have an IOS header
     int is_boot1 = 0;
@@ -263,6 +267,27 @@ void *_main(void *base)
 
     elf = (u8*) base;
     elf += hdr->hdrsize + hdr->loadersize;
+
+#if 0
+    d.source = elf;
+    d.dest = (uint8_t*)TODO;
+    d.destSize = TODO;
+    uzlib_uncompress_init(&d, dict, sizeof(dict));
+    
+    res = uzlib_zlib_parse_header(&d); // returns dict_opt
+    if (res < 0) {
+        return res;
+    }
+    
+    do {
+        res = uzlib_uncompress(&d);
+        d.destSize = 1;
+    } while (res == TINF_OK);
+    
+    if(res != TINF_DONE) {
+        return res;
+    }
+#endif
 
     disable_boot0(1);
 

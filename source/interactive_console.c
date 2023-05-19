@@ -209,28 +209,36 @@ smc_usage:
             goto smc_usage;
         }
         u8 val = strtoll(argv[2], NULL, 0);
+        u8 last_val = 0xFF;
         printf("test %02x\n", val);
 
         smc_write_register(0x73, 0);
         smc_write_register(0x74, val);
 
         smc_read_register(0x73, &val);
-        printf("%02x\n", val);
-
-        smc_read_register(0x73, &val);
-        printf("%02x\n", val);
-
-        smc_read_register(0x73, &val);
-        printf("%02x\n", val);
-
-        smc_read_register(0x76, &val);
-        printf("%02x\n", val);
-
-        smc_read_register(0x76, &val);
-        printf("%02x\n", val);
+        printf("0x73: %02x\n", val);
+        last_val = val;
+        for (int i = 0; i < 5; i++)
+        {
+            smc_read_register(0x73, &val);
+            if (val != last_val) {
+                printf("0x73: %02x\n", val);
+            }
+            last_val = val;
+        }
 
         smc_read_register(0x76, &val);
-        printf("%02x\n", val);
+        printf("0x76: %02x\n", val);
+        last_val = val;
+
+        for (int i = 0; i < 5; i++)
+        {
+            smc_read_register(0x76, &val);
+            if (val != last_val) {
+                printf("0x76: %02x\n", val);
+            }
+            last_val = val;
+        }
     }
 }
 

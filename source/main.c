@@ -709,10 +709,10 @@ skip_menu:
             }
         }
 
-        if (read32(MAGIC_PLUG_ADDR) == MAGIC_PLUG)
+        if (read32(MAGIC_PLUG_ADDR) == MAGIC_PLUG && ancast_plugins_base)
         {
             printf("Searching for OTP store in plugins...\n");
-            u32* search = (u32*)PLUGIN_CARVEOUT;
+            u32* search = (u32*)ancast_plugins_base;
             for (int i = 0; i < CARVEOUT_SZ; i += 4) {
                 if (search[0] == 0x4F545053) {
                     if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {

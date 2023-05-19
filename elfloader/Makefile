@@ -1,5 +1,5 @@
-C_FILES  := $(foreach dir, ., $(wildcard $(dir)/*.c))
-S_FILES  := $(foreach dir, ., $(wildcard $(dir)/*.S))
+C_FILES  := $(foreach dir, uzlib ., $(wildcard $(dir)/*.c))
+S_FILES  := $(foreach dir, uzlib ., $(wildcard $(dir)/*.S))
 
 OBJS  := $(C_FILES:.c=.o)  $(S_FILES:.S=.o)
 

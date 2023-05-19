@@ -12,12 +12,6 @@
 
 #include "types.h"
 
-#define ALIGN_FORWARD(x,align) \
-    ((__typeof__(x))((((u32)(x)) + (align) - 1) & (~(align-1))))
-
-#define ALIGN_BACKWARD(x,align) \
-    ((__typeof__(x))(((u32)(x)) & (~(align-1))))
-
 enum rb_client {
     RB_IOD = 0,
     RB_IOI = 1,
