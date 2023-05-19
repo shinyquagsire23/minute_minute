@@ -116,7 +116,7 @@ void sdcard_needs_discover(void)
     }
 
     DPRINTF(1, ("sdcard: enabling clock\n"));
-    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_LEGACY) != 0) {
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_400KHZ, SDMMC_TIMING_LEGACY) != 0) {
         printf("sdcard: could not enable clock for card\n");
         goto out_power;
     }
@@ -247,26 +247,28 @@ void sdcard_needs_discover(void)
         goto out_power;
     }
 
+    u8 csd_bytes[16];
     resp = (u8 *)cmd.c_resp;
     resp32 = (u32 *)cmd.c_resp;
+    memcpy(csd_bytes, resp, 16);
     printf("CSD: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
 
-    if (resp[13] == 0xe) { // sdhc
-        unsigned int c_size = resp[7] << 16 | resp[6] << 8 | resp[5];
+    if (csd_bytes[13] == 0xe) { // sdhc
+        unsigned int c_size = csd_bytes[7] << 16 | csd_bytes[6] << 8 | csd_bytes[5];
         printf("sdcard: sdhc mode, c_size=%u, card size = %uk\n", c_size, (c_size + 1)* 512);
         card.num_sectors = (c_size + 1) * 1024; // number of 512-byte sectors
     }
     else {
         unsigned int taac, nsac, read_bl_len, c_size, c_size_mult;
-        taac = resp[13];
-        nsac = resp[12];
-        read_bl_len = resp[9] & 0xF;
+        taac = csd_bytes[13];
+        nsac = csd_bytes[12];
+        read_bl_len = csd_bytes[9] & 0xF;
 
-        c_size = (resp[8] & 3) << 10;
-        c_size |= (resp[7] << 2);
-        c_size |= (resp[6] >> 6);
-        c_size_mult = (resp[5] & 3) << 1;
-        c_size_mult |= resp[4] >> 7;
+        c_size = (csd_bytes[8] & 3) << 10;
+        c_size |= (csd_bytes[7] << 2);
+        c_size |= (csd_bytes[6] >> 6);
+        c_size_mult = (csd_bytes[5] & 3) << 1;
+        c_size_mult |= csd_bytes[4] >> 7;
         printf("taac=%u nsac=%u read_bl_len=%u c_size=%u c_size_mult=%u card size=%u bytes\n",
             taac, nsac, read_bl_len, c_size, c_size_mult, (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len));
         card.num_sectors = (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len) / 512;
@@ -274,14 +276,14 @@ void sdcard_needs_discover(void)
 
     sdcard_select();
 
-    DPRINTF(2, ("mlc: MMC_SEND_STATUS\n"));
+    DPRINTF(2, ("sdcard: MMC_SEND_STATUS\n"));
     memset(&cmd, 0, sizeof(cmd));
     cmd.c_opcode = MMC_SEND_STATUS;
     cmd.c_arg = ((u32)card.rca)<<16;
     cmd.c_flags = SCF_RSP_R1;
     sdhc_exec_command(card.handle, &cmd);
     if (cmd.c_error) {
-        printf("mlc: MMC_SEND_STATUS failed with %d\n", cmd.c_error);
+        printf("sdcard: MMC_SEND_STATUS failed with %d\n", cmd.c_error);
         card.inserted = card.selected = 0;
         goto out_clock;
     }
@@ -324,13 +326,35 @@ void sdcard_needs_discover(void)
 
     sdhc_bus_width(card.handle, 4);
 
-    DPRINTF(1, ("sdcard: enabling clock\n"));
-    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_LEGACY) != 0) {
-        printf("sdcard: could not enable clock for card\n");
-        goto out_power;
+#ifndef MINUTE_BOOT1
+    printf("sdcard: enabling highspeed 52MHz clock (%02x)\n", csd_bytes[0xB]);
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_52MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
+        return;
     }
 
-    return;
+    printf("sdcard: could not enable highspeed clock for card, falling back to 48MHz highspeed?\n");
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_48MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
+        return;
+    }
+
+    printf("sdcard: could not enable highspeed clock for card, falling back to 25MHz highspeed?\n");
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
+        return;
+    }
+#endif
+
+    printf("sdcard: could not enable highspeed clock for card, falling back to 25MHz legacy?\n");
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_LEGACY) == 0) {
+        return;
+    }
+
+    printf("sdcard: could not enable legacy clock for card, falling back to 400kHz?\n");
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_400KHZ, SDMMC_TIMING_LEGACY) == 0) {
+        return;
+    }
+
+    printf("sdcard: no clocks? abort\n");
+    goto out_clock;
 
 out_clock:
     sdhc_bus_width(card.handle, 1);

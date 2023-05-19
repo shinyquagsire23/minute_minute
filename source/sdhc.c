@@ -392,6 +392,7 @@ sdhc_clock_divisor(struct sdhc_host *hp, u_int freq)
 int
 sdhc_bus_clock(struct sdhc_host *hp, int freq, int timing)
 {
+    struct sdmmc_command cmd;
     int div;
     int timo;
     int sdclk;
@@ -400,19 +401,23 @@ sdhc_bus_clock(struct sdhc_host *hp, int freq, int timing)
 #ifdef DIAGNOSTIC
     /* Must not stop the clock if commands are in progress. */
     if (ISSET(HREAD4(hp, SDHC_PRESENT_STATE), SDHC_CMD_INHIBIT_MASK) &&
-        sdhc_card_detect(hp))
+        sdhc_card_detect(hp)) {
         printf("sdhc_sdclk_frequency_select: command in progress\n");
+    }
 #endif
 
     /* Stop SD clock before changing the frequency. */
     HWRITE2(hp, SDHC_CLOCK_CTL, 0);
-    if (freq == SDMMC_SDCLK_OFF)
+    if (freq == SDMMC_SDCLK_OFF) {
         return 0;
+    }
 
-    if (timing == SDMMC_TIMING_LEGACY)
+    if (timing == SDMMC_TIMING_LEGACY) {
         HCLR1(hp, SDHC_HOST_CTL, SDHC_HIGH_SPEED);
-    else
+    }
+    else {
         HSET1(hp, SDHC_HOST_CTL, SDHC_HIGH_SPEED);
+    }
 
     /* Set the minimum base clock frequency divisor. */
     if ((div = sdhc_clock_divisor(hp, freq)) < 0) {
@@ -427,10 +432,10 @@ sdhc_bus_clock(struct sdhc_host *hp, int freq, int timing)
 
     /* Start internal clock.  Wait 10ms for stabilization. */
     HSET2(hp, SDHC_CLOCK_CTL, SDHC_INTCLK_ENABLE);
-    for (timo = 1000; timo > 0; timo--) {
+    for (timo = 10000; timo > 0; timo--) {
         if (ISSET(HREAD2(hp, SDHC_CLOCK_CTL), SDHC_INTCLK_STABLE))
             break;
-        udelay(10);
+        udelay(1);
     }
     if (timo == 0) {
         printf("sdhc: internal clock never stabilized\n");
@@ -440,6 +445,21 @@ sdhc_bus_clock(struct sdhc_host *hp, int freq, int timing)
     /* Enable SD clock. */
     HSET2(hp, SDHC_CLOCK_CTL, SDHC_SDCLK_ENABLE);
 
+    /* Verify clock is fine */
+    if (timing == SDHC_HIGH_SPEED || freq > SDMMC_SDCLK_25MHZ)
+    {
+        DPRINTF(2, ("sdcard: check clocks are fine w/ MMC_ALL_SEND_CID\n"));
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.c_opcode = MMC_ALL_SEND_CID;
+        cmd.c_arg = 0;
+        cmd.c_flags = SCF_RSP_R2;
+        sdhc_exec_command(hp, &cmd);
+        if (cmd.c_error) {
+            printf("sdcard: MMC_ALL_SEND_CID failed with %d\n", cmd.c_error);
+            return ETIMEDOUT;
+        }
+    }
+    
     return 0;
 }
 
@@ -494,7 +514,7 @@ sdhc_wait_state(struct sdhc_host *hp, u_int32_t mask, u_int32_t value)
         if (((state = HREAD4(hp, SDHC_PRESENT_STATE)) & mask)
             == value)
             return 0;
-        udelay(10);
+        udelay(1);
     }
     DPRINTF(0,("sdhc: timeout waiting for %x (state=%d)\n", value, state));
     return ETIMEDOUT;
@@ -537,9 +557,9 @@ sdhc_async_response(struct sdhc_host *hp, struct sdmmc_command *cmd)
      * is marked done for any other reason.
      */
 
-//#ifdef MINUTE_BOOT1
+#ifdef MINUTE_BOOT1
     udelay(10); // whyyyyyyyy?
-//#endif
+#endif
 
     int status = sdhc_wait_intr(hp, SDHC_COMMAND_COMPLETE, cmd->c_timeout);
     if (!ISSET(status, SDHC_COMMAND_COMPLETE)) {
@@ -617,7 +637,7 @@ sdhc_start_command(struct sdhc_host *hp, struct sdmmc_command *cmd)
 
     /* Fragment the data into proper blocks. */
     if (cmd->c_datalen > 0) {
-        blksize = SDMMC_DEFAULT_BLOCKLEN;//MIN(cmd->c_datalen, cmd->c_blklen);
+        blksize = MIN(cmd->c_datalen, cmd->c_blklen);
         blkcount = cmd->c_datalen / blksize;
         if (cmd->c_datalen % blksize > 0) {
             /* XXX: Split this command. (1.7.4) */
@@ -818,18 +838,22 @@ sdhc_wait_intr_debug(const char *funcname, int line, struct sdhc_host *hp, int m
     status = hp->intr_status & mask;
 
     for (; timo > 0; timo--) {
+        for (int j = 0; j < 1000; j++)
+        {
 #ifdef CAN_HAZ_IRQ
-        if((get_cpsr() & 0b11111) == 0b10010 || (get_cpsr() & 0b11111) == 0b11111)
+            if((get_cpsr() & 0b11111) == 0b10010 || (get_cpsr() & 0b11111) == 0b11111)
 #endif
-            sdhc_intr(hp); // seems backwards but ok
+                sdhc_intr(hp); // seems backwards but ok
 
-        if (hp->intr_status != 0) {
-            status = hp->intr_status & mask;
-            break;
+            if (hp->intr_status != 0) {
+                status = hp->intr_status & mask;
+                goto breakout;
+            }
+
+            udelay(1);
         }
-
-        udelay(1000);
     }
+breakout:
 
     if (timo == 0) {
         status |= SDHC_ERROR_TIMEOUT;

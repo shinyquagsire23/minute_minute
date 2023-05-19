@@ -293,12 +293,27 @@ void mlc_needs_discover(void)
     }
 
     DPRINTF(1, ("mlc: enabling clock\n"));
-    if (sdhc_bus_clock(card.handle, clk, SDMMC_TIMING_HIGHSPEED) != 0) {
-        printf("mlc: could not enable clock for card\n");
-        goto out_power;
+    if (sdhc_bus_clock(card.handle, clk, SDMMC_TIMING_HIGHSPEED) == 0) {
+        return;
     }
 
-    return;
+    printf("mlc: couldn't enable highspeed clocks, trying fallback?\n");
+    if (sdhc_bus_clock(card.handle, 26000, SDMMC_TIMING_HIGHSPEED) == 0) {
+        return;
+    }
+
+    printf("mlc: couldn't enable highspeed clocks, trying another fallback?\n");
+    if (sdhc_bus_clock(card.handle, clk, SDMMC_TIMING_LEGACY) == 0) {
+        return;
+    }
+
+    printf("mlc: couldn't enable highspeed clocks, trying another fallback?\n");
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_LEGACY) == 0) {
+        return;
+    }
+
+    printf("mlc: could not enable clock for card?\n");
+    goto out_power;
 
 out_clock:
     sdhc_bus_width(card.handle, 1);

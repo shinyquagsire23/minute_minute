@@ -20,9 +20,11 @@ struct sdmmc_command;
 typedef struct sdhc_host * sdmmc_chipset_handle_t;
 
 /* clock frequencies for sdmmc_chip_bus_clock() */
-#define SDMMC_SDCLK_OFF     0
-#define SDMMC_SDCLK_400KHZ  400
-#define SDMMC_SDCLK_25MHZ   25000
+#define SDMMC_SDCLK_OFF     (0)
+#define SDMMC_SDCLK_400KHZ  (400)
+#define SDMMC_SDCLK_25MHZ   (25000)
+#define SDMMC_SDCLK_48MHZ   (48000)
+#define SDMMC_SDCLK_52MHZ   (52000)
 
 #define SDMMC_TIMING_LEGACY 0
 #define SDMMC_TIMING_HIGHSPEED  1
