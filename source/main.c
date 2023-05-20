@@ -750,7 +750,9 @@ int boot_ini(const char* key, const char* value)
 int main_autoboot(void)
 {
     FILE* f = fopen(autoboot_file, "rb");
-    if(f == NULL)
+
+    int force_patch = (!strcmp(autoboot_file, "ios.patch") || !strlen(autoboot_file));
+    if(f == NULL && !force_patch)
     {
         printf("Failed to open %s.\n", autoboot_file);
         console_power_to_continue();
@@ -758,9 +760,14 @@ int main_autoboot(void)
     }
 
     u32 magic;
-    fread(&magic, 1, sizeof(magic), f);
-    fclose(f);
-
+    if (force_patch) {
+        magic = 0x53414C54;
+    }
+    else {
+        fread(&magic, 1, sizeof(magic), f);
+        fclose(f);
+    }
+    
     boot.needs_otp = 1;
     
     // Ancast image.
