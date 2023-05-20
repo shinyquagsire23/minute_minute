@@ -540,6 +540,7 @@ u32 ancast_iop_load_from_memory(void* ancast_mem)
     return vector;
 }
 
+extern int main_allow_legacy_patches;
 u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
 {
     u32* patch_base = (u32*)0x100;
@@ -547,7 +548,11 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
     // Insert end stub just in case file is short
     patch_base[8] = 0xFF;
 
-    FILE* f_patch = fopen(fn_patch, "rb");
+    FILE* f_patch = NULL;
+    if (main_allow_legacy_patches) {
+        f_patch = fopen(fn_patch, "rb");
+    }
+
     if(!f_patch)
     {
         printf("ancast: no patch file `%s`, stubbing...\n", fn_patch);

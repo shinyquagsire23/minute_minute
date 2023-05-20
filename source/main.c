@@ -68,6 +68,7 @@ char autoboot_file[256] = "ios.patch";
 int main_loaded_from_boot1 = 0;
 int main_is_de_Fused = 0;
 int main_force_pause = 0;
+int main_allow_legacy_patches = 0;
 
 int main_autoboot(void);
 
@@ -743,6 +744,8 @@ int boot_ini(const char* key, const char* value)
         autoboot_timeout_s = (u32)minini_get_uint(value, 3);
     if(!strcmp(key, "force_pause"))
         main_force_pause = minini_get_bool(value, 0);
+    if(!strcmp(key, "allow_legacy_patches"))
+        main_allow_legacy_patches = minini_get_bool(value, 0);
 
     return 0;
 }
@@ -873,7 +876,7 @@ void main_quickboot_patch(void)
 void main_swapboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch"); // 
+    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch");
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
