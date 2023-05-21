@@ -35,9 +35,6 @@
 
 #ifndef MINUTE_BOOT1
 
-// TODO: how many sectors is 8gb MLC WFS?
-#define TOTAL_SECTORS (0x3A20000)
-
 extern seeprom_t seeprom;
 extern otp_t otp;
 
@@ -139,6 +136,23 @@ void dump_menu_show()
     menu_init(&menu_dump);
 }
 
+u32 _get_mlc_wfs_size() {
+    // while the actual filesystem on MLC is a consistent size, there's some
+    // extra sectors at the end for factory logging and vendor variation and
+    // such. We ignore these since IOSU never uses them!
+
+    const int sectors = mlc_get_sectors();
+    if (sectors < 0) return 0;
+
+    if (sectors <= 0x00E90000) { //samsung, TODO check Toshiba
+        // 8GB console
+        return 0x00E50000;
+    } else {
+        // 32GB console
+        return 0x03A20000;
+    }
+}
+
 void dump_factory_log()
 {
     FILE* f_log = NULL;
@@ -155,10 +169,11 @@ void dump_factory_log()
     u8* sector_buf = memalign(32, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
 
     // calculate number of extra sectors
+    u32 wfs_sec = _get_mlc_wfs_size();
     u32 total_sec = mlc_get_sectors();
 
     u32 block_size_bytes = SDHC_BLOCK_COUNT_MAX * 0x200;
-    for(u32 sector = TOTAL_SECTORS; sector < total_sec; sector += SDHC_BLOCK_COUNT_MAX)
+    for(u32 sector = wfs_sec; sector < total_sec; sector += SDHC_BLOCK_COUNT_MAX)
     {
         do ret = mlc_read(sector, SDHC_BLOCK_COUNT_MAX, sector_buf);
         while(ret);
@@ -777,7 +792,8 @@ int _dump_mlc(u32 base)
 
     // Do one less iteration than we need, due to having to special case the start and end.
     u32 sdcard_sector = base;
-    for(u32 sector = 0; sector < (TOTAL_SECTORS - SDHC_BLOCK_COUNT_MAX); sector += SDHC_BLOCK_COUNT_MAX)
+    u32 mlc_size = _get_mlc_wfs_size();
+    for(u32 sector = 0; sector < (mlc_size - SDHC_BLOCK_COUNT_MAX); sector += SDHC_BLOCK_COUNT_MAX)
     {
         int complete = 0;
         // Make sure to retry until the command succeeded, probably superfluous but harmless...
@@ -871,8 +887,9 @@ int _dump_restore_mlc(u32 base)
     // Do one less iteration than we need, due to having to special case the start and end.
     u32 sdcard_sector = base + SDHC_BLOCK_COUNT_MAX;
     u32 mlc_sector = 0;
+    u32 mlc_size = _get_mlc_wfs_size();
 
-    while(mlc_sector < (TOTAL_SECTORS - SDHC_BLOCK_COUNT_MAX))
+    while(mlc_sector < (mlc_size - SDHC_BLOCK_COUNT_MAX))
     {
         int complete = 0;
         int retries = 0;
@@ -1274,7 +1291,7 @@ int _dump_partition_rednand(void)
     printf("Partitioning SD card...\n");
 
     const u32 slc_sectors = (NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
-    const u32 mlc_sectors = 0x03A20000; // TODO: 8GB model.
+    const u32 mlc_sectors = _get_mlc_wfs_size();
     const u32 data_sectors = 0x100000 / SDMMC_DEFAULT_BLOCKLEN;
 
     u32 end = (u32)sdcard_get_sectors() & 0xFFFF0000;
