@@ -1278,6 +1278,12 @@ int _dump_partition_rednand(void)
     const u32 data_sectors = 0x100000 / SDMMC_DEFAULT_BLOCKLEN;
 
     u32 end = (u32)sdcard_get_sectors() & 0xFFFF0000;
+    u32 rednand_size = slc_sectors * 2 + mlc_sectors + data_sectors;
+    if (rednand_size > end) {
+        printf("SD card is too small! Have 0x%08lX (0x%08lX) sectors, need at least 0x%08lX.\n", (u32)sdcard_get_sectors(), end, rednand_size);
+        return -2;
+    }
+
     u32 slccmpt_base = end - slc_sectors;
     u32 slc_base = slccmpt_base - slc_sectors;
     u32 mlc_base = slc_base - mlc_sectors;
@@ -1300,7 +1306,7 @@ int _dump_partition_rednand(void)
     fres = f_mkfs("sdmc:", 0, 0, fat_base, fat_base + fat_sectors);
     if(fres != FR_OK) {
         printf("Failed to format card (%d)!\n", fres);
-        return -2;
+        return -3;
     }
 
     printf("Updating MBR...\n");
@@ -1308,7 +1314,7 @@ int _dump_partition_rednand(void)
     res = sdcard_read(0, 1, mbr);
     if(res) {
         printf("Failed to read MBR (%d)!\n", res);
-        return -3;
+        return -4;
     }
 
     memset(part2, 0x00, 0x10);
@@ -1329,7 +1335,7 @@ int _dump_partition_rednand(void)
     res = sdcard_write(0, 1, mbr);
     if(res) {
         printf("Failed to write MBR (%d)!\n", res);
-        return -4;
+        return -5;
     }
 
     // Mandatory backup
