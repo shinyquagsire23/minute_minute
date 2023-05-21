@@ -860,7 +860,7 @@ int _dump_restore_mlc(u32 base)
     // Check to see if the first block matches, if so, ask the user if they want to continue.
     if(memcmp(sdcard_buf, mlc_buf, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX) == 0) {
         printf("MLC: First blocks match, continue restoring?\n");
-        if(console_abort_confirmation_power_no_eject_yes()) return;
+        if(console_abort_confirmation_power_no_eject_yes()) return -1;
         printf("MLC: Continuing restore...\n");
     } else {
         printf("MLC: First blocks do not match!\n");
