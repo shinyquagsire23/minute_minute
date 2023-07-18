@@ -1658,7 +1658,8 @@ void dump_otp_via_prshhax(void)
 
     if (!memcmp(otp.fw_ancast_key, key_zero, 16)) {
         u8 hwver = latte_get_hw_version() & 0xFF;
-        printf("Guessing key based on hwver %02x == %02x\n", hwver, BSP_HARDWARE_VERSION_CAFE);
+        
+        /*printf("Guessing key based on hwver %02x == %02x\n", hwver, BSP_HARDWARE_VERSION_CAFE);
         if (!hwver || hwver == BSP_HARDWARE_VERSION_CAFE) {
             printf("  --> prod key\n");
             memcpy(otp.fw_ancast_key, key_prod, 16);
@@ -1666,6 +1667,16 @@ void dump_otp_via_prshhax(void)
         else {
             printf("  --> dev key\n");
             memcpy(otp.fw_ancast_key, key_dev, 16);
+        }*/
+
+        printf("Guessing key based on boot1 header type %x\n", hdr->type);
+        if (hdr->type == ANCAST_CONSOLE_TYPE_DEV) {
+            printf("  --> dev key\n");
+            memcpy(otp.fw_ancast_key, key_dev, 16);
+        }
+        else {
+            printf("  --> prod key\n");
+            memcpy(otp.fw_ancast_key, key_prod, 16);
         }
     }
     otp.security_level |= 0x80000000;
