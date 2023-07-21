@@ -1147,7 +1147,7 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
                 nand_create_ecc(nand_page_buf, nand_ecc_buf);
 
                 memcpy(nand_ecc_buf+PAGE_SPARE_SIZE, nand_ecc_buf+PAGE_SPARE_SIZE-0x10, 0x10);
-
+#if 0
                 for (int i = 0; i < 0x50; i++) {
                     if (i && i % 16 == 0) {
                         printf("\n");
@@ -1155,7 +1155,7 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
                     printf("%02x ", nand_ecc_buf[i]);
                 }
                 printf("\n");
-
+#endif
                 memcpy(nand_page_buf+PAGE_SIZE, nand_ecc_buf, PAGE_SPARE_SIZE);
             }
 

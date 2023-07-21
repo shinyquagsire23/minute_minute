@@ -691,6 +691,12 @@ void intcon_handle_cmd(const char* pCmd)
             intcon_active = 0;
         }
     }
+    else if (!strcmp(cmd, "upb") || !strcmp(cmd, "uploadboot1")) {
+        if (!intcon_upload("sdmc:/boot1_slccmpt.img")) {
+            dump_restore_boot1_vwii_img();
+            intcon_active = 0;
+        }
+    }
     else if (!strcmp(cmd, "smc")) {
         intcon_smc_cmd(argc, argv);
     }
