@@ -37,7 +37,11 @@
 //#define SDHC_DEBUG
 
 #define SDHC_COMMAND_TIMEOUT    500
+#ifndef MINUTE_BOOT1
 #define SDHC_TRANSFER_TIMEOUT   5000
+#else
+#define SDHC_TRANSFER_TIMEOUT   100
+#endif
 
 #define sdhc_wait_intr(a,b,c) sdhc_wait_intr_debug(__func__, __LINE__, a, b, c)
 
@@ -435,11 +439,7 @@ sdhc_bus_clock(struct sdhc_host *hp, int freq, int timing)
     for (timo = 10000; timo > 0; timo--) {
         if (ISSET(HREAD2(hp, SDHC_CLOCK_CTL), SDHC_INTCLK_STABLE))
             break;
-#ifdef MINUTE_BOOT1
         udelay(1);
-#else
-        udelay(1);
-#endif
     }
     if (timo == 0) {
         printf("sdhc: internal clock never stabilized\n");

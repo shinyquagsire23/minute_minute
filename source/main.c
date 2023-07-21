@@ -106,6 +106,12 @@ u32 _main(void *base)
     gpio_fan_set(1);
     gpio_smc_i2c_init();
 
+    // boot0 SDcard regpokes
+    {
+        gpio_enable(30, 1);
+        
+    }
+
     printf("Initializing exceptions...\n");
     exception_initialize();
     printf("Configuring caches and MMU...\n");
@@ -303,11 +309,6 @@ u32 _main(void *base)
     prsh_reset();
     prsh_init();
 
-    serial_send_u32(0x5D5D0001);
-    printf("Initializing SD card...\n");
-    sdcard_init();
-    serial_send_u32(0x5D5D0002);
-
     // PON_SMC_TIMER and an unknown power flag are set
     if (pflags_val & (PON_SMC_TIMER | PFLAG_ENTER_BG_NORMAL_MODE))
     {
@@ -330,6 +331,13 @@ u32 _main(void *base)
 
     serial_send_u32(pflags_val);
 
+retry_sd:
+    serial_send_u32(0x5D5D0001);
+    printf("Initializing SD card...\n");
+    sdcard_init();
+    sdcard_init(); // TODO whyyyyy
+    serial_send_u32(0x5D5D0002);
+
     int loaded_from_fat = 0;
 
     {
@@ -339,9 +347,15 @@ u32 _main(void *base)
         FIL f = {0};
         unsigned int read;
 
+        serial_send_u32(0x5D5E0004);
+
         res = f_mount(&fatfs, "sdmc:", 1);
         if (res != FR_OK) {
-            goto fat_fail;
+            sdcard_init(); // TODO whyyyyy
+            res = f_mount(&fatfs, "sdmc:", 1);
+            if (res != FR_OK) {
+                goto fat_fail;
+            }
         }
         res = f_open(&f, "sdmc:/fw.img", FA_OPEN_EXISTING | FA_READ);
         if (res != FR_OK) {
@@ -356,6 +370,7 @@ u32 _main(void *base)
         if (*(u32*)ALL_PURPOSE_TMP_BUF == ANCAST_MAGIC) {
             loaded_from_fat = 1;
         }
+        serial_send_u32(0x5D5E0008);
     }
 
 fat_fail:
@@ -373,13 +388,20 @@ fat_fail:
         menu_reset();
     } else {
         smc_set_notification_led(LEDRAW_ORANGE_PULSE);
-        while (1) {
+        /*while (1) {
             serial_send_u32(0xF00FAAAA);
             serial_send(sd_read_buffer[0]);
             serial_send(sd_read_buffer[1]);
             serial_send(sd_read_buffer[2]);
             serial_send(sd_read_buffer[3]);
-        }
+        }*/
+        goto retry_sd;
+    }
+
+    // Reset LED to purple if SD card is successful.
+    if (!(pflags_val & (PON_SMC_TIMER | PFLAG_ENTER_BG_NORMAL_MODE)))
+    {
+        smc_set_notification_led(LEDRAW_PURPLE);
     }
 
     dc_flushall();
