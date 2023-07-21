@@ -69,18 +69,21 @@ menu menu_dump = {
             {"Dump SLC.RAW", &dump_slc_raw},
             {"Dump SLCCMPT.RAW", &dump_slccmpt_raw},
             {"Dump BOOT1_SLC.RAW", &dump_boot1_raw},
+            {"Dump BOOT1_SLCCMPT.RAW", &dump_boot1_vwii_raw},
             {"Dump factory log", &dump_factory_log},
             {"Format redNAND", &dump_format_rednand},
             {"Restore SLC.RAW", &dump_restore_slc_raw},
             {"Restore SLCCMPT.RAW", &dump_restore_slccmpt_raw},
             {"Restore BOOT1_SLC.RAW", &dump_restore_boot1_raw},
+            {"Restore BOOT1_SLCCMPT.RAW", &dump_restore_boot1_vwii_raw},
+            {"Restore BOOT1_SLCCMPT.IMG", &dump_restore_boot1_vwii_img},
             {"Restore seeprom.bin", &dump_restore_seeprom},
             {"Restore redNAND", &dump_restore_rednand},
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
             {"Return to Main Menu", &menu_close},
     },
-    15, // number of options
+    18, // number of options
     0,
     0
 };
@@ -1007,15 +1010,19 @@ int _dump_slc_raw(u32 bank, int boot1_only)
     #undef TOTAL_ITERATIONS
 }
 
-int _dump_restore_slc_raw(u32 bank, int boot1_only)
+int _dump_restore_slc(u32 bank, int boot1_only, int raw)
 {
     int ret = 0;
+    int boot1_is_half = 0;
 
     #define PAGES_PER_ITERATION (0x10)
-    #define TOTAL_ITERATIONS ((boot1_only ? BOOT1_MAX_PAGE : NAND_MAX_PAGE) / PAGES_PER_ITERATION)
+    #define TOTAL_ITERATIONS ((boot1_only ? (boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE) / PAGES_PER_ITERATION)
+
+    #define PAGE_STRIDE (raw ? PAGE_SIZE + PAGE_SPARE_SIZE : PAGE_SIZE)
+    #define FILE_BUF_SIZE (PAGES_PER_ITERATION * PAGE_STRIDE)
 
     static u8 page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(64);
-    static u8 file_buf[PAGES_PER_ITERATION][PAGE_SIZE + PAGE_SPARE_SIZE];
+    static u8 file_buf[PAGES_PER_ITERATION * (PAGE_SIZE + PAGE_SPARE_SIZE)];
 
     sdcard_ack_card();
     if(sdcard_check_card() != SDMMC_INSERTED) {
@@ -1031,11 +1038,23 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only)
     }
 
     char path[64] = {0};
-    if (!boot1_only) {
-        sprintf(path, "%s.RAW", name);
+    if (raw)
+    {
+        if (!boot1_only) {
+            sprintf(path, "%s.RAW", name);
+        }
+        else {
+            sprintf(path, "BOOT1_%s.RAW", name);
+        }
     }
-    else {
-        sprintf(path, "BOOT1_%s.RAW", name);
+    else
+    {
+        if (!boot1_only) {
+            sprintf(path, "%s.IMG", name);
+        }
+        else {
+            sprintf(path, "BOOT1_%s.IMG", name);
+        }
     }
 
     // Make sure the user is dedicated (and require a difficult button press)
@@ -1050,8 +1069,25 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only)
         return -3;
     }
 
-    u64 nand_file_size_expected = (boot1_only ? BOOT1_MAX_PAGE : NAND_MAX_PAGE) * (PAGE_SIZE + PAGE_SPARE_SIZE);
+    fres = f_read(&file, file_buf, PAGE_STRIDE, &btx);
+    if(fres != FR_OK || btx != PAGE_STRIDE) {
+        f_close(&file);
+        printf("Failed to read %s (%d).\n", path, fres);
+        return -4;
+    }
+    fres = f_rewind(&file);
+    if(fres != FR_OK) {
+        f_close(&file);
+        printf("Failed to rewind %s (%d).\n", path, fres);
+        return -3;
+    }
+
+    u64 nand_file_size_expected = (boot1_only ? BOOT1_MAX_PAGE : NAND_MAX_PAGE) * PAGE_STRIDE;
     u64 nand_file_size = f_size(&file);
+    if (nand_file_size != nand_file_size_expected && boot1_only && nand_file_size * 2 == nand_file_size_expected) {
+        nand_file_size_expected /= 2;
+        boot1_is_half = 1;
+    }
     if (nand_file_size != nand_file_size_expected) {
         printf("Invalid file size! Expected 0x%llx, got 0x%llx.\n", nand_file_size_expected, nand_file_size);
         return -3;
@@ -1079,7 +1115,7 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only)
         }
 
         if((i % 0x100) == 0) {
-            printf("%s-RAW: Page 0x%05lX / 0x%05lX erased\n", name, page_base, PAGES_PER_ITERATION * TOTAL_ITERATIONS);
+            printf("%s%s: Page 0x%05lX / 0x%05lX erased\n", name, raw ? "-RAW" : "", page_base, PAGES_PER_ITERATION * TOTAL_ITERATIONS);
         }
     }
 
@@ -1087,8 +1123,8 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only)
 
     for(u32 i = 0; i < TOTAL_ITERATIONS; i++)
     {
-        fres = f_read(&file, file_buf, sizeof(file_buf), &btx);
-        if(fres != FR_OK || btx != sizeof(file_buf)) {
+        fres = f_read(&file, file_buf, FILE_BUF_SIZE, &btx);
+        if(fres != FR_OK || btx != FILE_BUF_SIZE) {
             f_close(&file);
             printf("Failed to read %s (%d).\n", path, fres);
             return -4;
@@ -1097,14 +1133,36 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only)
         u32 page_base = i * PAGES_PER_ITERATION;
         for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
         {
-            memcpy(nand_page_buf, file_buf[page], PAGE_SIZE + PAGE_SPARE_SIZE);
-            memcpy(nand_ecc_buf, file_buf[page] + PAGE_SIZE, PAGE_SPARE_SIZE);
-            memcpy(nand_ecc_buf+PAGE_SPARE_SIZE, nand_ecc_buf+PAGE_SPARE_SIZE-0x10, 0x10);
+            memcpy(nand_page_buf, &file_buf[page*PAGE_STRIDE], PAGE_STRIDE);
+            if (raw)
+            {
+                memcpy(nand_ecc_buf, &file_buf[(page*PAGE_STRIDE) + PAGE_SIZE], PAGE_SPARE_SIZE);
+                memcpy(nand_ecc_buf+PAGE_SPARE_SIZE, nand_ecc_buf+PAGE_SPARE_SIZE-0x10, 0x10);
+            }
+            else
+            {
+                memset(nand_ecc_buf, 0, PAGE_SPARE_SIZE);
+                memset(nand_ecc_buf+PAGE_SPARE_SIZE, 0, 0x10);
+
+                nand_create_ecc(nand_page_buf, nand_ecc_buf);
+
+                memcpy(nand_ecc_buf+PAGE_SPARE_SIZE, nand_ecc_buf+PAGE_SPARE_SIZE-0x10, 0x10);
+
+                for (int i = 0; i < 0x50; i++) {
+                    if (i && i % 16 == 0) {
+                        printf("\n");
+                    }
+                    printf("%02x ", nand_ecc_buf[i]);
+                }
+                printf("\n");
+
+                memcpy(nand_page_buf+PAGE_SIZE, nand_ecc_buf, PAGE_SPARE_SIZE);
+            }
 
             int is_cleared = 1;
-            for (int j = 0; j < PAGE_SIZE + PAGE_SPARE_SIZE; j++)
+            for (int j = 0; j < raw ? (PAGE_SIZE + PAGE_SPARE_SIZE) : (PAGE_SIZE); j++)
             {
-                if (file_buf[page][j] != 0xFF) {
+                if (file_buf[(page*PAGE_STRIDE)+j] != 0xFF) {
                     is_cleared = 0;
                     break;
                 }
@@ -1124,14 +1182,15 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only)
                 dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
                 //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
 
-                if (memcmp(nand_page_buf, file_buf[page], PAGE_SIZE + PAGE_SPARE_SIZE)) {
+                if (memcmp(nand_page_buf, &file_buf[page*PAGE_STRIDE], PAGE_STRIDE)) {
                     printf("Failed to program page: 0x%05lX\n", page_base + page);
                 }
             }
         }
 
-        if((i % 0x100) == 0) {
-            printf("%s-RAW: Page 0x%05lX / 0x%05lX completed\n", name, page_base, PAGES_PER_ITERATION * TOTAL_ITERATIONS);
+        if((i % 0x100) == 0) 
+        {
+            printf("%s%s: Page 0x%05lX / 0x%05lX completed\n", name, raw ? "-RAW" : "", page_base, PAGES_PER_ITERATION * TOTAL_ITERATIONS);
         }
     }
 
@@ -1418,6 +1477,23 @@ slc_exit:
     console_power_to_exit();
 }
 
+void dump_boot1_vwii_raw(void)
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Dumping BOOT1_SLCCMPT.RAW...\n");
+
+    res = _dump_slc_raw(NAND_BANK_SLCCMPT, 1);
+    if(res) {
+        printf("Failed to dump BOOT1_SLCCMPT.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    console_power_to_exit();
+}
+
 void dump_restore_slc_raw(void)
 {
     int res = 0;
@@ -1425,7 +1501,7 @@ void dump_restore_slc_raw(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring SLC.RAW...\n");
 
-    res = _dump_restore_slc_raw(NAND_BANK_SLC, 0);
+    res = _dump_restore_slc(NAND_BANK_SLC, 0, 1);
     if(res) {
         printf("Failed to restore SLC.RAW (%d)!\n", res);
         goto slc_exit;
@@ -1442,7 +1518,7 @@ void dump_restore_slccmpt_raw(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring SLCCMPT.RAW...\n");
 
-    res = _dump_restore_slc_raw(NAND_BANK_SLCCMPT, 0);
+    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 0, 1);
     if(res) {
         printf("Failed to restore SLCCMPT.RAW (%d)!\n", res);
         goto slc_exit;
@@ -1459,9 +1535,43 @@ void dump_restore_boot1_raw(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring BOOT1_SLC.RAW...\n");
 
-    res = _dump_restore_slc_raw(NAND_BANK_SLC, 1);
+    res = _dump_restore_slc(NAND_BANK_SLC, 1, 1);
     if(res) {
         printf("Failed to restore BOOT1_SLC.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    console_power_to_exit();
+}
+
+void dump_restore_boot1_vwii_raw(void)
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Restoring BOOT1_SLCCMPT.RAW...\n");
+
+    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 1, 1);
+    if(res) {
+        printf("Failed to restore BOOT1_SLCCMPT.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    console_power_to_exit();
+}
+
+void dump_restore_boot1_vwii_img(void)
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Restoring BOOT1_SLCCMPT.IMG...\n");
+
+    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 1, 0);
+    if(res) {
+        printf("Failed to restore BOOT1_SLCCMPT.IMG (%d)!\n", res);
         goto slc_exit;
     }
 

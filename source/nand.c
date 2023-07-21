@@ -313,6 +313,10 @@ void nand_create_ecc(void* in_data, void* spare_out)
     u32 a0, a1;
     u8 x;
 
+    u8* spare_buf = PTR_OFFS(spare_out, 0x0);
+    memset(spare_buf, 0, 0x40);
+    spare_buf[0] = 0xFF;
+
     u8* ecc = PTR_OFFS(spare_out, 0x30);
     const u8* data = (u8*)in_data;
 

@@ -46,6 +46,7 @@ void nand_wait(void);
 
 int nand_correct(u32 pageno, void *data, void *ecc);
 void nand_initialize(u32 bank);
+void nand_create_ecc(void* in_data, void* spare_out);
 
 #endif
 

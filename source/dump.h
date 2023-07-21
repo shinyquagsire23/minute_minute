@@ -28,9 +28,12 @@ int _dump_copy_rednand(u32 slc_base, u32 slccmpt_base, u32 mlc_base);
 void dump_slc_raw(void);
 void dump_slccmpt_raw(void);
 void dump_boot1_raw(void);
+void dump_boot1_vwii_raw(void);
 void dump_restore_slc_raw(void);
 void dump_restore_slccmpt_raw(void);
 void dump_restore_boot1_raw(void);
+void dump_restore_boot1_vwii_raw(void);
+void dump_restore_boot1_vwii_img(void);
 
 void dump_slc(void);
 void dump_format_rednand(void);
