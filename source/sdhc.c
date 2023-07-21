@@ -435,7 +435,11 @@ sdhc_bus_clock(struct sdhc_host *hp, int freq, int timing)
     for (timo = 10000; timo > 0; timo--) {
         if (ISSET(HREAD2(hp, SDHC_CLOCK_CTL), SDHC_INTCLK_STABLE))
             break;
+#ifdef MINUTE_BOOT1
         udelay(1);
+#else
+        udelay(1);
+#endif
     }
     if (timo == 0) {
         printf("sdhc: internal clock never stabilized\n");
