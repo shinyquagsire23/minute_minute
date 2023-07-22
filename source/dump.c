@@ -76,6 +76,7 @@ menu menu_dump = {
             {"Restore SLCCMPT.RAW", &dump_restore_slccmpt_raw},
             {"Restore BOOT1_SLC.RAW", &dump_restore_boot1_raw},
             {"Restore BOOT1_SLCCMPT.RAW", &dump_restore_boot1_vwii_raw},
+            {"Restore BOOT1_SLC.IMG", &dump_restore_boot1_img},
             {"Restore BOOT1_SLCCMPT.IMG", &dump_restore_boot1_vwii_img},
             {"Restore seeprom.bin", &dump_restore_seeprom},
             {"Restore redNAND", &dump_restore_rednand},
@@ -83,7 +84,7 @@ menu menu_dump = {
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
             {"Return to Main Menu", &menu_close},
     },
-    18, // number of options
+    19, // number of options
     0,
     0
 };
@@ -1555,6 +1556,23 @@ void dump_restore_boot1_vwii_raw(void)
     res = _dump_restore_slc(NAND_BANK_SLCCMPT, 1, 1);
     if(res) {
         printf("Failed to restore BOOT1_SLCCMPT.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    console_power_to_exit();
+}
+
+void dump_restore_boot1_img(void)
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Restoring BOOT1_SLC.IMG...\n");
+
+    res = _dump_restore_slc(NAND_BANK_SLC, 1, 0);
+    if(res) {
+        printf("Failed to restore BOOT1_SLC.IMG (%d)!\n", res);
         goto slc_exit;
     }
 
