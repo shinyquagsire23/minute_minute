@@ -65,12 +65,15 @@ static struct {
 bool autoboot = false;
 u32 autoboot_timeout_s = 3;
 char autoboot_file[256] = "ios.patch";
+const char sd_plugin_dir[] = "sdmc:/wiiu/ios_plugins";
+const char slc_plugin_dir[] = "slc:/sys/ios_plugins";
 int main_loaded_from_boot1 = 0;
 int main_is_de_Fused = 0;
 int main_force_pause = 0;
 int main_allow_legacy_patches = 0;
 
 int main_autoboot(void);
+void main_quickboot_patch_slc(void);
 
 extern char sd_read_buffer[0x200];
 
@@ -443,8 +446,9 @@ menu menu_main = {
     },
     1, // number of subtitles
     {
-            {"Patch and boot IOS", &main_quickboot_patch}, // options
-            {"Patch and boot ios_orig.img", &main_swapboot_patch}, // options
+            {"Patch (slc) and boot IOS (slc)", &main_quickboot_patch_slc},
+            {"Patch (sd) and boot IOS (slc)", &main_quickboot_patch}, // options
+            {"Patch (sd) and boot sdmc:/ios_orig.img", &main_swapboot_patch}, // options
             {"Boot 'ios.img'", &main_quickboot_fw},
             {"Boot IOP firmware file", &main_boot_fw},
             {"Boot PowerPC ELF file", &main_boot_ppc},
@@ -801,7 +805,7 @@ int main_autoboot(void)
         boot.is_patched = 0;
     }
     else if (magic == 0x53414C54) {
-        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", autoboot_file); // slc:/sys/title/00050010/1000400a/code/fw.img
+        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", autoboot_file, sd_plugin_dir); // slc:/sys/title/00050010/1000400a/code/fw.img
         boot.is_patched = 1;
     }
     
@@ -879,10 +883,28 @@ ppc_exit:
     console_power_to_exit();
 }
 
+
+void main_quickboot_patch_slc(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", slc_plugin_dir); // ios_orig.img
+    boot.is_patched = 1;
+    boot.needs_otp = 1;
+
+    if(boot.vector) {
+        boot.mode = 0;
+        menu_reset();
+    } else {
+        printf("Failed to load IOS with patches!\n");
+        console_power_to_continue();
+    }
+}
+  
+
 void main_quickboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch"); // ios_orig.img
+    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir); // ios_orig.img
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
@@ -898,7 +920,7 @@ void main_quickboot_patch(void)
 void main_swapboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch");
+    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir);
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
