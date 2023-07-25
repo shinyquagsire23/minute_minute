@@ -12,7 +12,11 @@
 #define _ISFS_H
 
 #include "types.h"
+#include "nand.h"
 #include <sys/iosupport.h>
+
+#define ISFSSUPER_CLUSTERS  0x10
+#define ISFSSUPER_SIZE      (ISFSSUPER_CLUSTERS * CLUSTER_SIZE)
 
 typedef struct {
     int volume;

@@ -18,6 +18,7 @@
 
 #define PAGE_SIZE        (2048)
 #define PAGE_SPARE_SIZE  (64)
+#define PAGE_COUNT       (0x40000)
 #define ECC_BUFFER_SIZE  (PAGE_SPARE_SIZE+16)
 #define ECC_BUFFER_ALLOC (PAGE_SPARE_SIZE+32)
 #define BLOCK_SIZE       (64)
@@ -28,6 +29,10 @@
 #define NAND_BANK_SLC     (0x00000002)
 
 #define NAND_CMD_EXEC (1<<31)
+
+#define CLUSTER_PAGES       8
+#define CLUSTER_SIZE        (PAGE_SIZE * CLUSTER_PAGES)
+#define CLUSTER_COUNT       (PAGE_COUNT / CLUSTER_PAGES)
 
 void nand_irq(void);
 
