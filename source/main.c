@@ -514,6 +514,11 @@ u32 _main(void *base)
     printf("crypto support initialized\n");
     latte_print_hardware_info();
 
+    printf("Mounting SLC...\n");
+    isfs_init();
+    main_quickboot_patch_slc();
+    goto skip_menu;
+
     printf("Initializing SD card...\n");
     sdcard_init();
 
@@ -605,8 +610,6 @@ u32 _main(void *base)
     }
     mlc_ack_card();
 
-    printf("Mounting SLC...\n");
-    isfs_init();
     //isfs_test();
 
 #if 0
