@@ -26,6 +26,8 @@ int prsh_set_entry(const char* name, void* data, size_t size);
 void prsh_recompute_checksum();
 void prsh_decrypt();
 void prsh_encrypt();
+void prsh_set_bootinfo();
+void prsh_recompute_checksum();
 
 void prsh_menu();
 

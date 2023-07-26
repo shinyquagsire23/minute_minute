@@ -490,9 +490,15 @@ u32 _main(void *base)
     serial_send_u32(0x55AA55AA);
     serial_send_u32(0xF00FCAFE);
 
-    gpu_display_init();
-    gfx_init();
+    //gpu_display_init();
+    //gfx_init();
     printf("minute loading\n");
+
+    // boot1
+    set32(LT_RESETS_COMPAT, RSTB_IOMEM | RSTB_IOPI);
+    set32(LT_EXICTRL, 1);
+    gpio_fan_set(1);
+    gpio_smc_i2c_init();
 
     if (main_loaded_from_boot1) {
         printf("minute was loaded from boot1 context!\n");
@@ -503,15 +509,171 @@ u32 _main(void *base)
     printf("Configuring caches and MMU...\n");
     mem_initialize();
 
+    // boot1
+    // Adjust IOP clock multiplier to 1x
+    if (read32(LT_IOP2X) & 0x04)
+    {
+        latte_set_iop_clock_mult(1);
+    }
+
     irq_initialize();
     printf("Interrupts initialized\n");
+
+    // boot1
+    // Clear all MEM0
+    memset((void*)0x08000000, 0, 0x002E0000);
+    prsh_decrypt();
 
     prsh_reset();
     prsh_init();
 
+    prsh_set_bootinfo();
+    prsh_recompute_checksum();
+
     srand(read32(LT_TIMER));
     crypto_initialize();
     printf("crypto support initialized\n");
+
+    // boot1
+    // 0x00020721 on extra cold booting (fresh from power plug)
+    // 0x02020321 on warm cold booting (or 0x02000221?)
+    u32 rtc_ctrl0 = rtc_get_ctrl0();
+    serial_send_u32(rtc_ctrl0);
+
+    u32 syscfg1_val = read32(LT_SYSCFG1);
+    u32 pflags_val = 0;
+
+    // Check if the CMPT_RETSTAT0 flag is raised
+    if (syscfg1_val & 0x04)
+        pflags_val = CMPT_RETSTAT0;
+
+    // Check if the CMPT_RETSTAT1 flag is raised
+    if (syscfg1_val & 0x08)
+        pflags_val |= CMPT_RETSTAT1;
+
+    // Check if the POFFLG_FPOFF flag is raised
+    if (rtc_ctrl0 & CTRL0_POFFLG_FPOFF)
+        pflags_val |= POFF_FORCED;
+
+    // Check if the POFFLG_4S flag is raised
+    if (rtc_ctrl0 & CTRL0_POFFLG_4S)
+        pflags_val |= POFF_4S;
+
+    // Check if the POFFLG_TMR flag is raised
+    if (rtc_ctrl0 & CTRL0_POFFLG_TMR)
+        pflags_val |= POFF_TMR;
+
+    // Check if the PONLG_TMR flag is raised
+    if (rtc_ctrl0 & CTRL0_PONLG_TMR)
+        pflags_val |= PON_TMR;
+
+    // Check if PONFLG_SYS is raised
+    if (rtc_ctrl0 & CTRL0_PONFLG_SYS)
+    {
+        pflags_val |= PON_SMC;
+
+        u32 sys_event = smc_get_events();
+
+        // POWER button was pressed
+        if (sys_event & SMC_POWER_BUTTON)
+            pflags_val |= PON_POWER_BTN;
+
+        // EJECT button was pressed
+        if (sys_event & SMC_EJECT_BUTTON)
+            pflags_val |= PON_EJECT_BTN;
+
+        // Wake 1 signal is active
+        if (sys_event & SMC_WAKE1)
+            pflags_val |= PON_WAKEREQ1_EVENT;
+
+        // Wake 0 signal is active
+        if (sys_event & SMC_WAKE0)
+            pflags_val |= PON_WAKEREQ0_EVENT;
+
+        // BT interrupt request is active
+        if (sys_event & SMC_BT_IRQ)
+            pflags_val |= PON_WAKEBT_EVENT;
+
+        // Timer signal is active
+        if (sys_event & SMC_TIMER)
+            pflags_val |= PON_SMC_TIMER;
+    }
+
+    // Raise POFFLG_TMR, PONFLG_SYS and some unknown flags
+    rtc_set_ctrl0(CTRL0_POFFLG_TMR | CTRL0_PONFLG_SYS | CTRL0_FLG_00800000 | CTRL0_FLG_00400000);
+
+
+    u32 rtc_ctrl1 = rtc_get_ctrl1();
+
+    // Check if SLEEP_EN is raised
+    if (rtc_ctrl1 & CTRL1_SLEEP_EN)
+        pflags_val |= PFLAG_DDR_SREFRESH; // Set DDR_SREFRESH power flag
+
+    u32 mem_mode = 0;
+
+    // DDR_SREFRESH power flag is set
+    if (pflags_val & PFLAG_DDR_SREFRESH)
+        mem_mode = DRAM_MODE_SREFRESH;
+
+    // Standby Mode boot doesn't need fans
+    if (pflags_val & PON_SMC_TIMER)
+    {
+        // Pulse the CCIndicator
+        smc_set_cc_indicator(LED_PULSE);
+
+        mem_mode |= DRAM_MODE_CCBOOT;
+
+        // Set FanSpeed state
+        gpio_fan_set(0);
+    }
+    else
+    {
+        // Pulse the ONIndicator
+        //smc_set_on_indicator(LED_PULSE);
+        smc_set_notification_led(LEDRAW_PURPLE_PULSE);
+    }
+
+    serial_send_u32(seeprom.bc.board_type);
+    serial_send_u32(latte_get_hw_version());
+    serial_send_u32(0x4D454D32); // MEM2
+
+    // Init DRAM
+    //init_mem2(mem_mode);
+    udelay(500000);
+
+    // Standby Mode boot doesn't need to upclock
+    if (!(pflags_val & PON_SMC_TIMER))
+    {
+        // Adjust IOP clock multiplier to 3x
+        if (!(read32(LT_IOP2X) & 0x04))
+        {
+            latte_set_iop_clock_mult(3);
+        }
+    }
+
+    // PON_SMC_TIMER and an unknown power flag are set
+    if (pflags_val & (PON_SMC_TIMER | PFLAG_ENTER_BG_NORMAL_MODE))
+    {
+        // Set DcdcPowerControl2 GPIO's state
+        gpio_dcdc_pwrcnt2_set(0);
+
+        smc_set_cc_indicator(LED_ON);
+    }
+    else
+    {
+        // Turn on ODDPower via SMC
+        smc_set_odd_power(1);
+
+        // Set DcdcPowerControl2 GPIO's state
+        gpio_dcdc_pwrcnt2_set(1);
+
+        //smc_set_on_indicator(LED_ON);
+        smc_set_notification_led(LEDRAW_PURPLE);
+    }
+    // boot1 end
+
+
+
     latte_print_hardware_info();
 
     printf("Mounting SLC...\n");
