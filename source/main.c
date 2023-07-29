@@ -87,8 +87,9 @@ u32 _main(void *base)
     (void)base;
     int res = 0; (void)res;
 
-    //smc_power_off();
+#ifdef ISFSHAX_STAGE2
     irq_initialize();
+#endif
 
     gfx_init();
     printf("minute loading\n");
@@ -252,9 +253,11 @@ u32 _main(void *base)
     serial_send_u32(latte_get_hw_version());
     serial_send_u32(0x4D454D32); // MEM2
 
+#ifndef ISFSHAX_STAGE2
     // Init DRAM
-    //init_mem2(mem_mode);
+    init_mem2(mem_mode);
     udelay(500000);
+#endif
 
     // Test that DRAM is working/refreshing correctly
     int is_good = 1;

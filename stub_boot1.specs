@@ -1,4 +1,4 @@
 %rename link                old_link
 
 *link:
-%(old_link) -T ../stub.ld%s
+%(old_link) -T ../stub_boot1.ld%s
