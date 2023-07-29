@@ -82,14 +82,24 @@ void silly_tests();
 #ifdef MINUTE_BOOT1
 extern otp_t otp;
 
+bool read_ancast(const char *path){
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        return false;
+    }
+    size_t read = fread((void*)ALL_PURPOSE_TMP_BUF, 1, 0x800000, f);
+    if (!read) {
+        return false;
+    }
+    fclose(f);
+
+    return *(u32*)ALL_PURPOSE_TMP_BUF == ANCAST_MAGIC; 
+}
+
 u32 _main(void *base)
 {
     (void)base;
     int res = 0; (void)res;
-
-#ifdef ISFSHAX_STAGE2
-    irq_initialize();
-#endif
 
     gfx_init();
     printf("minute loading\n");
@@ -295,7 +305,7 @@ u32 _main(void *base)
     if (!is_good) {
         serial_fatal();
     }
-#endif
+#endif //NOT ISFSHAX_STAGE2
 
     serial_send_u32(0x4D454D30); // MEM0
 
@@ -340,12 +350,37 @@ u32 _main(void *base)
 
     serial_send_u32(pflags_val);
 
+#ifdef ISFSHAX_STAGE2
+    //Skip ISFS boot by pressing power
+    if (!(smc_get_events() & SMC_POWER_BUTTON)) {
+        serial_send_u32(0x5D4D0001);
+        printf("Mounting SLC...\n");
+        irq_initialize();
+        isfs_init();
+        serial_send_u32(0x5D4D0004);
+        bool ok = read_ancast("slc:/sys/hax/fw.img");
+        if(ok)
+            boot.vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
+        serial_send_u32(0x5D4D0005);
+        printf("Unmounting SLC...\n");
+        isfs_fini();
+        irq_shutdown();
+        serial_send_u32(0x5D4D0008);
+        if(boot.vector){
+            boot.mode = 0;
+            menu_reset();
+            goto boot;
+        }
+        serial_send_u32(0x5D4D00FF);
+    }
+#endif //ISFSHAX_STAGE2
+
 retry_sd:
     serial_send_u32(0x5D5D0001);
     printf("Initializing SD card...\n");
     sdcard_init();
     sdcard_init(); // TODO whyyyyy
-    serial_send_u32(0x5D5D0002);
+    serial_send_u32(0x6D6D0001);
 
     int loaded_from_fat = 0;
 
@@ -406,22 +441,23 @@ fat_fail:
         }*/
         goto retry_sd;
     }
+    printf("Shutting down SD card...\n");
+    sdcard_exit();
 
+boot:
+    serial_send_u32(0x6D6D0001);
     // Reset LED to purple if SD card is successful.
     if (!(pflags_val & (PON_SMC_TIMER | PFLAG_ENTER_BG_NORMAL_MODE)))
     {
         smc_set_notification_led(LEDRAW_PURPLE);
     }
-
+    serial_send_u32(0x6D6D0002);
     dc_flushall();
     ic_invalidateall();
-
-    printf("Shutting down SD card...\n");
-    sdcard_exit();
-
+    serial_send_u32(0x6D6D0003);
     printf("Shutting down caches and MMU...\n");
     mem_shutdown();
-
+    serial_send_u32(0x6D6D0004);
     switch(boot.mode) {
         case 0:
             if(boot.vector) {
@@ -435,10 +471,11 @@ fat_fail:
         //case 1: smc_power_off(); break;
         //case 2: smc_reset(); break;
     }
-    
+    serial_send_u32(0x6D6D0005);
     // Let minute know that we're launched from boot1
     memcpy((char*)ALL_PURPOSE_TMP_BUF, PASSALONG_MAGIC_BOOT1, 8);
 
+    serial_send_u32(0x6D6D00FF);
     return boot.vector;
 }
 #else // MINUTE_BOOT1
