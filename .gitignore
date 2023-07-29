@@ -39,7 +39,7 @@ boot1.img
 ios_orig.img
 debug/
 debug_boot1/
-
+debug_isfshax/
 # my notes
 dram*.txt
 fat*.txt
