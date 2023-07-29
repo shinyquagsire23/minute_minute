@@ -257,7 +257,6 @@ u32 _main(void *base)
     // Init DRAM
     init_mem2(mem_mode);
     udelay(500000);
-#endif
 
     // Test that DRAM is working/refreshing correctly
     int is_good = 1;
@@ -296,6 +295,7 @@ u32 _main(void *base)
     if (!is_good) {
         serial_fatal();
     }
+#endif
 
     serial_send_u32(0x4D454D30); // MEM0
 
