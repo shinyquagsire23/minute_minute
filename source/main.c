@@ -87,6 +87,9 @@ u32 _main(void *base)
     (void)base;
     int res = 0; (void)res;
 
+    //smc_power_off();
+    irq_initialize();
+
     gfx_init();
     printf("minute loading\n");
 
@@ -250,7 +253,7 @@ u32 _main(void *base)
     serial_send_u32(0x4D454D32); // MEM2
 
     // Init DRAM
-    init_mem2(mem_mode);
+    //init_mem2(mem_mode);
     udelay(500000);
 
     // Test that DRAM is working/refreshing correctly
