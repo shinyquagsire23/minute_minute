@@ -26,6 +26,7 @@ __pycache__/
 local.properties
 .settings/
 .loadpath
+.directory
 
 # Project-specific
 fw.img
