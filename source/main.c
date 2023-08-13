@@ -50,6 +50,7 @@
 #include "gpu.h"
 #include "exi.h"
 #include "interactive_console.h"
+#include "isfshax.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -82,7 +83,7 @@ void silly_tests();
 #ifdef MINUTE_BOOT1
 extern otp_t otp;
 
-bool read_ancast(const char *path){
+static bool read_ancast(const char *path){
     FILE *f = fopen(path, "rb");
     if (!f) {
         return false;
@@ -357,6 +358,8 @@ u32 _main(void *base)
         printf("Mounting SLC...\n");
         irq_initialize();
         isfs_init();
+        serial_send_u32(0x5D4D0003);
+        isfshax_refresh();
         serial_send_u32(0x5D4D0004);
         bool ok = read_ancast("slc:/sys/hax/fw.img");
         if(ok)

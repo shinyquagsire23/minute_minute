@@ -56,6 +56,7 @@ static volatile int irq_flag;
 static u32 last_page_read = 0;
 #if defined(NAND_SUPPORT_ERASE) || defined(NAND_SUPPORT_WRITE)
 static u32 nand_min_page = 0x200; // default to protecting boot1+boot2
+static u8 nand_status_buf[STATUS_BUF_SIZE] ALIGNED(NAND_DATA_ALIGN);
 #endif
 
 void nand_irq(void)
@@ -169,7 +170,25 @@ void nand_get_status(u8 *status_buf) {
 
     __nand_setup_dma(status_buf, (u8 *)-1);
     nand_send_command(NAND_GETSTATUS, 0, NAND_FLAGS_IRQ | NAND_FLAGS_RD, 0x40);
+
+    while(read32(NAND_CTRL) & NAND_CMD_EXEC);
+
+    ahb_flush_from(WB_FLA);
+    dc_invalidaterange(nand_status_buf, STATUS_BUF_SIZE);    
 }
+
+#if defined(NAND_SUPPORT_ERASE) || defined(NAND_SUPPORT_WRITE)
+static int nand_check_error(void){
+    /* get status */
+    *nand_status_buf = 1;
+    dc_flushrange(nand_status_buf, STATUS_BUF_SIZE);
+    nand_get_status(nand_status_buf);
+    return -(*nand_status_buf & 1);
+}
+
+
+#endif
+
 
 void nand_read_page(u32 pageno, void *data, void *ecc) {
     irq_flag = 0;
@@ -198,7 +217,7 @@ void nand_wait(void) {
 }
 
 #ifdef NAND_SUPPORT_WRITE
-void nand_write_page(u32 pageno, void *data, void *ecc) {
+int nand_write_page(u32 pageno, void *data, void *ecc) {
     irq_flag = 0;
     NAND_debug("nand_write_page(%u, %p, %p)\n", pageno, data, ecc);
 
@@ -217,11 +236,15 @@ void nand_write_page(u32 pageno, void *data, void *ecc) {
     nand_send_command(NAND_WRITE_PRE, 0x1f, NAND_FLAGS_WR, 0x840);
     __nand_wait();
     nand_send_command(NAND_WRITE_POST, 0, NAND_FLAGS_IRQ | NAND_FLAGS_WAIT, 0);
+    if(nand_check_error()){
+        NAND_debug("nand_write_page(%d) failed\n", pageno);
+        return -1;
+    }
 }
 #endif
 
 #ifdef NAND_SUPPORT_ERASE
-void nand_erase_block(u32 pageno) {
+int nand_erase_block(u32 pageno) {
     irq_flag = 0;
     NAND_debug("nand_erase_block(%d)\n", pageno);
 
@@ -236,7 +259,12 @@ void nand_erase_block(u32 pageno) {
     nand_send_command(NAND_ERASE_PRE, 0x1c, 0, 0);
     __nand_wait();
     nand_send_command(NAND_ERASE_POST, 0, NAND_FLAGS_IRQ | NAND_FLAGS_WAIT, 0);
+    if(nand_check_error()){
+        NAND_debug("nand_erase_block(%d) failed\n", pageno);
+        return -1;
+    }
     NAND_debug("nand_erase_block(%d) done\n", pageno);
+    return 0;
 }
 #endif
 

@@ -45,3 +45,6 @@ _Static_assert(sizeof(isfshax_super) == ISFSSUPER_SIZE, "isfshax_super must be 0
 
 #define ISFSHAX_INFO_OFFSET         offsetof(isfshax_super, isfshax)
 
+#ifdef NAND_WRITE_ENABLED
+int isfshax_refresh(void);
+#endif

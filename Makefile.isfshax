@@ -33,11 +33,11 @@ CFLAGS			:=	-g -std=c11 -Os \
 					-fomit-frame-pointer -fdata-sections -ffunction-sections \
 					$(ARCH) -nostartfiles
 
-CFLAGS			+=	$(INCLUDE) -D_GNU_SOURCE -DMINUTE_BOOT1 -DISFSHAX_STAGE2 -DMINUTE_HEADLESS -fno-builtin-printf -Wno-nonnull -Werror=implicit
+CFLAGS			+=	$(INCLUDE) -D_GNU_SOURCE -DMINUTE_BOOT1 -DISFSHAX_STAGE2 -DMINUTE_HEADLESS -DNAND_WRITE_ENABLED -fno-builtin-printf -Wno-nonnull -Werror=implicit
 
 CXXFLAGS		:=	$(CFLAGS) -fno-rtti -fno-exceptions
 
-ASFLAGS			:=	-g $(ARCH) -DISFSHAX_STAGE2 -DMINUTE_HEADLESS
+ASFLAGS			:=	-g $(ARCH) -DISFSHAX_STAGE2 -DMINUTE_HEADLESS -DNAND_WRITE_ENABLED
 LDFLAGS			 =	-g --specs=../stub.specs $(ARCH) -Wl,--gc-sections,-Map,$(TARGET).map \
 					-L$(DEVKITARM)/lib/gcc/arm-none-eabi/$(GCC_VERSION)/be -L$(DEVKITARM)/arm-none-eabi/lib/be \
 					-z max-page-size=4096 -nostartfiles
