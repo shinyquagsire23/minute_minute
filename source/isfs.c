@@ -192,8 +192,6 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
         }
     }
 
-    return rc;
-
     /* verify hmac */
     if (flags & ISFSVOL_FLAG_HMAC)
     {
@@ -592,11 +590,13 @@ static int _isfs_load_super_range(isfs_ctx* ctx, u32 min_generation, u32 max_gen
 {
     ctx->generation = max_generation;
 
-    while((ctx->index = isfs_find_super(ctx, min_generation, ctx->generation, &ctx->generation, &ctx->version)) >= 0)
+    while((ctx->index = isfs_find_super(ctx, min_generation, ctx->generation, &ctx->generation, &ctx->version)) >= 0){
+        _isfs_load_keys(ctx);
         if(isfs_read_super(ctx, ctx->super, ctx->index) >= 0)
             break;
         else
             ISFS_debug("Reading superblock %d failed\n", ctx->index);
+    }
 
     return (ctx->index >= 0) ? 0 : -1;
 }
@@ -845,7 +845,6 @@ int isfs_init(void)
         int res = _isfs_load_super(ctx);
         printf("Mount %s: %d\n", ctx->name, res);
         if(res) continue;
-        _isfs_load_keys(ctx);
         ctx->mounted = true;
 
         int _isfsdev_init(isfs_ctx* ctx);
