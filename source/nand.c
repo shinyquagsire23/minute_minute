@@ -99,6 +99,10 @@ void __nand_set_address(s32 page_off, s32 pageno) {
 }
 
 void __nand_setup_dma(u8 *data, u8 *spare) {
+    if ((u32)data & (NAND_DATA_ALIGN - 1)) {
+        printf("NAND: page buffer 0x%08x is not aligned, data will be corrupted\n", data);
+    }
+
     if (((s32)data) != -1) {
         write32(NAND_DATA, dma_addr(data));
     }
@@ -189,8 +193,19 @@ static int nand_check_error(void){
 
 #endif
 
+void nand_wait(void) {
+    if (!(read32(NAND_CTRL) & NAND_BUSY_MASK)) return;
 
-void nand_read_page(u32 pageno, void *data, void *ecc) {
+// power-saving IRQ wait
+    while(!irq_flag) {
+        u32 cookie = irq_kill();
+        if(!irq_flag)
+            irq_wait();
+        irq_restore(cookie);
+    }
+}
+
+int nand_read_page(u32 pageno, void *data, void *ecc) {
     irq_flag = 0;
     last_page_read = pageno;  // needed for error reporting
     __nand_set_address(0, pageno);
@@ -202,18 +217,14 @@ void nand_read_page(u32 pageno, void *data, void *ecc) {
     __nand_wait();
     __nand_setup_dma(data, ecc);
     nand_send_command(NAND_READ_POST, 0, NAND_FLAGS_IRQ | NAND_FLAGS_WAIT | NAND_FLAGS_RD | NAND_FLAGS_ECC, 0x840);
-}
-
-void nand_wait(void) {
-    if (!(read32(NAND_CTRL) & NAND_BUSY_MASK)) return;
-
-// power-saving IRQ wait
-    while(!irq_flag) {
-        u32 cookie = irq_kill();
-        if(!irq_flag)
-            irq_wait();
-        irq_restore(cookie);
-    }
+    nand_wait();
+    write32(NAND_CTRL, 0);
+    ahb_flush_from(WB_FLA);
+    dc_invalidaterange(data, PAGE_SIZE);
+    dc_invalidaterange(ecc, ECC_BUFFER_ALLOC);
+    if (read32(NAND_CTRL) & NAND_ERROR)
+        return -1;
+    return 0;
 }
 
 #ifdef NAND_SUPPORT_WRITE

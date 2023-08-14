@@ -327,9 +327,6 @@ void _dump_sync_seeprom_boot1_versions(void)
         int page = (seeprom_decrypted.boot1_params.sector & 0xFFF) * 0x40;
         nand_initialize(bank);
         nand_read_page(page, nand_page_buf, nand_ecc_buf);
-        nand_wait();
-        dc_invalidaterange(nand_page_buf, PAGE_SIZE);
-        dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
 
         ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
 
@@ -354,9 +351,7 @@ void _dump_sync_seeprom_boot1_versions(void)
         int page = (seeprom_decrypted.boot1_copy_params.sector & 0xFFF) * 0x40;
         nand_initialize(bank);
         nand_read_page(page, nand_page_buf, nand_ecc_buf);
-        nand_wait();
-        dc_invalidaterange(nand_page_buf, PAGE_SIZE);
-        dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+
 
         ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
 
@@ -688,9 +683,6 @@ void dump_restore_seeprom(void)
         int page = (crypt_verify.boot1_params.sector & 0xFFF) * 0x40;
         nand_initialize(bank);
         nand_read_page(page, nand_page_buf, nand_ecc_buf);
-        nand_wait();
-        dc_invalidaterange(nand_page_buf, PAGE_SIZE);
-        dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
 
         ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
 
@@ -709,9 +701,6 @@ void dump_restore_seeprom(void)
         int page = (crypt_verify.boot1_copy_params.sector & 0xFFF) * 0x40;
         nand_initialize(bank);
         nand_read_page(page, nand_page_buf, nand_ecc_buf);
-        nand_wait();
-        dc_invalidaterange(nand_page_buf, PAGE_SIZE);
-        dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
 
         ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
 
@@ -978,9 +967,6 @@ int _dump_slc_raw(u32 bank, int boot1_only)
         for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
         {
             nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
-            nand_wait();
-            dc_invalidaterange(nand_page_buf, PAGE_SIZE);
-            dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
             nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
 
             memcpy(file_buf[page], nand_page_buf, PAGE_SIZE);
@@ -1110,9 +1096,6 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
 
             // This might not be optional? Bug?
             nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
-            nand_wait();
-            dc_invalidaterange(nand_page_buf, PAGE_SIZE);
-            dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
         }
 
         if((i % 0x100) == 0) {
@@ -1178,9 +1161,6 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
 
                 // This might not be optional? Bug?
                 nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
-                nand_wait();
-                dc_invalidaterange(nand_page_buf, PAGE_SIZE + PAGE_SPARE_SIZE);
-                dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
                 //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
 
                 if (memcmp(nand_page_buf, &file_buf[page*PAGE_STRIDE], PAGE_STRIDE)) {
@@ -1248,9 +1228,6 @@ int _dump_slc_to_sdcard_sectors(u32 base, u32 bank)
         for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
         {
             nand_read_page(page_base + page, page_buf[page], nand_ecc_buf);
-            nand_wait();
-            dc_invalidaterange(page_buf[page], PAGE_SIZE);
-            dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
             nand_correct(page_base + page, page_buf[page], nand_ecc_buf);
         }
 
@@ -1709,9 +1686,6 @@ void dump_otp_via_prshhax(void)
 
     nand_initialize(NAND_BANK_SLC);
     nand_read_page(0, nand_page_buf, nand_ecc_buf);
-    nand_wait();
-    dc_invalidaterange(nand_page_buf, PAGE_SIZE);
-    dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
 
     ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
     if (hdr->type == ANCAST_CONSOLE_TYPE_PROD) {

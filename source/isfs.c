@@ -36,7 +36,8 @@
 #   define  ISFS_debug(f, arg...)
 #endif
 
-static u8 slc_cluster_buf[CLUSTER_SIZE] ALIGNED(NAND_DATA_ALIGN);
+static u8 slc_cluster_buf[CLUSTER_SIZE] ALIGNED(256);
+static u8 ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(256);
 
 static bool initialized = false;
 
@@ -106,8 +107,6 @@ static int _isfs_super_check_slot(isfs_ctx *ctx, u32 index)
     return 0;
 }
 
-static u8 ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(128);
-
 static int _isfs_read_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, void *data){
     inline u32 make_sector(u32 page) {
         return (page * CLUSTER_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
@@ -151,27 +150,36 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
         /* read cluster pages */
         for (p = 0; p < CLUSTER_PAGES; p++)
         {
-            u8 spare[PAGE_SPARE_SIZE] = {0};
-
+            // make sure ECC fails, if read did nothing
+            memset(ecc_buf, 0, ECC_BUFFER_ALLOC);
             /* attempt to read the page (and correct ecc errors) */
-            nand_read_page(cluster_start + p, &cluster_data[p * PAGE_SIZE], spare);
-            int correct = nand_correct(cluster_start + p, &cluster_data[p * PAGE_SIZE], spare );
-            /* uncorrectable ecc error or other issues */
-            if (correct < 0)
+            int nand_error = nand_read_page(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
+            if(nand_error){
+                ISFS_debug("NAND ERROR on read\n");
                 rc = ISFSVOL_ERROR_READ;
+            }
+
+            int correct = nand_correct(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
+            /* uncorrectable ecc error or other issues */
+            if (correct < 0) {
+                ISFS_debug("Uncorrectable ECC ERROR\n");
+                rc = ISFSVOL_ERROR_READ;
+            }
 
             /* ECC errors, a refresh might be needed */
-            if ((correct > 0) && !rc )
+            if ((correct > 0) && !rc ){
+                ISFS_debug("Corrected ECC ERROR\n");
                 rc = ISFSVOL_ECC_CORRECTED;
+            }
 
             /* page 6 and 7 store the hmac */
             if (p == 6)
             {
-                memcpy(saved_hmacs[0], &spare[1], 20);
-                memcpy(saved_hmacs[1], &spare[21], 12);
+                memcpy(saved_hmacs[0], &ecc_buf[1], 20);
+                memcpy(saved_hmacs[1], &ecc_buf[21], 12);
             }
             if (p == 7)
-                memcpy(&saved_hmacs[1][12], &spare[1], 8);
+                memcpy(&saved_hmacs[1][12], &ecc_buf[1], 8);
         }
 
         /* decrypt cluster */
@@ -183,6 +191,8 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
             aes_decrypt(cluster_data, cluster_data, CLUSTER_SIZE / ISFSAES_BLOCK_SIZE, 0);            
         }
     }
+
+    return rc;
 
     /* verify hmac */
     if (flags & ISFSVOL_FLAG_HMAC)
@@ -202,10 +212,14 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
 
         if (matched == 2)
             rc = ISFSVOL_OK;
-        else if (matched == 1)
+        else if (matched == 1) {
+            ISFS_debug("HMAC partital match\n");
             rc = ISFSVOL_HMAC_PARTIAL;
-        else
+        }
+        else {
+            ISFS_debug("HMAC error\n");
             rc = ISFSVOL_ERROR_HMAC;
+        }
     }
 
     return rc;
@@ -497,18 +511,20 @@ char* _isfs_do_volume(const char* path, isfs_ctx** ctx)
 
     char mount[sizeof(volume->name)] = {0};
     memcpy(mount, path, filename - path);
-
+    ISFS_debug("searching volume %s\n", mount);
     for(int i = 0; i < _isfs_num_volumes(); i++)
     {
         volume = &isfs[i];
         if(strcmp(mount, volume->name)) continue;
 
-        if(!volume->mounted) return NULL;
-
+        if(!volume->mounted){
+            ISFS_debug("volume %s not mounted\n", mount);
+            return NULL;
+        }
         *ctx = volume;
         return (char*)(filename + 1);
     }
-
+    ISFS_debug("volume name not found\n");
     return NULL;
 }
 
@@ -579,8 +595,24 @@ static int _isfs_load_super_range(isfs_ctx* ctx, u32 min_generation, u32 max_gen
     while((ctx->index = isfs_find_super(ctx, min_generation, ctx->generation, &ctx->generation, &ctx->version)) >= 0)
         if(isfs_read_super(ctx, ctx->super, ctx->index) >= 0)
             break;
+        else
+            ISFS_debug("Reading superblock %d failed\n", ctx->index);
 
     return (ctx->index >= 0) ? 0 : -1;
+}
+
+static int _isfs_load_super(isfs_ctx* ctx){
+    u32 max_generation = 0xffffffff;
+    int res = _isfs_load_super_range(ctx, ISFSHAX_GENERATION_FIRST, 0xffffffff);
+    if(res>=0){
+        printf("ISFShax generation found");
+        if(read32((u32)ctx->super + ISFSHAX_INFO_OFFSET) == ISFSHAX_MAGIC){
+            // Iisfshax was found, only look for non isfshax generations to mount
+            max_generation = ISFSHAX_GENERATION_FIRST;
+            printf("ISFShax detected");
+        }
+    }
+    return _isfs_load_super_range(ctx, 0, max_generation);
 }
 
 #ifdef NAND_WRITE_ENABLED
@@ -618,18 +650,6 @@ int isfs_commit_super(isfs_ctx* ctx)
 }
 #endif //NAND_WRITE_ENABLED
 
-static int _isfs_load_super(isfs_ctx* ctx){
-    u32 max_generation = 0xffffffff;
-    int res = _isfs_load_super_range(ctx, ISFSHAX_GENERATION_FIRST, 0xffffffff);
-    if(res<=0){
-        if(read32((u32)ctx->super + ISFSHAX_INFO_OFFSET) == ISFSHAX_MAGIC){
-            // Iisfshax was found, only look for non isfshax generations to mount
-            max_generation = ISFSHAX_GENERATION_FIRST;
-        }
-    }
-    return _isfs_load_super_range(ctx, 0, max_generation);
-}
-
 isfs_fst* isfs_stat(const char* path)
 {
     isfs_ctx* ctx = NULL;
@@ -645,9 +665,11 @@ int isfs_open(isfs_file* file, const char* path)
 
     isfs_ctx* ctx = NULL;
     path = _isfs_do_volume(path, &ctx);
-    if(!ctx) return -2;
+    ISFS_debug("volume found: %p\n", ctx);
+    if(!ctx)return -2;
 
     isfs_fst* fst = _isfs_find_fst(ctx, NULL, path);
+    ISFS_debug("fst found: %p\n", fst);
     if(!fst) return -3;
 
     if(!_isfs_fst_is_file(fst)) return -4;
@@ -821,7 +843,10 @@ int isfs_init(void)
         if(!ctx->super) return -1;
 
         int res = _isfs_load_super(ctx);
+        printf("Mount %s: %d\n", ctx->name, res);
         if(res) continue;
+        _isfs_load_keys(ctx);
+        ctx->mounted = true;
 
         int _isfsdev_init(isfs_ctx* ctx);
         _isfsdev_init(ctx);
