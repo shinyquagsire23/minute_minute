@@ -36,8 +36,8 @@
 #   define  ISFS_debug(f, arg...)
 #endif
 
-static u8 slc_cluster_buf[CLUSTER_SIZE] ALIGNED(256);
-static u8 ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(256);
+static u8 slc_cluster_buf[CLUSTER_SIZE] ALIGNED(NAND_DATA_ALIGN);
+static u8 ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(NAND_DATA_ALIGN);
 
 static bool initialized = false;
 
@@ -839,7 +839,7 @@ int isfs_init(void)
     {
         isfs_ctx* ctx = &isfs[i];
 
-        if(!ctx->super) ctx->super = memalign(64, 0x80 * PAGE_SIZE);
+        if(!ctx->super) ctx->super = memalign(NAND_DATA_ALIGN, 0x80 * PAGE_SIZE);
         if(!ctx->super) return -1;
 
         int res = _isfs_load_super(ctx);
