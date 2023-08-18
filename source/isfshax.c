@@ -35,6 +35,8 @@
 #include "isfshax.h"
 #include "malloc.h"
 
+#include <stdio.h>
+
 #define ISFSVOL_SLC 0
 #define SLC_SUPER_COUNT 64
 
@@ -52,6 +54,8 @@ static isfshax_super superblock;
 int isfshax_refresh(void)
 {
     isfs_ctx *slc = isfs_get_volume(ISFSVOL_SLC);
+    slc->version = 1;
+    isfs_load_keys(slc);
     u32 curindex, offs, count = 1, written = 0;
     u32 generation;
 
@@ -59,6 +63,8 @@ int isfshax_refresh(void)
      * attempted to recommit the superblock */
     if (boot1_superblock->generation == boot1_superblock->isfshax.generation)
         return 0;
+
+    printf("searching good ISFShax superblock\n");
 
     /* load the newest valid isfshax superblock slot */
     curindex = boot1_superblock->isfshax.index;
@@ -71,8 +77,12 @@ int isfshax_refresh(void)
             break;
         }
     }
-    if (offs == ISFSHAX_REDUNDANCY)
+    if (offs == ISFSHAX_REDUNDANCY){
+        printf("no good isfshax superblock\n");
         return -2;
+    }
+
+    printf("rewriting ISFShax superblocks\n");
 
     /* if the last valid generation is reached, rewrite/erase all
      * isfshax superblocks with a lower generation number */
@@ -124,6 +134,7 @@ int isfshax_refresh(void)
         }
     }
 
+    printf("written ISFShax superblocks: %d\n", written);
     /* all isfshax superblocks became bad, or the nand writing code stopped
      * working correctly. either way the user should probably be informed. */
     if (!written)

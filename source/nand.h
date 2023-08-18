@@ -45,6 +45,7 @@ int nand_reset(u32 bank);
 void nand_get_id(u8 *);
 void nand_get_status(u8 *);
 int nand_read_page(u32 pageno, void *data, void *ecc);
+int nand_write_page_raw(u32 pageno, void *data, void *ecc);
 int nand_write_page(u32 pageno, void *data, void *ecc);
 int nand_erase_block(u32 pageno);
 void nand_wait(void);

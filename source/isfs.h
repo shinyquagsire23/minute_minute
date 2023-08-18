@@ -105,6 +105,7 @@ _Static_assert(sizeof(isfs_hdr) == 0xC, "isfs_hdr size must be 0xC!");
 
 int isfs_init(void);
 int isfs_fini(void);
+int isfs_load_keys(isfs_ctx* ctx);
 
 void isfs_print_fst(isfs_fst* fst);
 isfs_fst* isfs_stat(const char* path);

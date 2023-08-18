@@ -1156,7 +1156,7 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
             if (!is_cleared) {
                 
                 //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
-                nand_write_page(page_base + page, nand_page_buf, nand_ecc_buf);
+                nand_write_page_raw(page_base + page, nand_page_buf, nand_ecc_buf);
                 nand_wait();
 
                 // This might not be optional? Bug?

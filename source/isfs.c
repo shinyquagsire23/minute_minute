@@ -226,19 +226,14 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
 #ifdef NAND_WRITE_ENABLED
 int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data)
 {
-    static u8 blockpg[64][PAGE_SIZE] ALIGNED(64), blocksp[64][PAGE_SPARE_SIZE];
-    static u8 pgbuf[PAGE_SIZE] ALIGNED(64), spbuf[PAGE_SPARE_SIZE];
+    static u8 blockpg[BLOCK_PAGES][PAGE_SIZE] ALIGNED(NAND_DATA_ALIGN), blocksp[BLOCK_PAGES][PAGE_SPARE_SIZE];
+    static u8 pgbuf[PAGE_SIZE] ALIGNED(NAND_DATA_ALIGN);
     u8 hmac[20] = {0};
     int rc = ISFSVOL_OK;
     u32 b, p;
 
     /* enable slc or slccmpt bank */
     nand_initialize(ctx->bank);
-
-    memset(blockpg, 0, 64 * PAGE_SIZE);
-    dc_flushrange(blockpg, 64 * PAGE_SIZE);  
-    memset(blocksp, 0, 64 * PAGE_SPARE_SIZE);
-    dc_flushrange(blocksp, 64 * PAGE_SPARE_SIZE);
 
     /* compute clusters hmac */
     if (flags & ISFSVOL_FLAG_HMAC)
@@ -278,9 +273,11 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
             /* if this page is unmodified, read it from nand */
             if ((curpage < startpage) || (curpage >= endpage))
             {
-                nand_read_page(curpage, blockpg[p], blocksp[p]);
-                if (nand_correct(curpage, blockpg[p], blocksp[p]) < 0)
+                ISFS_debug("Reading existing page\n");
+                nand_read_page(curpage, blockpg[p], ecc_buf);
+                if (nand_correct(curpage, blockpg[p], ecc_buf) < 0)
                     return ISFSVOL_ERROR_READ;
+                memcpy(blocksp[p], ecc_buf, PAGE_SPARE_SIZE);
                 continue;
             }
 
@@ -304,31 +301,45 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
             else
                 memcpy(blockpg[p], srcdata, PAGE_SIZE);
         }
-
+        ISFS_debug("Erase block\n");
         /* erase block */
-        if (nand_erase_block(b) < 0)
+        if (nand_erase_block(b * BLOCK_PAGES) < 0)
             return ISFSVOL_ERROR_ERASE;
 
+        ISFS_debug("Writing\n");
         /* write block */
         for (p = 0; p < BLOCK_PAGES; p++)
-            if (nand_write_page(firstblockpage + p, blockpg[p], blocksp[p]) < 0)
+            if (nand_write_page(firstblockpage + p, blockpg[p], blocksp[p]) < 0){
+                printf("ISFS: Error writing page");
                 rc = ISFSVOL_ERROR_WRITE;
+            }
 
         /* check if pages should be verified after writing */
         if (rc || !(flags & ISFSVOL_FLAG_READBACK))
             continue;
 
+        ISFS_debug("Reading back\n");
         /* read back pages */
         for (p = 0; p < BLOCK_PAGES; p++)
         {
-            nand_read_page(firstblockpage + p, pgbuf, spbuf);
-            if(nand_correct(firstblockpage + p, pgbuf, spbuf) < 0)
+            memset(ecc_buf, 0xDEADBEEF, PAGE_SPARE_SIZE);
+            memset(pgbuf, 0xDEADBEEF, PAGE_SIZE);
+            if(nand_read_page(firstblockpage + p, pgbuf, ecc_buf) < 0){
+                printf("ISFS: Error reading back\n");
                 return ISFSVOL_ERROR_READ;
+            }
+            //if(nand_correct(firstblockpage + p, pgbuf, ecc_buf) < 0)
+            //    return ISFSVOL_ERROR_READ;
 
             /* page content doesn't match */
-            if (memcmp(blockpg[p], pgbuf, PAGE_SIZE) ||
-                memcmp(&blocksp[p][1], &spbuf[1], 0x20))
+            if (memcmp(blockpg[p], pgbuf, PAGE_SIZE)){
+                printf("ISFS: Read back data doesn't match\n");
                 return ISFSVOL_ERROR_READBACK;
+            }
+            if (memcmp(&blocksp[p][1], &ecc_buf[1], 0x20)){
+                printf("ISFS: Read back spare doesn't match\n");
+                return ISFSVOL_ERROR_READBACK;
+            }
         }
     }
 
@@ -354,7 +365,7 @@ isfs_fst* _isfs_get_fst(isfs_ctx* ctx)
     return (isfs_fst*)&ctx->super[0x10000 + 0x0C];
 }
 
-static int _isfs_load_keys(isfs_ctx* ctx)
+int isfs_load_keys(isfs_ctx* ctx)
 {
     switch(ctx->version) {
         case 0:
@@ -591,7 +602,7 @@ static int _isfs_load_super_range(isfs_ctx* ctx, u32 min_generation, u32 max_gen
     ctx->generation = max_generation;
 
     while((ctx->index = isfs_find_super(ctx, min_generation, ctx->generation, &ctx->generation, &ctx->version)) >= 0){
-        _isfs_load_keys(ctx);
+        isfs_load_keys(ctx);
         if(isfs_read_super(ctx, ctx->super, ctx->index) >= 0)
             break;
         else
@@ -605,11 +616,10 @@ static int _isfs_load_super(isfs_ctx* ctx){
     u32 max_generation = 0xffffffff;
     int res = _isfs_load_super_range(ctx, ISFSHAX_GENERATION_FIRST, 0xffffffff);
     if(res>=0){
-        printf("ISFShax generation found");
         if(read32((u32)ctx->super + ISFSHAX_INFO_OFFSET) == ISFSHAX_MAGIC){
             // Iisfshax was found, only look for non isfshax generations to mount
             max_generation = ISFSHAX_GENERATION_FIRST;
-            printf("ISFShax detected");
+            printf("ISFShax detected\n");
         }
     }
     return _isfs_load_super_range(ctx, 0, max_generation);
