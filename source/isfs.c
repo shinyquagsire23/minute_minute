@@ -310,7 +310,7 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
         /* write block */
         for (p = 0; p < BLOCK_PAGES; p++)
             if (nand_write_page(firstblockpage + p, blockpg[p], blocksp[p]) < 0){
-                printf("ISFS: Error writing page");
+                printf("ISFS: Error writing page\n");
                 rc = ISFSVOL_ERROR_WRITE;
             }
 
@@ -322,14 +322,13 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
         /* read back pages */
         for (p = 0; p < BLOCK_PAGES; p++)
         {
-            memset(ecc_buf, 0xDEADBEEF, PAGE_SPARE_SIZE);
-            memset(pgbuf, 0xDEADBEEF, PAGE_SIZE);
+            memset(ecc_buf, 0xDEADBEEF, ECC_BUFFER_ALLOC);
             if(nand_read_page(firstblockpage + p, pgbuf, ecc_buf) < 0){
                 printf("ISFS: Error reading back\n");
                 return ISFSVOL_ERROR_READ;
             }
-            //if(nand_correct(firstblockpage + p, pgbuf, ecc_buf) < 0)
-            //    return ISFSVOL_ERROR_READ;
+            if(nand_correct(firstblockpage + p, pgbuf, ecc_buf) < 0)
+                return ISFSVOL_ERROR_READ;
 
             /* page content doesn't match */
             if (memcmp(blockpg[p], pgbuf, PAGE_SIZE)){
