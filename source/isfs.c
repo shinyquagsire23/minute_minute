@@ -25,6 +25,8 @@
 #include "sdcard.h"
 #include "memory.h"
 
+#include "isfshax.h"
+
 //#define ISFS_DEBUG
 
 #ifdef ISFS_DEBUG
@@ -306,7 +308,7 @@ char* _isfs_do_volume(const char* path, isfs_ctx** ctx)
     return NULL;
 }
 
-static int _isfs_load_super(isfs_ctx* ctx)
+static int _isfs_load_super_range(isfs_ctx* ctx, u32 min_generation, u32 max_generation)
 {
     int res = 0;
 
@@ -337,7 +339,8 @@ static int _isfs_load_super(isfs_ctx* ctx)
 
         u32 generation = _isfs_get_super_generation(super);
         if(newest.start != 0 && generation < newest.generation) continue;
-
+        if(generation >= max_generation) continue;
+        if(generation < min_generation) continue;
         newest.start = i;
         newest.generation = generation;
         newest.version = version;
@@ -367,6 +370,18 @@ static int _isfs_load_super(isfs_ctx* ctx)
 
     ctx->mounted = true;
     return 0;
+}
+
+static int _isfs_load_super(isfs_ctx* ctx){
+    u32 max_generation = 0xffffffff;
+    int res = _isfs_load_super_range(ctx, ISFSHAX_GENERATION_FIRST, 0xffffffff);
+    if(res<=0){
+        if(read32((u32)ctx->super + ISFSHAX_INFO_OFFSET) == ISFSHAX_MAGIC){
+            // Iisfshax was found, only look for non isfshax generations to mount
+            max_generation = ISFSHAX_GENERATION_FIRST;
+        }
+    }
+    return _isfs_load_super_range(ctx, 0, max_generation);
 }
 
 isfs_fst* isfs_stat(const char* path)
