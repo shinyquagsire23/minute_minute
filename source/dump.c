@@ -1706,17 +1706,40 @@ void dump_otp_via_prshhax(void)
     void* payload_dst = (void*)PRSHHAX_PAYLOAD_DST;
     u32 boot_info_addr = 0x0;
     char* console_type_str = "unk";
+    int has_mismatch = 0;
+    ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
+    u32 type_slot0 = 0;
+    u32 version_slot0 = 0;
+    u32 type_slot1 = 0;
+    u32 version_slot1 = 0;
 
     nand_initialize(NAND_BANK_SLC);
+
+    // TODO: technically these can be altered in SEEPROM, but also pls don't do that.
+    // Read slot0 boot1 header
     nand_read_page(0, nand_page_buf, nand_ecc_buf);
     nand_wait();
     dc_invalidaterange(nand_page_buf, PAGE_SIZE);
     dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
 
-    ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
-    if (hdr->type == ANCAST_CONSOLE_TYPE_PROD) {
+    type_slot0 = hdr->type;
+    version_slot0 = hdr->version & 0xFFFF;
+
+    // Read slot1 boot1 header
+    nand_read_page(BOOT1_MAX_PAGE, nand_page_buf, nand_ecc_buf);
+    nand_wait();
+    dc_invalidaterange(nand_page_buf, PAGE_SIZE);
+    dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+
+    type_slot1 = hdr->type;
+    version_slot1 = hdr->version & 0xFFFF;
+
+    u32 boot1_type = version_slot1 > version_slot0 ? type_slot1 : type_slot0;
+    u32 boot1_version = version_slot1 > version_slot0 ? version_slot1 : version_slot0;
+
+    if (boot1_type == ANCAST_CONSOLE_TYPE_PROD) {
         console_type_str = "prod";
-        switch(hdr->version)
+        switch(boot1_version)
         {
         case 8296:
             boot_info_addr = 0x0D40A7E5;
@@ -1743,9 +1766,9 @@ void dump_otp_via_prshhax(void)
             goto fail;
         }
     }
-    else if (hdr->type == ANCAST_CONSOLE_TYPE_DEV) {
+    else if (boot1_type == ANCAST_CONSOLE_TYPE_DEV) {
         console_type_str = "dev";
-        switch(hdr->version)
+        switch(boot1_version)
         {
         case 8296:
             boot_info_addr = 0x0D40A78D;
@@ -1798,7 +1821,7 @@ void dump_otp_via_prshhax(void)
         }*/
 
         printf("Guessing key based on boot1 header type %x\n", hdr->type);
-        if (hdr->type == ANCAST_CONSOLE_TYPE_DEV) {
+        if (boot1_type == ANCAST_CONSOLE_TYPE_DEV) {
             printf("  --> dev key\n");
             memcpy(otp.fw_ancast_key, key_dev, 16);
         }
@@ -1809,10 +1832,20 @@ void dump_otp_via_prshhax(void)
     }
     otp.security_level |= 0x80000000;
 
-    printf("Dumping OTP using boot1 %s v%u, and offset 0x%08x...\n", console_type_str, hdr->version, boot_info_addr);
-    if (seeprom_decrypted.boot1_params.version != hdr->version) {
-        printf("WARNING: SEEPROM boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_params.version, hdr->version);
+    printf("Dumping OTP using boot1 %s v%u (slot0=v%u, slot1=v%u), and offset 0x%08x...\n", console_type_str, boot1_version, version_slot0, version_slot1, boot_info_addr);
+
+    if (seeprom_decrypted.boot1_params.version != version_slot0) {
+        has_mismatch = 1;
+        printf("\nWARNING: SEEPROM slot0 boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_params.version, version_slot0);
         printf("         Exploit might not work!\n\n");
+    }
+    if (seeprom_decrypted.boot1_copy_params.version != version_slot1) {
+        has_mismatch = 1;
+        printf("\nWARNING: SEEPROM slot1 boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_copy_params.version, version_slot1);
+        printf("         Exploit might not work!\n\n");
+    }
+
+    if (has_mismatch) {
         printf("If this is the first time you're dumping otp.bin, ignore this message.\n");
         printf("However, if you reflashed boot1, you might have to guess which boot1\n");
         printf("version was originally on NAND and will match the SEEPROM version.\n");
