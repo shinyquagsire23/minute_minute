@@ -22,6 +22,7 @@
 #include "gfx.h"
 #include "gpio.h"
 #include "serial.h"
+#include "rtc.h"
 
 // 0x00 - odd on (raw)
 // 0x01 - odd off (raw)
@@ -356,7 +357,7 @@ void SRAM_TEXT smc_shutdown(int type)
     write16(MEM_FLUSH_MASK, 0b1111);
     while(read16(MEM_FLUSH_MASK) & 0b1111);
 
-    if(read32(LT_RESETS) & 4) {
+    if(read32(LT_RESETS) & BIT(2)) {
         // Our stack is in DRAM :)
         //abif_gpu_write32(0x8020, 0xFFFFFFFF);
         //abif_gpu_write32(0x0E60, 0xFFFFFFDB);
@@ -367,9 +368,9 @@ void SRAM_TEXT smc_shutdown(int type)
         write32(LT_ABIF_DATA, 0xFFFFFFDB);
     }
 
-    write32(LT_RESETS_AHB, 0xFFFFCE71);
-    write32(LT_RESETS_AHMN, 0xFFFFCD70);
-    write32(LT_RESETS_COMPAT, 0xFF8FCDEF);
+    write32(LT_RESETS_AHB, ~(0x2000 | 0x1000 | 0x100 | 0x80 | 0x8 | 0x4 | 0x2));
+    write32(LT_RESETS_AHMN, ~(0x2000 | 0x1000 | 0x200 | 0x80 | 0x8 | 0x4 | 0x2 | 0x1));
+    write32(LT_RESETS_COMPAT, ~(RSTB_DSP | RSTB_VI1 | RSTB_VI | RSTB_GFX | RSTB_GFXTCPE | RSTB_PI | RSTB_CPU));
 
     write16(MEM_REFRESH_FLAG, 0);
 
@@ -390,12 +391,12 @@ void SRAM_TEXT smc_shutdown(int type)
     if(type) {
         {
             write32(EXI0_CSR, 0x108);
-            write32(EXI0_DATA, 0xA1000D00);
+            write32(EXI0_DATA, 0xA1000D00); // CONTROL1
             write32(EXI0_CR, 0x35);
             while(!(read32(EXI0_CSR) & 8));
 
             write32(EXI0_CSR, 0x108);
-            write32(EXI0_DATA, 0x501);
+            write32(EXI0_DATA, CTRL1_DEVPWR_SYNC | CTRL1_SLEEP_EN | CTRL1_4COUNT_EN);
             write32(EXI0_CR, 0x35);
             while(!(read32(EXI0_CSR) & 8));
 
@@ -404,7 +405,7 @@ void SRAM_TEXT smc_shutdown(int type)
 
         {
             write32(EXI0_CSR, 0x108);
-            write32(EXI0_DATA, 0xA1000100);
+            write32(EXI0_DATA, 0xA1000100); // OFFTMR_SET
             write32(EXI0_CR, 0x35);
             while(!(read32(EXI0_CSR) & 8));
 
@@ -416,11 +417,14 @@ void SRAM_TEXT smc_shutdown(int type)
             write32(EXI0_CSR, 0);
         }
 
-        clear32(LT_RESETS, 1);
+        // Make sure Pico has full control of reset for this case in particular (PRSH hax)
+        if (type != SMC_SHUTDOWN_RESET_NO_DEFUSE) {
+            clear32(LT_RESETS, 1);
+        }
     } else {
         {
             write32(EXI0_CSR, 0x108);
-            write32(EXI0_DATA, 0xA1000100);
+            write32(EXI0_DATA, 0xA1000100); // OFFTMR_SET
             write32(EXI0_CR, 0x35);
             while(!(read32(EXI0_CSR) & 8));
 
@@ -434,12 +438,12 @@ void SRAM_TEXT smc_shutdown(int type)
 
         {
             write32(EXI0_CSR, 0x108);
-            write32(EXI0_DATA, 0xA1000D00);
+            write32(EXI0_DATA, 0xA1000D00); // CONTROL1
             write32(EXI0_CR, 0x35);
             while(!(read32(EXI0_CSR) & 8));
 
             write32(EXI0_CSR, 0x108);
-            write32(EXI0_DATA, 0x101);
+            write32(EXI0_DATA, CTRL1_SLEEP_EN | CTRL1_4COUNT_EN);
             write32(EXI0_CR, 0x35);
             while(!(read32(EXI0_CSR) & 8));
 
@@ -448,12 +452,12 @@ void SRAM_TEXT smc_shutdown(int type)
 
         {
             write32(EXI0_CSR, 0x108);
-            write32(EXI0_DATA, 0xA1000D00);
+            write32(EXI0_DATA, 0xA1000D00); // CONTROL1
             write32(EXI0_CR, 0x35);
             while(!(read32(EXI0_CSR) & 8));
 
             write32(EXI0_CSR, 0x108);
-            write32(EXI0_DATA, 0x10101);
+            write32(EXI0_DATA, CTRL1_POFF_EXE | CTRL1_SLEEP_EN | CTRL1_4COUNT_EN);
             write32(EXI0_CR, 0x35);
             while(!(read32(EXI0_CSR) & 8));
 
