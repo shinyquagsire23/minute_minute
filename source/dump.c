@@ -1013,17 +1013,19 @@ int _dump_slc_raw(u32 bank, int boot1_only)
 
 int _dump_restore_slc(u32 bank, int boot1_only, int raw)
 {
+    bool nand_test = true;
     int ret = 0;
     int boot1_is_half = 0;
 
-    #define PAGES_PER_ITERATION (0x10)
-    #define TOTAL_ITERATIONS ((boot1_only ? (boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE) / PAGES_PER_ITERATION)
+    //#define PAGES_PER_ITERATION (0x10)
+    //#define TOTAL_ITERATIONS ((boot1_only ? (boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE) / PAGES_PER_ITERATION)
+    const u32 total_pages = boot1_only ?(boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE;
 
     #define PAGE_STRIDE (raw ? PAGE_SIZE + PAGE_SPARE_SIZE : PAGE_SIZE)
-    #define FILE_BUF_SIZE (PAGES_PER_ITERATION * PAGE_STRIDE)
+    #define FILE_BUF_SIZE (PAGES_PER_BLOCK * PAGE_STRIDE)
 
     static u8 page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(64);
-    static u8 file_buf[PAGES_PER_ITERATION * (PAGE_SIZE + PAGE_SPARE_SIZE)];
+    static u8 file_buf[PAGES_PER_BLOCK * (PAGE_SIZE + PAGE_SPARE_SIZE)];
 
     sdcard_ack_card();
     if(sdcard_check_card() != SDMMC_INSERTED) {
@@ -1097,33 +1099,9 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
     printf("Initializing %s...\n", name);
     nand_initialize(bank);
 
-    // I tried to do this in-line with the programming, but it just ended up as all FF?
-    // So there's some kind of delay required idk
-    printf("Erasing...\n");
-    for(u32 i = 0; i < TOTAL_ITERATIONS; i++)
-    {
-        u32 page_base = i * PAGES_PER_ITERATION;
-        for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
-        {
-            nand_erase_block(page_base + page);
-            nand_wait();
+    for(u32 page_base=0; page_base < total_pages; page_base += PAGES_PER_BLOCK){
+        nand_erase_block(page_base);
 
-            // This might not be optional? Bug?
-            nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
-            nand_wait();
-            dc_invalidaterange(nand_page_buf, PAGE_SIZE);
-            dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
-        }
-
-        if((i % 0x100) == 0) {
-            printf("%s%s: Page 0x%05lX / 0x%05lX erased\n", name, raw ? "-RAW" : "", page_base, PAGES_PER_ITERATION * TOTAL_ITERATIONS);
-        }
-    }
-
-    printf("Programming...\n");
-
-    for(u32 i = 0; i < TOTAL_ITERATIONS; i++)
-    {
         fres = f_read(&file, file_buf, FILE_BUF_SIZE, &btx);
         if(fres != FR_OK || btx != FILE_BUF_SIZE) {
             f_close(&file);
@@ -1131,9 +1109,9 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
             return -4;
         }
 
-        u32 page_base = i * PAGES_PER_ITERATION;
-        for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
-        {
+        nand_wait(); // make sure erase finished
+
+        for(u32 page=0; page < PAGES_PER_BLOCK; page++){
             memcpy(nand_page_buf, &file_buf[page*PAGE_STRIDE], PAGE_STRIDE);
             if (raw)
             {
@@ -1189,10 +1167,11 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
             }
         }
 
-        if((i % 0x100) == 0) 
+        if((page_base % (PAGES_PER_BLOCK * 0x10)) == 0) 
         {
-            printf("%s%s: Page 0x%05lX / 0x%05lX completed\n", name, raw ? "-RAW" : "", page_base, PAGES_PER_ITERATION * TOTAL_ITERATIONS);
+            printf("%s%s: Page 0x%05lX / 0x%05lX completed\n", name, raw ? "-RAW" : "", page_base, total_pages);
         }
+
     }
 
     fres = f_close(&file);

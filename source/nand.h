@@ -20,7 +20,7 @@
 #define PAGE_SPARE_SIZE  (64)
 #define ECC_BUFFER_SIZE  (PAGE_SPARE_SIZE+16)
 #define ECC_BUFFER_ALLOC (PAGE_SPARE_SIZE+32)
-#define BLOCK_SIZE       (64)
+#define PAGES_PER_BLOCK  (64)
 #define NAND_MAX_PAGE    (0x40000)
 #define BOOT1_MAX_PAGE   (0x40)
 
