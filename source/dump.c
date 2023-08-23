@@ -82,6 +82,7 @@ menu menu_dump = {
             {"Restore redNAND", &dump_restore_rednand},
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
+            {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Return to Main Menu", &menu_close},
     },
     19, // number of options
@@ -1011,9 +1012,16 @@ int _dump_slc_raw(u32 bank, int boot1_only)
     #undef TOTAL_ITERATIONS
 }
 
-int _dump_restore_slc(u32 bank, int boot1_only, int raw)
+bool check_all32(u8* arr, u32 length, u8 value){
+    for(u32 i=0; i<length; i++){
+        if(arr[i] != value)
+            return true;
+    }
+    return false;
+}
+
+int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
 {
-    bool nand_test = true;
     int ret = 0;
     int boot1_is_half = 0;
 
@@ -1099,7 +1107,32 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
     printf("Initializing %s...\n", name);
     nand_initialize(bank);
 
+    u32 program_test_failed = 0;
+    u32 erase_test_failed = 0;
+    u32 program_failed = 0;
+
     for(u32 page_base=0; page_base < total_pages; page_base += PAGES_PER_BLOCK){
+        if(nand_test){
+            //Test if page can be fully programmed to 0
+            for(u32 page=0; page < PAGES_PER_BLOCK; page++){
+                memset32(nand_page_buf, 0, PAGE_SIZE);
+                memset32(nand_ecc_buf, 0, PAGE_SPARE_SIZE);
+                nand_write_page(page_base + page, nand_page_buf, nand_ecc_buf);
+                nand_wait();
+                memset32(nand_page_buf, 0xffffffff, PAGE_SIZE);
+                memset32(nand_ecc_buf, 0xffffffff, PAGE_SPARE_SIZE);
+                // This might not be optional? Bug?
+                nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
+                nand_wait();
+                dc_invalidaterange(nand_page_buf, PAGE_SIZE + PAGE_SPARE_SIZE);
+                dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+                if(check_all32(nand_page_buf, PAGE_SIZE, 0)){
+                    printf("Page 0x%05lX failed program test\n", page_base + page);
+                    program_test_failed++;
+                }
+                //nand_correct(page_base + page, nand_page_buf, nand_
+            }
+        }
         nand_erase_block(page_base);
 
         fres = f_read(&file, file_buf, FILE_BUF_SIZE, &btx);
@@ -1110,6 +1143,24 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
         }
 
         nand_wait(); // make sure erase finished
+
+        if(nand_test){
+            // Test if page can be fully erased to ff
+            for(u32 page=0; page < PAGES_PER_BLOCK; page++){
+                memset32(nand_page_buf, 0, PAGE_SIZE);
+                memset32(nand_ecc_buf, 0, PAGE_SPARE_SIZE);
+                // This might not be optional? Bug?
+                nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
+                nand_wait();
+                dc_invalidaterange(nand_page_buf, PAGE_SIZE + PAGE_SPARE_SIZE);
+                dc_invalidaterange(nand_ecc_buf, ECC_BUFFER_ALLOC);
+                if(check_all32(nand_page_buf, PAGE_SIZE, 0xff)){
+                    printf("Page 0x%05lX failed erase test\n", page_base + page);
+                    erase_test_failed++;
+                }
+                //nand_correct(page_base + page, nand_page_buf, nand_
+            }
+        }
 
         for(u32 page=0; page < PAGES_PER_BLOCK; page++){
             memcpy(nand_page_buf, &file_buf[page*PAGE_STRIDE], PAGE_STRIDE);
@@ -1179,6 +1230,12 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
         printf("Failed to close %s (%d).\n", path, fres);
         ret = -5;
     }
+
+    if(nand_test){
+        printf("%u pages failed program test\n%u pages failed erase test\n",
+                program_test_failed, erase_test_failed);
+    }
+    printf("%u pages failed to program", program_failed);
 
     _dump_sync_seeprom_boot1_versions();
 
@@ -1481,7 +1538,24 @@ void dump_restore_slc_raw(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring SLC.RAW...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLC, 0, 1);
+    res = _dump_restore_slc(NAND_BANK_SLC, 0, 1, false);
+    if(res) {
+        printf("Failed to restore SLC.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    console_power_to_exit();
+}
+
+void dump_restore_test_slc_raw(void)
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Testing SLC and Restoring SLC.RAW...\n");
+
+    res = _dump_restore_slc(NAND_BANK_SLC, 0, 1, true);
     if(res) {
         printf("Failed to restore SLC.RAW (%d)!\n", res);
         goto slc_exit;
@@ -1498,7 +1572,7 @@ void dump_restore_slccmpt_raw(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring SLCCMPT.RAW...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 0, 1);
+    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 0, 1, false);
     if(res) {
         printf("Failed to restore SLCCMPT.RAW (%d)!\n", res);
         goto slc_exit;
@@ -1515,7 +1589,7 @@ void dump_restore_boot1_raw(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring BOOT1_SLC.RAW...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLC, 1, 1);
+    res = _dump_restore_slc(NAND_BANK_SLC, 1, 1, false);
     if(res) {
         printf("Failed to restore BOOT1_SLC.RAW (%d)!\n", res);
         goto slc_exit;
@@ -1532,7 +1606,7 @@ void dump_restore_boot1_vwii_raw(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring BOOT1_SLCCMPT.RAW...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 1, 1);
+    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 1, 1, false);
     if(res) {
         printf("Failed to restore BOOT1_SLCCMPT.RAW (%d)!\n", res);
         goto slc_exit;
@@ -1549,7 +1623,7 @@ void dump_restore_boot1_img(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring BOOT1_SLC.IMG...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLC, 1, 0);
+    res = _dump_restore_slc(NAND_BANK_SLC, 1, 0, false);
     if(res) {
         printf("Failed to restore BOOT1_SLC.IMG (%d)!\n", res);
         goto slc_exit;
@@ -1566,7 +1640,7 @@ void dump_restore_boot1_vwii_img(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring BOOT1_SLCCMPT.IMG...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 1, 0);
+    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 1, 0, false);
     if(res) {
         printf("Failed to restore BOOT1_SLCCMPT.IMG (%d)!\n", res);
         goto slc_exit;
