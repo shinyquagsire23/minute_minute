@@ -1012,7 +1012,7 @@ int _dump_slc_raw(u32 bank, int boot1_only)
     #undef TOTAL_ITERATIONS
 }
 
-bool check_all32(u8* arr, u32 length, u8 value){
+static bool check_all32(u8* arr, u32 length, u8 value){
     for(u32 i=0; i<length; i++){
         if(arr[i] != value)
             return true;
@@ -1108,11 +1108,14 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
     nand_initialize(bank);
 
     u32 program_test_failed = 0;
+    u32 program_test_failed_blocks = 0;
     u32 erase_test_failed = 0;
+    u32 erase_test_failed_blocks = 0;
     u32 program_failed = 0;
 
     for(u32 page_base=0; page_base < total_pages; page_base += PAGES_PER_BLOCK){
         if(nand_test){
+            bool is_badblock = false;
             //Test if page can be fully programmed to 0
             for(u32 page=0; page < PAGES_PER_BLOCK; page++){
                 memset32(nand_page_buf, 0, PAGE_SIZE);
@@ -1129,6 +1132,10 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
                 if(check_all32(nand_page_buf, PAGE_SIZE, 0)){
                     printf("Page 0x%05lX failed program test\n", page_base + page);
                     program_test_failed++;
+                    if(!is_badblock){
+                        is_badblock = true;
+                        program_test_failed_blocks++;
+                    }
                 }
                 //nand_correct(page_base + page, nand_page_buf, nand_
             }
@@ -1145,6 +1152,7 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
         nand_wait(); // make sure erase finished
 
         if(nand_test){
+            bool is_badblock = false;
             // Test if page can be fully erased to ff
             for(u32 page=0; page < PAGES_PER_BLOCK; page++){
                 memset32(nand_page_buf, 0, PAGE_SIZE);
@@ -1157,6 +1165,10 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
                 if(check_all32(nand_page_buf, PAGE_SIZE, 0xff)){
                     printf("Page 0x%05lX failed erase test\n", page_base + page);
                     erase_test_failed++;
+                    if(!is_badblock){
+                        is_badblock = true;
+                        erase_test_failed_blocks++;
+                    }
                 }
                 //nand_correct(page_base + page, nand_page_buf, nand_
             }
@@ -1232,8 +1244,10 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
     }
 
     if(nand_test){
-        printf("%u pages failed program test\n%u pages failed erase test\n",
-                program_test_failed, erase_test_failed);
+        printf("%u pages in %u blocks failed program test\n", 
+                    program_test_failed, program_test_failed_blocks);
+        printf("%u pages in %u blocks failed erase test\n", 
+                    erase_test_failed, erase_test_failed_blocks);
     }
     printf("%u pages failed to program", program_failed);
 
