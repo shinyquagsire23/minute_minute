@@ -146,7 +146,6 @@ LABEL_11:
 int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
 {
     int v1; // lr
-    int v2; // r1
     unsigned int ddr_seq_tcl; // r7
     u16 ddr_seq_madj; // r5
     int v5; // r0
@@ -160,7 +159,7 @@ int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
     u16 recen1; // [sp+12h] [bp-A6h]
     u16 recen0; // [sp+16h] [bp-A2h]
     int _sadj; // [sp+18h] [bp-A0h]
-    unsigned int v19; // [sp+1Ch] [bp-9Ch]
+    unsigned int dram_mhz; // [sp+1Ch] [bp-9Ch]
     int ddr_seq_twl; // [sp+20h] [bp-98h]
     bsp_pll_cfg pllCfg2; // [sp+24h] [bp-94h] BYREF
     bsp_pll_cfg pllCfg; // [sp+5Ah] [bp-5Eh] BYREF
@@ -174,30 +173,29 @@ int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
     bspVer = latte_get_hw_version();
     if ( bspVer )
     {
-        v2 = seeprom.bc.ddr3_speed;
-        if ( (mode & DRAM_MODE_CCBOOT) || v2 == 1 )
+        if ( (mode & DRAM_MODE_CCBOOT) || seeprom.bc.ddr3_speed == 1 )
         {
             memcpy(&pllCfg, &dram_3_pllcfg, sizeof(pllCfg));
             recen1 = 0;
-            v19 = 864;
+            dram_mhz = 864;
             ddr_seq_madj = 0xFA;
             ddr_seq_tcl = 7;
             recen0 = 0x7C0;
             _sadj = 12;
             ddr_seq_twl = 6;
         }
-        else if ( v2 == 3 )
+        else if ( seeprom.bc.ddr3_speed == 3 )
         {
             memcpy(&pllCfg, &dram_2_pllcfg, sizeof(pllCfg));
             recen1 = 0;
-            ddr_seq_tcl = 0xB;
+            ddr_seq_tcl = 11;
             ddr_seq_madj = 0x82;
             recen0 = 0xFC00;
-            _sadj = 0xB;
-            v19 = 0x597;
+            _sadj = 11;
+            dram_mhz = 1431;
             ddr_seq_twl = 8;
         }
-        else
+        else // seeprom.bc.ddr3_speed == 2, 0, ...
         {
             memcpy(&pllCfg, &dram_1_pllcfg, sizeof(pllCfg));
             if ( (bspVer & 0xFFFF) == 16 )
@@ -206,7 +204,7 @@ int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
                 ddr_seq_madj = 130;
                 recen0 = 0xF800;
                 _sadj = 11;
-                v19 = 0x639;
+                dram_mhz = 1593;
                 ddr_seq_twl = 8;
             }
             else
@@ -225,7 +223,7 @@ int mem_clocks_related_3__3___DdrCafeInit(u16 mode)
                     recen0 = 0xF800;
                     _sadj = 8;
                 }
-                v19 = 0x639;
+                dram_mhz = 1593;
                 ddr_seq_twl = 8;
             }
             ddr_seq_tcl = 11;
@@ -289,66 +287,77 @@ LABEL_35:
         write16(MEM_ARB_MISC, 0xEFF);
         if (!(mode & DRAM_MODE_CCBOOT))
         {
-            write16(0xD8B4600, 0x5555);
-            write16(0xD8B4602, 21);
-            write16(0xD8B4604, 15);
-            write16(0xD8B4606, 0);
-            write16(0xD8B4608, 0);
-            write16(0xD8B460A, 0);
-            write16(0xD8B460C, 0);
-            write16(0xD8B460E, 0);
-            write16(0xD8B4610, 0);
-            write16(0xD8B4612, 0x5555);
-            write16(0xD8B4614, 53);
-            write16(0xD8B4616, 15);
-            write16(0xD8B4618, 0);
-            write16(0xD8B461A, 0);
-            write16(0xD8B461C, 0);
-            write16(0xD8B461E, 0);
-            write16(0xD8B4620, 0);
-            write16(0xD8B4622, 0);
-            write16(0xD8B4624, 0x5555);
-            write16(0xD8B4626, 53);
-            write16(0xD8B4628, 15);
-            write16(0xD8B462A, 0);
-            write16(0xD8B462C, 0);
-            write16(0xD8B462E, 0);
-            write16(0xD8B4630, 0);
-            write16(0xD8B4632, 0);
-            write16(0xD8B4634, 0);
-            write16(0xD8B4636, 0x5555);
-            write16(0xD8B4638, 53);
-            write16(0xD8B463A, 15);
-            write16(0xD8B463C, 0);
-            write16(0xD8B463E, 0);
-            write16(0xD8B4640, 0);
-            write16(0xD8B4642, 0);
-            write16(0xD8B4644, 0);
-            write16(0xD8B4646, 0);
+            // Idk1
+            write16(MEM_REG_BASE + 0x600, 0x5555);
+            write16(MEM_REG_BASE + 0x602, 21);
+            write16(MEM_REG_BASE + 0x604, 15);
+            write16(MEM_REG_BASE + 0x606, 0);
+            write16(MEM_REG_BASE + 0x608, 0);
+            write16(MEM_REG_BASE + 0x60A, 0);
+            write16(MEM_REG_BASE + 0x60C, 0);
+            write16(MEM_REG_BASE + 0x60E, 0);
+            write16(MEM_REG_BASE + 0x610, 0);
 
-            write16(0xD8B44E6, 0x970);
-            write16(0xD8B44E8, 0);
-            write16(0xD8B44EA, 0);
-            read16(0xD8B44E8);
-            read16(0xD8B44EA);
+            // Idk2
+            write16(MEM_REG_BASE + 0x612, 0x5555);
+            write16(MEM_REG_BASE + 0x614, 53);
+            write16(MEM_REG_BASE + 0x616, 15);
+            write16(MEM_REG_BASE + 0x618, 0);
+            write16(MEM_REG_BASE + 0x61A, 0);
+            write16(MEM_REG_BASE + 0x61C, 0);
+            write16(MEM_REG_BASE + 0x61E, 0);
+            write16(MEM_REG_BASE + 0x620, 0);
+            write16(MEM_REG_BASE + 0x622, 0);
 
-            write16(0xD8B44E0, 0x83B);
-            write16(0xD8B44E2, 0x1FD);
-            write16(0xD8B44E4, 0);
-            read16(0xD8B44E8);
-            read16(0xD8B44EA);
+            // Idk3
+            write16(MEM_REG_BASE + 0x624, 0x5555);
+            write16(MEM_REG_BASE + 0x626, 53);
+            write16(MEM_REG_BASE + 0x628, 15);
+            write16(MEM_REG_BASE + 0x62A, 0);
+            write16(MEM_REG_BASE + 0x62C, 0);
+            write16(MEM_REG_BASE + 0x62E, 0);
+            write16(MEM_REG_BASE + 0x630, 0);
+            write16(MEM_REG_BASE + 0x632, 0);
+            write16(MEM_REG_BASE + 0x634, 0);
 
-            write16(0xD8B44E0, 0x809);
-            write16(0xD8B44E2, 0);
-            write16(0xD8B44E4, 0xFFFF);
-            read16(0xD8B44E8);
-            read16(0xD8B44EA);
+            // Idk4
+            write16(MEM_REG_BASE + 0x636, 0x5555);
+            write16(MEM_REG_BASE + 0x638, 53);
+            write16(MEM_REG_BASE + 0x63A, 15);
+            write16(MEM_REG_BASE + 0x63C, 0);
+            write16(MEM_REG_BASE + 0x63E, 0);
+            write16(MEM_REG_BASE + 0x640, 0);
+            write16(MEM_REG_BASE + 0x642, 0);
+            write16(MEM_REG_BASE + 0x644, 0);
+            write16(MEM_REG_BASE + 0x646, 0);
 
-            write16(0xD8B44E0, 0x835);
-            write16(0xD8B44E2, 0x8016);
-            write16(0xD8B44E4, 0);
-            read16(0xD8B44E8);
-            read16(0xD8B44EA);
+            // Idk1
+            write16(MEM_REG_BASE + 0x4E6, 0x970);
+            write16(MEM_REG_BASE + 0x4E8, 0);
+            write16(MEM_REG_BASE + 0x4EA, 0);
+            read16(MEM_REG_BASE + 0x4E8);
+            read16(MEM_REG_BASE + 0x4EA);
+
+            // Idk2
+            write16(MEM_REG_BASE + 0x4E0, 0x83B);
+            write16(MEM_REG_BASE + 0x4E2, 0x1FD);
+            write16(MEM_REG_BASE + 0x4E4, 0);
+            read16(MEM_REG_BASE + 0x4E8);
+            read16(MEM_REG_BASE + 0x4EA);
+
+            // Idk3
+            write16(MEM_REG_BASE + 0x4E0, 0x809);
+            write16(MEM_REG_BASE + 0x4E2, 0);
+            write16(MEM_REG_BASE + 0x4E4, 0xFFFF);
+            read16(MEM_REG_BASE + 0x4E8);
+            read16(MEM_REG_BASE + 0x4EA);
+
+            // Idk4
+            write16(MEM_REG_BASE + 0x4E0, 0x835);
+            write16(MEM_REG_BASE + 0x4E2, 0x8016);
+            write16(MEM_REG_BASE + 0x4E4, 0);
+            read16(MEM_REG_BASE + 0x4E8);
+            read16(MEM_REG_BASE + 0x4EA);
         }
         write16(MEM_SEQRD_HWM, 8);
         write16(MEM_SEQWR_HWM, 12);
@@ -552,7 +561,7 @@ LABEL_35:
             write16(MEM_UNK_2D2, 3);
             write16(MEM_UNK_2D2, 2);
         }
-        v11 = 2000000u / v19;
+        v11 = 2000000u / dram_mhz;
         write16(MEM_REFRESH_FLAG, ((7800000u / v11) >> 1) - 1);
         goto LABEL_35;
     }
@@ -732,4 +741,10 @@ LABEL_8:
     ret = ret | mem_clocks_related_2(mem_mode);
     ret = ret | mem_clocks_related_3(mem_mode);
     return ret;
+}
+
+// TODO does this belong here
+void MCP_HWSetMEM1MapCompatMode()
+{
+  set32(MEM_MEM1_COMPAT_MODE, 3);
 }
