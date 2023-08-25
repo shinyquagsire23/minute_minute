@@ -176,6 +176,9 @@ struct sdmmc_function {
 #define MMC_SET_BLOCK_COUNT     23  /* R1 */
 #define MMC_WRITE_BLOCK_SINGLE      24  /* R1 */
 #define MMC_WRITE_BLOCK_MULTIPLE    25  /* R1 */
+#define MMC_ERASE_GROUP_START       35  /* R1 */
+#define MMC_ERASE_GROUP_END         36  /* R1 */
+#define MMC_ERASE                   38  /* R1B */
 #define MMC_APP_CMD         55  /* R1 */
 
 /* SD commands */               /* response type */

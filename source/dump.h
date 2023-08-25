@@ -20,6 +20,7 @@ void dump_restore_seeprom(void);
 int _dump_mlc(u32 base);
 int _dump_slc(u32 base, u32 bank);
 int _dump_slc_raw(u32 bank, int boot1_only);
+void dump_erase_mlc(void);
 int _dump_restore_mlc(u32 base);
 
 int _dump_partition_rednand(void);
