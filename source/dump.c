@@ -1025,10 +1025,6 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
     int ret = 0;
     int boot1_is_half = 0;
 
-    //#define PAGES_PER_ITERATION (0x10)
-    //#define TOTAL_ITERATIONS ((boot1_only ? (boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE) / PAGES_PER_ITERATION)
-    const u32 total_pages = boot1_only ?(boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE;
-
     #define PAGE_STRIDE (raw ? PAGE_SIZE + PAGE_SPARE_SIZE : PAGE_SIZE)
     #define FILE_BUF_SIZE (PAGES_PER_BLOCK * PAGE_STRIDE)
 
@@ -1113,6 +1109,7 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
     u32 erase_test_failed_blocks = 0;
     u32 program_failed = 0;
 
+    const u32 total_pages = boot1_only ?(boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE;
     for(u32 page_base=0; page_base < total_pages; page_base += PAGES_PER_BLOCK){
         if(nand_test){
             bool is_badblock = false;
@@ -1143,7 +1140,7 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
         nand_erase_block(page_base);
 
         fres = f_read(&file, file_buf, FILE_BUF_SIZE, &btx);
-        if(fres != FR_OK || btx != FILE_BUF_SIZE) {
+        if(fres != FR_OK || btx != min(FILE_BUF_SIZE, (total_pages-page_base) * PAGE_STRIDE)) {
             f_close(&file);
             printf("Failed to read %s (%d).\n", path, fres);
             return -4;
@@ -1249,7 +1246,7 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
         printf("%u pages in %u blocks failed erase test\n", 
                     erase_test_failed, erase_test_failed_blocks);
     }
-    printf("%u pages failed to program", program_failed);
+    printf("%u pages failed to program\n", program_failed);
 
     _dump_sync_seeprom_boot1_versions();
 

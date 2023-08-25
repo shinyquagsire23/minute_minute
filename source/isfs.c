@@ -375,7 +375,7 @@ static int _isfs_load_super_range(isfs_ctx* ctx, u32 min_generation, u32 max_gen
 static int _isfs_load_super(isfs_ctx* ctx){
     u32 max_generation = 0xffffffff;
     int res = _isfs_load_super_range(ctx, ISFSHAX_GENERATION_FIRST, 0xffffffff);
-    if(res<=0){
+    if(res>=0){
         if(read32((u32)ctx->super + ISFSHAX_INFO_OFFSET) == ISFSHAX_MAGIC){
             // Iisfshax was found, only look for non isfshax generations to mount
             max_generation = ISFSHAX_GENERATION_FIRST;
