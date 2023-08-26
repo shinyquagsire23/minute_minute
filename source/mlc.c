@@ -720,7 +720,7 @@ int mlc_erase(void){
     }
 
     cmd.c_opcode = MMC_ERASE_GROUP_END;
-    cmd.c_arg = size;
+    cmd.c_arg = SDHC_BLOCK_COUNT_MAX;
     cmd.c_flags = SCF_RSP_R1;
     sdhc_exec_command(card.handle, &cmd);
     if (cmd.c_error) {
