@@ -737,6 +737,24 @@ int mlc_erase(void){
         return -1;
     }
     printf("ERASE: resp=%x\n", MMC_R1(cmd.c_resp));
+
+
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = MMC_SEND_STATUS;
+    cmd.c_arg = ((u32)card.rca)<<16;
+    cmd.c_flags = SCF_RSP_R1;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_SEND_STATUS failed with %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        return -1;
+    }
+
+    if(MMC_R1(cmd.c_resp)) {
+        printf("mlc: MMC_SEND_STATUS response 0x%lx\n", MMC_R1(cmd.c_resp));
+        return -2;
+    }
+
     return 0;
 #endif
 }
