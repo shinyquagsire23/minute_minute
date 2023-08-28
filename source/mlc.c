@@ -681,12 +681,12 @@ u32 mlc_get_sectors(void)
 {
     if (card.inserted == 0) {
         printf("mlc: READ: no card inserted.\n");
-        return 0;
+        return -1;
     }
 
     if (card.new_card == 1) {
         printf("mlc: new card inserted but not acknowledged yet.\n");
-        return 0;
+        return -1;
     }
 
 //  sdhc_error(sdhci->reg_base, "num sectors = %u", sdhci->num_sectors);
@@ -699,19 +699,15 @@ void mlc_irq(void)
     sdhc_intr(&mlc_host);
 }
 
-int mlc_erase(void){
+
+static int mlc_do_erase(u32 start, u32 end){
 #ifndef MLC_SUPPORT_WRITE
     return -1;
 #else
-    u32 size = mlc_get_sectors();
-    if(!size){
-        return -1;
-    }
-
     struct sdmmc_command cmd = { 0 };
 
     cmd.c_opcode = MMC_ERASE_GROUP_START;
-    cmd.c_arg = 0;
+    cmd.c_arg = start;
     cmd.c_flags = SCF_RSP_R1;
     sdhc_exec_command(card.handle, &cmd);
     if (cmd.c_error) {
@@ -720,7 +716,7 @@ int mlc_erase(void){
     }
 
     cmd.c_opcode = MMC_ERASE_GROUP_END;
-    cmd.c_arg = SDHC_BLOCK_COUNT_MAX;
+    cmd.c_arg = end;
     cmd.c_flags = SCF_RSP_R1;
     sdhc_exec_command(card.handle, &cmd);
     if (cmd.c_error) {
@@ -732,29 +728,62 @@ int mlc_erase(void){
     cmd.c_arg = 0;
     cmd.c_flags = SCF_RSP_R1B;
     sdhc_exec_command(card.handle, &cmd);
+
     if (cmd.c_error) {
         printf("mlc: MMC_ERASE failed with %d\n", cmd.c_error);
         return -1;
     }
-    printf("ERASE: resp=%x\n", MMC_R1(cmd.c_resp));
+    if(MMC_R1(cmd.c_resp)!=0x800)
+        printf("ERASE: resp=%x\n", MMC_R1(cmd.c_resp));
 
+    do {
+        //udelay(1);
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.c_opcode = MMC_SEND_STATUS;
+        cmd.c_arg = ((u32)card.rca)<<16;
+        cmd.c_flags = SCF_RSP_R1;
+        sdhc_exec_command(card.handle, &cmd);
+    } while (cmd.c_error == 116 || MMC_R1(cmd.c_resp) == 0x800); //WHY?
 
-    memset(&cmd, 0, sizeof(cmd));
-    cmd.c_opcode = MMC_SEND_STATUS;
-    cmd.c_arg = ((u32)card.rca)<<16;
-    cmd.c_flags = SCF_RSP_R1;
-    sdhc_exec_command(card.handle, &cmd);
-    if (cmd.c_error) {
-        printf("mlc: MMC_SEND_STATUS failed with %d\n", cmd.c_error);
-        card.inserted = card.selected = 0;
+    if(cmd.c_error){
+        printf("mlc: MMC_SEND_STATUS failed with 0x%d\n", cmd.c_error);
         return -1;
     }
 
-    if(MMC_R1(cmd.c_resp)) {
-        printf("mlc: MMC_SEND_STATUS response 0x%lx\n", MMC_R1(cmd.c_resp));
+    if(MMC_R1(cmd.c_resp) != 0x900){
+        printf("mlc: MMC_SEND_STATUS response 0x%08lx\n", MMC_R1(cmd.c_resp));
         return -2;
     }
 
+    return 0;
+#endif
+}
+
+
+int mlc_erase(void){
+#ifndef MLC_SUPPORT_WRITE
+    return -1;
+#else
+    u32 size = mlc_get_sectors();
+    if(!size){
+        printf("ERROR mlc has 0 bytes");
+        return -3;
+    }
+
+    if(size==-1){
+        printf("ERROR mlc not detected");
+        return -4;
+    }
+
+    const u32 erase_block_size = 0x20000;
+
+    for(u32 base = 0; base<size; base+=erase_block_size){
+        //if(!(base%40000))
+            printf("Erase 0x%08lx/%08lx\n", base, size);
+        mlc_do_erase(base, min(size, base+erase_block_size)-1);
+
+    }
+ 
     return 0;
 #endif
 }

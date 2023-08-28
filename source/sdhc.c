@@ -567,11 +567,13 @@ sdhc_async_response(struct sdhc_host *hp, struct sdmmc_command *cmd)
 
     int status = sdhc_wait_intr(hp, SDHC_COMMAND_COMPLETE, cmd->c_timeout);
     if (!ISSET(status, SDHC_COMMAND_COMPLETE)) {
-        cmd->c_error = ETIMEDOUT;
-        printf("timeout dump: error_intr: 0x%x intr: 0x%x\n", hp->intr_error_status, hp->intr_status);
 //      sdhc_dump_regs(hp);
         SET(cmd->c_flags, SCF_ITSDONE);
         hp->data_command = 0;
+    }
+    if (ISSET(status, SDHC_ERROR_TIMEOUT)){
+        cmd->c_error = ETIMEDOUT;
+        printf("timeout dump: error_intr: 0x%x intr: 0x%x\n", hp->intr_error_status, hp->intr_status);
         return;
     }
 
@@ -694,6 +696,7 @@ sdhc_start_command(struct sdhc_host *hp, struct sdmmc_command *cmd)
         command |= SDHC_RESP_LEN_48;
 
     /* Wait until command and data inhibit bits are clear. (1.5) */
+    //u32 inhibit_mask = (cmd->c_opcode == MMC_SEND_STATUS) ? SDHC_CMD_INHIBIT_DAT : SDHC_CMD_INHIBIT_MASK;
     if ((error = sdhc_wait_state(hp, SDHC_CMD_INHIBIT_MASK, 0)) != 0)
         return error;
 
@@ -906,7 +909,7 @@ sdhc_intr(struct sdhc_host *hp)
     /* Find out which interrupts are pending. */
     status = HREAD2(hp, SDHC_NINTR_STATUS);
     if (!ISSET(status, SDHC_NINTR_STATUS_MASK)) {
-        DPRINTF(1, ("unknown interrupt\n"));
+        DPRINTF(1, ("unknown interrupt %08lx\n", status));
         return 0;
     }
 
