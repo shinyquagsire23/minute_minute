@@ -51,3 +51,4 @@ cast_test.py
 fat_mnt/
 
 .DS_Store
+.vscode
