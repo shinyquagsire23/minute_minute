@@ -1097,15 +1097,21 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
     u32 program_failed = 0;
 
     const u32 total_pages = boot1_only ?(boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE;
-    for(u32 page_base=0; page_base < total_pages; page_base += PAGES_PER_BLOCK){
+    for(u32 page_base=0; page_base < total_pages; page_base += BLOCK_PAGES){
+        fres = f_read(&file, file_buf, FILE_BUF_SIZE, &btx);
+        if(fres != FR_OK || btx != min(FILE_BUF_SIZE, (total_pages-page_base) * PAGE_STRIDE)) {
+            f_close(&file);
+            printf("Failed to read %s (%d).\n", path, fres);
+            return -4;
+        }
+
         if(nand_test){
             bool is_badblock = false;
             //Test if page can be fully programmed to 0
-            for(u32 page=0; page < PAGES_PER_BLOCK; page++){
+            for(u32 page=0; page < BLOCK_PAGES; page++){
                 memset32(nand_page_buf, 0, PAGE_SIZE);
                 memset32(nand_ecc_buf, 0, PAGE_SPARE_SIZE);
                 nand_write_page(page_base + page, nand_page_buf, nand_ecc_buf);
-                nand_wait();
                 memset32(nand_page_buf, 0xffffffff, PAGE_SIZE);
                 memset32(nand_ecc_buf, 0xffffffff, PAGE_SPARE_SIZE);
                 // This might not be optional? Bug?
@@ -1123,19 +1129,10 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
         }
         nand_erase_block(page_base);
 
-        fres = f_read(&file, file_buf, FILE_BUF_SIZE, &btx);
-        if(fres != FR_OK || btx != min(FILE_BUF_SIZE, (total_pages-page_base) * PAGE_STRIDE)) {
-            f_close(&file);
-            printf("Failed to read %s (%d).\n", path, fres);
-            return -4;
-        }
-
-        nand_wait(); // make sure erase finished
-
         if(nand_test){
             bool is_badblock = false;
             // Test if page can be fully erased to ff
-            for(u32 page=0; page < PAGES_PER_BLOCK; page++){
+            for(u32 page=0; page < BLOCK_PAGES; page++){
                 memset32(nand_page_buf, 0, PAGE_SIZE);
                 memset32(nand_ecc_buf, 0, PAGE_SPARE_SIZE);
                 // This might not be optional? Bug?
@@ -1152,7 +1149,7 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
             }
         }
 
-        for(u32 page=0; page < PAGES_PER_BLOCK; page++){
+        for(u32 page=0; page < BLOCK_PAGES; page++){
             memcpy(nand_page_buf, &file_buf[page*PAGE_STRIDE], PAGE_STRIDE);
             if (raw)
             {
@@ -1164,19 +1161,7 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
                 memset(nand_ecc_buf, 0, PAGE_SPARE_SIZE);
                 memset(nand_ecc_buf+PAGE_SPARE_SIZE, 0, 0x10);
 
-                nand_create_ecc(nand_page_buf, nand_ecc_buf);
-
-                memcpy(nand_ecc_buf+PAGE_SPARE_SIZE, nand_ecc_buf+PAGE_SPARE_SIZE-0x10, 0x10);
-#if 0
-                for (int i = 0; i < 0x50; i++) {
-                    if (i && i % 16 == 0) {
-                        printf("\n");
-                    }
-                    printf("%02x ", nand_ecc_buf[i]);
-                }
-                printf("\n");
-#endif
-                memcpy(nand_page_buf+PAGE_SIZE, nand_ecc_buf, PAGE_SPARE_SIZE);
+                // TODO calc hmac
             }
 
             int is_cleared = 1;
@@ -1192,8 +1177,12 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
             if (!is_cleared) {
                 
                 //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
-                nand_write_page_raw(page_base + page, nand_page_buf, nand_ecc_buf);
-                nand_wait();
+
+                if(raw){
+                    nand_write_page_raw(page_base + page, nand_page_buf, nand_ecc_buf);
+                } else {
+                    nand_write_page(page_base + page, nand_page_buf, nand_ecc_buf);
+                }
 
                 // This might not be optional? Bug?
                 nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
@@ -1205,7 +1194,7 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
             }
         }
 
-        if((page_base % (PAGES_PER_BLOCK * 0x10)) == 0) 
+        if((page_base % (BLOCK_PAGES * 0x10)) == 0) 
         {
             printf("%s%s: Page 0x%05lX / 0x%05lX completed\n", name, raw ? "-RAW" : "", page_base, total_pages);
         }
@@ -1229,9 +1218,6 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
     _dump_sync_seeprom_boot1_versions();
 
     return ret;
-
-    #undef PAGES_PER_ITERATION
-    #undef TOTAL_ITERATIONS
 }
 
 int _dump_slc_to_sdcard_sectors(u32 base, u32 bank)
