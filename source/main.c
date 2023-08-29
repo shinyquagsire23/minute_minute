@@ -654,7 +654,9 @@ u32 _main(void *base)
 
         smc_get_events();
         //leave ODD Power on for HDDs
-        if (has_no_otp_bin || (seeprom.bc.sata_device != 7 && seeprom.bc.sata_device != 8))
+        if (has_no_otp_bin || 
+                (seeprom.bc.sata_device != SATA_TYPE_GEN2HDD && 
+                 seeprom.bc.sata_device != SATA_TYPE_GEN1HDD))
             smc_set_odd_power(false);
 
         menu_init(&menu_main);
