@@ -1012,12 +1012,12 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
     int ret = 0;
     int boot1_is_half = 0;
 
-    #define PAGE_STRIDE PAGE_SIZE + PAGE_SPARE_SIZE
+    #define PAGE_STRIDE (PAGE_SIZE + PAGE_SPARE_SIZE)
     #define FILE_BUF_SIZE (BLOCK_PAGES * PAGE_STRIDE)
 
 
-    static u8 page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(64);
-    static u8 file_buf[BLOCK_PAGES * (PAGE_SIZE + PAGE_SPARE_SIZE)];
+    static u8 page_buf[PAGE_STRIDE] ALIGNED(64);
+    static u8 file_buf[FILE_BUF_SIZE];
 
     sdcard_ack_card();
     if(sdcard_check_card() != SDMMC_INSERTED) {
@@ -1195,6 +1195,7 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
     return ret;
 
     #undef FILE_BUF_SIZE
+    #undef PAGE_STRIDE
 }
 
 int _dump_restore_slc_img(u32 bank, int boot1_only)
@@ -1202,9 +1203,9 @@ int _dump_restore_slc_img(u32 bank, int boot1_only)
     int ret = 0;
     int boot1_is_half = 0;
 
-    #define FILE_BUF_SIZE (BLOCK_PAGES * PAGE_STRIDE)
+    #define FILE_BUF_SIZE (BLOCK_PAGES * PAGE_SIZE)
 
-    static u8 file_buf[BLOCK_PAGES * PAGE_SIZE ];
+    static u8 file_buf[FILE_BUF_SIZE];
 
     sdcard_ack_card();
     if(sdcard_check_card() != SDMMC_INSERTED) {
@@ -1277,7 +1278,7 @@ int _dump_restore_slc_img(u32 bank, int boot1_only)
     const u32 total_pages = boot1_only ?(boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE;
     for(u32 cluster=0; cluster < total_pages / CLUSTER_PAGES; cluster += BLOCK_CLUSTERS){
         fres = f_read(&file, file_buf, FILE_BUF_SIZE, &btx);
-        if(fres != FR_OK || btx != min(FILE_BUF_SIZE, (total_pages-cluster * CLUSTER_PAGES) * PAGE_STRIDE)) {
+        if(fres != FR_OK || btx != min(FILE_BUF_SIZE, (total_pages-cluster * CLUSTER_PAGES) * PAGE_SIZE)) {
             f_close(&file);
             printf("Failed to read %s (%d).\n", path, fres);
             return -4;
