@@ -30,6 +30,7 @@ void dump_slccmpt_raw(void);
 void dump_boot1_raw(void);
 void dump_boot1_vwii_raw(void);
 void dump_restore_slc_raw(void);
+void dump_restore_slc_img(void);
 void dump_restore_test_slc_raw(void);
 void dump_restore_slccmpt_raw(void);
 void dump_restore_boot1_raw(void);

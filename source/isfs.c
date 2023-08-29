@@ -42,28 +42,28 @@ static u8 ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(NAND_DATA_ALIGN);
 static bool initialized = false;
 
 isfs_ctx isfs[4] = {
-    [0]
+    [ISFSVOL_SLC]
     {
         .volume = 0,
         .name = "slc",
         .bank = NAND_BANK_SLC,
         .super_count = 64,
     },
-    [1]
+    [ISFSVOL_SLCCMPT]
     {
         .volume = 1,
         .name = "slccmpt",
         .bank = NAND_BANK_SLCCMPT,
         .super_count = 16,
     },
-    [2]
+    [ISFSVOL_REDSLC]
     {
         .volume = 2,
         .name = "redslc",
         .bank = 0x80000000 | 0,
         .super_count = 64,
     },
-    [3]
+    [ISFSVOL_REDSLCCMPT]
     {
         .volume = 3,
         .name = "redslccmpt",

@@ -15,6 +15,11 @@
 #include "nand.h"
 #include <sys/iosupport.h>
 
+#define ISFSVOL_SLC             0
+#define ISFSVOL_SLCCMPT         1
+#define ISFSVOL_REDSLC             2
+#define ISFSVOL_REDSLCCMPT         3
+
 #define ISFSSUPER_CLUSTERS  0x10
 #define ISFSSUPER_SIZE      (ISFSSUPER_CLUSTERS * CLUSTER_SIZE)
 #define ISFSVOL_FLAG_HMAC       1
