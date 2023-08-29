@@ -7,9 +7,6 @@
  *  This code is licensed to you under the terms of the GNU GPL, version 2;
  *  see file COPYING or http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
  */
-
-#define NAND_WRITE_ENABLED 1
-
 #include "types.h"
 #include "utils.h"
 #include "gfx.h"
