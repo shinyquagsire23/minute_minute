@@ -82,9 +82,10 @@ menu menu_dump = {
             {"Restore redNAND", &dump_restore_rednand},
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
+            {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Return to Main Menu", &menu_close},
     },
-    19, // number of options
+    20, // number of options
     0,
     0
 };
@@ -997,19 +998,25 @@ int _dump_slc_raw(u32 bank, int boot1_only)
     #undef TOTAL_ITERATIONS
 }
 
-int _dump_restore_slc(u32 bank, int boot1_only, int raw)
+static bool check_all32(u8* arr, u32 length, u8 value){
+    for(u32 i=0; i<length; i++){
+        if(arr[i] != value)
+            return true;
+    }
+    return false;
+}
+
+int _dump_restore_slc(u32 bank, int boot1_only, int raw, bool nand_test)
 {
     int ret = 0;
     int boot1_is_half = 0;
 
-    #define PAGES_PER_ITERATION (0x10)
-    #define TOTAL_ITERATIONS ((boot1_only ? (boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE) / PAGES_PER_ITERATION)
-
     #define PAGE_STRIDE (raw ? PAGE_SIZE + PAGE_SPARE_SIZE : PAGE_SIZE)
-    #define FILE_BUF_SIZE (PAGES_PER_ITERATION * PAGE_STRIDE)
+    #define FILE_BUF_SIZE (BLOCK_PAGES * PAGE_STRIDE)
+
 
     static u8 page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(64);
-    static u8 file_buf[PAGES_PER_ITERATION * (PAGE_SIZE + PAGE_SPARE_SIZE)];
+    static u8 file_buf[PAGES_PER_BLOCK * (PAGE_SIZE + PAGE_SPARE_SIZE)];
 
     sdcard_ack_card();
     if(sdcard_check_card() != SDMMC_INSERTED) {
@@ -1083,40 +1090,69 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
     printf("Initializing %s...\n", name);
     nand_initialize(bank);
 
-    // I tried to do this in-line with the programming, but it just ended up as all FF?
-    // So there's some kind of delay required idk
-    printf("Erasing...\n");
-    for(u32 i = 0; i < TOTAL_ITERATIONS; i++)
-    {
-        u32 page_base = i * PAGES_PER_ITERATION;
-        for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
-        {
-            nand_erase_block(page_base + page);
-            nand_wait();
+    u32 program_test_failed = 0;
+    u32 program_test_failed_blocks = 0;
+    u32 erase_test_failed = 0;
+    u32 erase_test_failed_blocks = 0;
+    u32 program_failed = 0;
 
-            // This might not be optional? Bug?
-            nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
+    const u32 total_pages = boot1_only ?(boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE;
+    for(u32 page_base=0; page_base < total_pages; page_base += PAGES_PER_BLOCK){
+        if(nand_test){
+            bool is_badblock = false;
+            //Test if page can be fully programmed to 0
+            for(u32 page=0; page < PAGES_PER_BLOCK; page++){
+                memset32(nand_page_buf, 0, PAGE_SIZE);
+                memset32(nand_ecc_buf, 0, PAGE_SPARE_SIZE);
+                nand_write_page(page_base + page, nand_page_buf, nand_ecc_buf);
+                nand_wait();
+                memset32(nand_page_buf, 0xffffffff, PAGE_SIZE);
+                memset32(nand_ecc_buf, 0xffffffff, PAGE_SPARE_SIZE);
+                // This might not be optional? Bug?
+                nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
+                if(check_all32(nand_page_buf, PAGE_SIZE, 0)){
+                    printf("Page 0x%05lX failed program test\n", page_base + page);
+                    program_test_failed++;
+                    if(!is_badblock){
+                        is_badblock = true;
+                        program_test_failed_blocks++;
+                    }
+                }
+                //nand_correct(page_base + page, nand_page_buf, nand_
+            }
         }
+        nand_erase_block(page_base);
 
-        if((i % 0x100) == 0) {
-            printf("%s%s: Page 0x%05lX / 0x%05lX erased\n", name, raw ? "-RAW" : "", page_base, PAGES_PER_ITERATION * TOTAL_ITERATIONS);
-        }
-    }
-
-    printf("Programming...\n");
-
-    for(u32 i = 0; i < TOTAL_ITERATIONS; i++)
-    {
         fres = f_read(&file, file_buf, FILE_BUF_SIZE, &btx);
-        if(fres != FR_OK || btx != FILE_BUF_SIZE) {
+        if(fres != FR_OK || btx != min(FILE_BUF_SIZE, (total_pages-page_base) * PAGE_STRIDE)) {
             f_close(&file);
             printf("Failed to read %s (%d).\n", path, fres);
             return -4;
         }
 
-        u32 page_base = i * PAGES_PER_ITERATION;
-        for(u32 page = 0; page < PAGES_PER_ITERATION; page++)
-        {
+        nand_wait(); // make sure erase finished
+
+        if(nand_test){
+            bool is_badblock = false;
+            // Test if page can be fully erased to ff
+            for(u32 page=0; page < PAGES_PER_BLOCK; page++){
+                memset32(nand_page_buf, 0, PAGE_SIZE);
+                memset32(nand_ecc_buf, 0, PAGE_SPARE_SIZE);
+                // This might not be optional? Bug?
+                nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
+                if(check_all32(nand_page_buf, PAGE_SIZE, 0xff)){
+                    printf("Page 0x%05lX failed erase test\n", page_base + page);
+                    erase_test_failed++;
+                    if(!is_badblock){
+                        is_badblock = true;
+                        erase_test_failed_blocks++;
+                    }
+                }
+                //nand_correct(page_base + page, nand_page_buf, nand_
+            }
+        }
+
+        for(u32 page=0; page < PAGES_PER_BLOCK; page++){
             memcpy(nand_page_buf, &file_buf[page*PAGE_STRIDE], PAGE_STRIDE);
             if (raw)
             {
@@ -1169,10 +1205,11 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
             }
         }
 
-        if((i % 0x100) == 0) 
+        if((page_base % (PAGES_PER_BLOCK * 0x10)) == 0) 
         {
-            printf("%s%s: Page 0x%05lX / 0x%05lX completed\n", name, raw ? "-RAW" : "", page_base, PAGES_PER_ITERATION * TOTAL_ITERATIONS);
+            printf("%s%s: Page 0x%05lX / 0x%05lX completed\n", name, raw ? "-RAW" : "", page_base, total_pages);
         }
+
     }
 
     fres = f_close(&file);
@@ -1180,6 +1217,14 @@ int _dump_restore_slc(u32 bank, int boot1_only, int raw)
         printf("Failed to close %s (%d).\n", path, fres);
         ret = -5;
     }
+
+    if(nand_test){
+        printf("%u pages in %u blocks failed program test\n", 
+                    program_test_failed, program_test_failed_blocks);
+        printf("%u pages in %u blocks failed erase test\n", 
+                    erase_test_failed, erase_test_failed_blocks);
+    }
+    printf("%u pages failed to program\n", program_failed);
 
     _dump_sync_seeprom_boot1_versions();
 
@@ -1479,7 +1524,24 @@ void dump_restore_slc_raw(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring SLC.RAW...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLC, 0, 1);
+    res = _dump_restore_slc(NAND_BANK_SLC, 0, 1, false);
+    if(res) {
+        printf("Failed to restore SLC.RAW (%d)!\n", res);
+        goto slc_exit;
+    }
+
+slc_exit:
+    console_power_to_exit();
+}
+
+void dump_restore_test_slc_raw(void)
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Testing SLC and Restoring SLC.RAW...\n");
+
+    res = _dump_restore_slc(NAND_BANK_SLC, 0, 1, true);
     if(res) {
         printf("Failed to restore SLC.RAW (%d)!\n", res);
         goto slc_exit;
@@ -1496,7 +1558,7 @@ void dump_restore_slccmpt_raw(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring SLCCMPT.RAW...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 0, 1);
+    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 0, 1, false);
     if(res) {
         printf("Failed to restore SLCCMPT.RAW (%d)!\n", res);
         goto slc_exit;
@@ -1513,7 +1575,7 @@ void dump_restore_boot1_raw(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring BOOT1_SLC.RAW...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLC, 1, 1);
+    res = _dump_restore_slc(NAND_BANK_SLC, 1, 1, false);
     if(res) {
         printf("Failed to restore BOOT1_SLC.RAW (%d)!\n", res);
         goto slc_exit;
@@ -1530,7 +1592,7 @@ void dump_restore_boot1_vwii_raw(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring BOOT1_SLCCMPT.RAW...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 1, 1);
+    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 1, 1, false);
     if(res) {
         printf("Failed to restore BOOT1_SLCCMPT.RAW (%d)!\n", res);
         goto slc_exit;
@@ -1547,7 +1609,7 @@ void dump_restore_boot1_img(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring BOOT1_SLC.IMG...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLC, 1, 0);
+    res = _dump_restore_slc(NAND_BANK_SLC, 1, 0, false);
     if(res) {
         printf("Failed to restore BOOT1_SLC.IMG (%d)!\n", res);
         goto slc_exit;
@@ -1564,7 +1626,7 @@ void dump_restore_boot1_vwii_img(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring BOOT1_SLCCMPT.IMG...\n");
 
-    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 1, 0);
+    res = _dump_restore_slc(NAND_BANK_SLCCMPT, 1, 0, false);
     if(res) {
         printf("Failed to restore BOOT1_SLCCMPT.IMG (%d)!\n", res);
         goto slc_exit;
@@ -1683,14 +1745,34 @@ void dump_otp_via_prshhax(void)
     void* payload_dst = (void*)PRSHHAX_PAYLOAD_DST;
     u32 boot_info_addr = 0x0;
     char* console_type_str = "unk";
+    int has_mismatch = 0;
+    ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
+    u32 type_slot0 = 0;
+    u32 version_slot0 = 0;
+    u32 type_slot1 = 0;
+    u32 version_slot1 = 0;
 
     nand_initialize(NAND_BANK_SLC);
+
+    // TODO: technically these can be altered in SEEPROM, but also pls don't do that.
+    // Read slot0 boot1 header
     nand_read_page(0, nand_page_buf, nand_ecc_buf);
 
-    ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
-    if (hdr->type == ANCAST_CONSOLE_TYPE_PROD) {
+    type_slot0 = hdr->type;
+    version_slot0 = hdr->version & 0xFFFF;
+
+    // Read slot1 boot1 header
+    nand_read_page(BOOT1_MAX_PAGE, nand_page_buf, nand_ecc_buf);
+
+    type_slot1 = hdr->type;
+    version_slot1 = hdr->version & 0xFFFF;
+
+    u32 boot1_type = version_slot1 > version_slot0 ? type_slot1 : type_slot0;
+    u32 boot1_version = version_slot1 > version_slot0 ? version_slot1 : version_slot0;
+
+    if (boot1_type == ANCAST_CONSOLE_TYPE_PROD) {
         console_type_str = "prod";
-        switch(hdr->version)
+        switch(boot1_version)
         {
         case 8296:
             boot_info_addr = 0x0D40A7E5;
@@ -1717,9 +1799,9 @@ void dump_otp_via_prshhax(void)
             goto fail;
         }
     }
-    else if (hdr->type == ANCAST_CONSOLE_TYPE_DEV) {
+    else if (boot1_type == ANCAST_CONSOLE_TYPE_DEV) {
         console_type_str = "dev";
-        switch(hdr->version)
+        switch(boot1_version)
         {
         case 8296:
             boot_info_addr = 0x0D40A78D;
@@ -1772,7 +1854,7 @@ void dump_otp_via_prshhax(void)
         }*/
 
         printf("Guessing key based on boot1 header type %x\n", hdr->type);
-        if (hdr->type == ANCAST_CONSOLE_TYPE_DEV) {
+        if (boot1_type == ANCAST_CONSOLE_TYPE_DEV) {
             printf("  --> dev key\n");
             memcpy(otp.fw_ancast_key, key_dev, 16);
         }
@@ -1783,10 +1865,20 @@ void dump_otp_via_prshhax(void)
     }
     otp.security_level |= 0x80000000;
 
-    printf("Dumping OTP using boot1 %s v%u, and offset 0x%08x...\n", console_type_str, hdr->version, boot_info_addr);
-    if (seeprom_decrypted.boot1_params.version != hdr->version) {
-        printf("WARNING: SEEPROM boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_params.version, hdr->version);
+    printf("Dumping OTP using boot1 %s v%u (slot0=v%u, slot1=v%u), and offset 0x%08x...\n", console_type_str, boot1_version, version_slot0, version_slot1, boot_info_addr);
+
+    if (seeprom_decrypted.boot1_params.version != version_slot0) {
+        has_mismatch = 1;
+        printf("\nWARNING: SEEPROM slot0 boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_params.version, version_slot0);
         printf("         Exploit might not work!\n\n");
+    }
+    if (seeprom_decrypted.boot1_copy_params.version != version_slot1) {
+        has_mismatch = 1;
+        printf("\nWARNING: SEEPROM slot1 boot1 version v%u does not match NAND version v%u!\n", seeprom_decrypted.boot1_copy_params.version, version_slot1);
+        printf("         Exploit might not work!\n\n");
+    }
+
+    if (has_mismatch) {
         printf("If this is the first time you're dumping otp.bin, ignore this message.\n");
         printf("However, if you reflashed boot1, you might have to guess which boot1\n");
         printf("version was originally on NAND and will match the SEEPROM version.\n");
