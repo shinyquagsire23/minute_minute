@@ -653,7 +653,9 @@ u32 _main(void *base)
         printf("Showing menu...\n");
 
         smc_get_events();
-        smc_set_odd_power(false);
+        //leave ODD Power on for HDDs
+        if(seeprom.bc.sata_device != 7 && seeprom.bc.sata_device != 8)
+            smc_set_odd_power(false);
 
         menu_init(&menu_main);
 
