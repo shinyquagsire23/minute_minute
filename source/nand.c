@@ -269,7 +269,7 @@ int nand_write_page(u32 pageno, void *data, void *spare) {
     irq_flag = 0;
     NAND_debug("nand_write_page(%u, %p, %p)\n", pageno, data, spare);
 
-#if 1
+#if 0
     // this is a safety check to prevent you from accidentally wiping out boot1 or boot2.
     if ((pageno < nand_min_page) || (pageno >= NAND_MAX_PAGE)) {
         printf("Error: nand_write to page %d forbidden\n", pageno);
