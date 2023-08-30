@@ -709,7 +709,11 @@ u32 _main(void *base)
         printf("Showing menu...\n");
 
         smc_get_events();
-        smc_set_odd_power(false);
+        //leave ODD Power on for HDDs
+        if (has_no_otp_bin || 
+                (seeprom.bc.sata_device != SATA_TYPE_GEN2HDD && 
+                 seeprom.bc.sata_device != SATA_TYPE_GEN1HDD))
+            smc_set_odd_power(false);
 
         menu_init(&menu_main);
 
