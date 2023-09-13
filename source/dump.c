@@ -80,6 +80,7 @@ menu menu_dump = {
             {"Restore BOOT1_SLC.IMG", &dump_restore_boot1_img},
             {"Restore BOOT1_SLCCMPT.IMG", &dump_restore_boot1_vwii_img},
             {"Restore seeprom.bin", &dump_restore_seeprom},
+            {"Erase MLC", &dump_erase_mlc},
             {"Restore redNAND", &dump_restore_rednand},
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
@@ -1785,6 +1786,26 @@ void dump_format_rednand(void)
 
 format_exit:
     console_power_to_exit();
+}
+
+void dump_erase_mlc(void){
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Erase MLC\n");
+
+    if (console_abort_confirmation_power_no_eject_yes()) 
+        goto erase_exit;
+
+    printf("Erasing...\n");
+
+    int res = mlc_erase();
+    if(res)
+        printf("MLC erase failed\n");
+    else
+        printf("MLC erase complete!\n");
+
+erase_exit:
+    console_power_to_exit();
+
 }
 
 void dump_restore_rednand(void)

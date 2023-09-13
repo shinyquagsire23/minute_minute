@@ -677,16 +677,16 @@ int mlc_wait_data(void)
     return 0;
 }
 
-int mlc_get_sectors(void)
+u32 mlc_get_sectors(void)
 {
     if (card.inserted == 0) {
         printf("mlc: READ: no card inserted.\n");
-        return -1;
+        return 0;
     }
 
     if (card.new_card == 1) {
         printf("mlc: new card inserted but not acknowledged yet.\n");
-        return -1;
+        return 0;
     }
 
 //  sdhc_error(sdhci->reg_base, "num sectors = %u", sdhci->num_sectors);
@@ -697,6 +697,66 @@ int mlc_get_sectors(void)
 void mlc_irq(void)
 {
     sdhc_intr(&mlc_host);
+}
+
+int mlc_erase(void){
+#ifndef MLC_SUPPORT_WRITE
+    return -1;
+#else
+    u32 size = mlc_get_sectors();
+    if(!size){
+        return -1;
+    }
+
+    struct sdmmc_command cmd = { 0 };
+
+    cmd.c_opcode = MMC_ERASE_GROUP_START;
+    cmd.c_arg = 0;
+    cmd.c_flags = SCF_RSP_R1;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_ERASE_GROUP_START failed with %d\n", cmd.c_error);
+        return -1;
+    }
+
+    cmd.c_opcode = MMC_ERASE_GROUP_END;
+    cmd.c_arg = SDHC_BLOCK_COUNT_MAX;
+    cmd.c_flags = SCF_RSP_R1;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_ERASE_GROUP_END failed with %d\n", cmd.c_error);
+        return -1;
+    }
+
+    cmd.c_opcode = MMC_ERASE;
+    cmd.c_arg = 0;
+    cmd.c_flags = SCF_RSP_R1B;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_ERASE failed with %d\n", cmd.c_error);
+        return -1;
+    }
+    printf("ERASE: resp=%x\n", MMC_R1(cmd.c_resp));
+
+
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = MMC_SEND_STATUS;
+    cmd.c_arg = ((u32)card.rca)<<16;
+    cmd.c_flags = SCF_RSP_R1;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_SEND_STATUS failed with %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        return -1;
+    }
+
+    if(MMC_R1(cmd.c_resp)) {
+        printf("mlc: MMC_SEND_STATUS response 0x%lx\n", MMC_R1(cmd.c_resp));
+        return -2;
+    }
+
+    return 0;
+#endif
 }
 
 void mlc_init(void)
