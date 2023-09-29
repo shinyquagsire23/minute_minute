@@ -27,7 +27,7 @@ int mlc_wait_data(void);
 int mlc_select(void);
 int mlc_check_card(void);
 int mlc_ack_card(void);
-int mlc_get_sectors(void);
+u32 mlc_get_sectors(void);
 
 int mlc_read(u32 blk_start, u32 blk_count, void *data);
 int mlc_write(u32 blk_start, u32 blk_count, void *data);
@@ -37,5 +37,7 @@ int mlc_end_read(struct sdmmc_command* cmdbuf);
 
 int mlc_start_write(u32 blk_start, u32 blk_count, void *data, struct sdmmc_command* cmdbuf);
 int mlc_end_write(struct sdmmc_command* cmdbuf);
+
+int mlc_erase(void);
 
 #endif
