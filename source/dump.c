@@ -82,12 +82,13 @@ menu menu_dump = {
             {"Restore seeprom.bin", &dump_restore_seeprom},
             {"Erase MLC", &dump_erase_mlc},
             {"Restore redNAND", &dump_restore_rednand},
+            {"Compare redNAND", &dump_compare_rednand},
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Return to Main Menu", &menu_close},
     },
-    21, // number of options
+    23, // number of options
     0,
     0
 };
@@ -815,6 +816,126 @@ int _dump_mlc(u32 base)
     // Finish up the last iteration.
     do res = sdcard_write(sdcard_sector, SDHC_BLOCK_COUNT_MAX, sdcard_buf);
     while(res);
+
+    free(sector_buf1);
+    free(sector_buf2);
+
+    return 0;
+}
+
+
+int _dump_compare_mlc(u32 base){
+    sdcard_ack_card();
+    if(sdcard_check_card() != SDMMC_INSERTED) {
+        printf("SD card is not initialized.\n");
+        return -1;
+    }
+
+    int res = 0, mres = 0, sres = 0;
+    if(base == 0) return -2;
+
+    // This uses "async" read/write functions, combined with double buffering to achieve a
+    // much faster dump. This works because these are two separate host controllers using DMA.
+    // Instead of running a single command and waiting for completion, we queue both commands
+    // and then wait for them both to complete at the end of each iteration.
+    struct sdmmc_command mlc_cmd = {0}, sdcard_cmd = {0};
+
+    u8* sector_buf1 = memalign(32, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
+    u8* sector_buf2 = memalign(32, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
+
+    u8* mlc_buf = sector_buf2;
+    u8* sdcard_buf = sector_buf1;
+
+    // Fill one of the buffers in advance, so SD card has something to work with.
+    do res = sdcard_read(base, SDHC_BLOCK_COUNT_MAX, mlc_buf);
+    while(res);
+
+    // Read first block from MLC to compare against for safety checks.
+    do res = mlc_read(0, SDHC_BLOCK_COUNT_MAX, sdcard_buf);
+    while(res);
+
+    // Check to see if the first block matches, if so, ask the user if they want to continue.
+    if(memcmp(sdcard_buf, mlc_buf, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX)) {
+        printf("MLC: First blocks do not match!\n");
+        printf("MLC: Aborting compare\n");
+        return -3;
+    }
+
+
+    for(int compare = 0; compare < 20; compare ++){
+    
+    char name[64];
+    sprintf(name, "sdmc:/mlc_compare-%d.log", compare);
+
+    FILE* f_log = fopen(name, "ab");
+    if(!f_log)
+    {
+        printf("Failed to open %s\n", name);
+        return -4;
+    }
+
+    sprintf(name, "sdmc:/mlc_compare-%d.bin", compare);
+    FILE* f_diff = fopen(name, "ab");
+
+    if(!f_diff)
+    {
+        printf("Failed to open %s\n", name);
+        fclose(f_log);
+        return -4;
+    }
+
+    // Do one less iteration than we need, due to having to special case the start and end.
+    u32 sdcard_sector = base;
+    u32 mlc_sector = 0;
+
+    while(mlc_sector < (TOTAL_SECTORS - SDHC_BLOCK_COUNT_MAX))
+    {
+        int complete = 0;
+        int retries = 0;
+        // Make sure to retry until the command succeeded, probably superfluous but harmless...
+        while(complete != 0b11) {
+            // Issue commands if we didn't already complete them.
+            if(!(complete & 0b01))
+                sres = sdcard_start_read(sdcard_sector, SDHC_BLOCK_COUNT_MAX, sdcard_buf, &sdcard_cmd);
+            if(!(complete & 0b10))
+                mres = mlc_start_read(mlc_sector, SDHC_BLOCK_COUNT_MAX, mlc_buf, &mlc_cmd);
+
+            // Only end the command if starting it succeeded.
+            // If starting and ending the command succeeds, mark it as complete.
+            if(!(complete & 0b01) && sres == 0) {
+                sres = sdcard_end_read(&sdcard_cmd);
+                if(sres == 0) complete |= 0b01;
+            }
+            if(!(complete & 0b10) && mres == 0) {
+                mres = mlc_end_read(&mlc_cmd);
+                if(mres == 0) complete |= 0b10;
+            }
+
+            if (retries > 9999999) {
+                printf("MLC: Still working on sector 0x%08lX\n", mlc_sector);
+                retries = 0;
+            }
+
+            retries++;
+        }
+
+        if(memcmp(sdcard_buf, mlc_buf, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX)) {
+            fwrite(&mlc_sector, 4, 1, f_log);
+            fwrite(mlc_buf, SDMMC_DEFAULT_BLOCKLEN, SDHC_BLOCK_COUNT_MAX, f_diff);
+        }
+
+        if((mlc_sector % 0x10000) == 0) {
+            printf("MLC: Sector 0x%08lX compared\n", mlc_sector);
+        }
+
+        sdcard_sector += SDHC_BLOCK_COUNT_MAX;
+        mlc_sector += SDHC_BLOCK_COUNT_MAX;
+    }
+
+    fclose(f_log);
+    fclose(f_diff);
+
+    }
 
     free(sector_buf1);
     free(sector_buf2);
@@ -1850,6 +1971,52 @@ void dump_restore_rednand(void)
     printf("redNAND restore complete!\n");
 
 restore_exit:
+    console_power_to_exit();
+}
+
+
+void dump_compare_rednand(void)
+{
+    int res = 0;
+
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Comparing redNAND...\n");
+
+    u8 mbr[SDMMC_DEFAULT_BLOCKLEN] ALIGNED(32) = {0};
+    u8* table = &mbr[0x1BE];
+    u8* part2 = &table[0x10];
+    u8* part3 = &table[0x20];
+    u8* part4 = &table[0x30];
+
+    res = sdcard_read(0, 1, mbr);
+    if(res) {
+        printf("Failed to read MBR (%d)!\n", res);
+        goto compare_exit;
+    }
+
+    if(part2[0x4] != 0xAE || part3[0x4] != 0xAE || part4[0x4] != 0xAE) {
+        printf("SD card is not formatted for redNAND!\n");
+        goto compare_exit;
+    }
+
+    smc_get_events(); // Eat all existing events
+
+    u32 mlc_base = LD_DWORD(&part3[0x8]);
+    u32 slc_base = LD_DWORD(&part4[0x8]);
+    u32 slccmpt_base = slc_base + ((NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN);
+
+    printf("Comparing MLC...\n");
+    res = _dump_compare_mlc(mlc_base);
+    if(res) {
+        printf("Failed to compare MLC (%d)!\n", res);
+        goto compare_exit;
+    }
+
+    // TODO: ask to restore SLC and SLCCMPT as well.
+
+    printf("redNAND compare complete!\n");
+
+compare_exit:
     console_power_to_exit();
 }
 
