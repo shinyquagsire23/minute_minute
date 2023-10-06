@@ -811,12 +811,82 @@ u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugin
     return (u32)base + ancast_plugin_size(base);
 }
 
+// Copy DATA segment into carveout from memory
+u32 ancast_plugin_data_copy(uintptr_t base, const uint8_t* p_data, uint32_t data_size)
+{
+    u8* plugin_base = (u8*)base; // TODO dynamic
+
+    // Make a fake ELF header
+    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)base;
+    memset(plugin_base, 0, IPX_NORMAL_EHDR_SIZE + IPX_ENTRY_HDR_SIZE);
+    write32(base, IPX_DATA_MAGIC);
+    ehdr->e_entry = IPX_NORMAL_EHDR_SIZE;
+
+    memcpy(plugin_base + IPX_DATA_START, p_data, data_size);
+    write8(plugin_base + IPX_DATA_START + data_size, 0);
+
+    printf("ancast: loading data to %08x\n", base);
+
+    // Update last plugin's plugin_next
+    ancast_plugin_set_next(ancast_plugin_last, base);
+
+    ancast_plugin_last = base;
+    return (u32)base + ehdr->e_entry + IPX_ENTRY_HDR_SIZE + ALIGN_FORWARD(data_size, 0x100);
+}
+
+// Copy DATA segment into carveout from file
+u32 ancast_plugin_data_load(uintptr_t base, const char* fn_data, uint32_t* p_data_size)
+{
+    char tmp[256];
+    u8* plugin_base = (u8*)base; // TODO dynamic
+    snprintf(tmp, sizeof(tmp)-1, "sdmc:/wiiu/ios_plugins/%s", fn_data);
+
+    if (p_data_size) {
+        *p_data_size = 0;
+    }
+
+    // Make a fake ELF header
+    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)base;
+    memset(plugin_base, 0, IPX_NORMAL_EHDR_SIZE + IPX_ENTRY_HDR_SIZE);
+    write32(base, IPX_DATA_MAGIC);
+    ehdr->e_entry = IPX_NORMAL_EHDR_SIZE;
+
+    FILE* f_plugin = fopen(tmp, "rb");
+    if(!f_plugin)
+    {
+        printf("ancast: failed to open data `%s`!\n", tmp);
+        return base;
+    }
+    else {
+        printf("ancast: loading data `%s` to %08x\n", tmp, base);
+    }
+    size_t f_len = fread(plugin_base + IPX_DATA_START, 1, CARVEOUT_SZ, f_plugin);
+    fclose(f_plugin);
+    write8(plugin_base + IPX_DATA_START + f_len, 0);
+
+    if (p_data_size) {
+        *p_data_size = ehdr->e_entry + IPX_ENTRY_HDR_SIZE + ALIGN_FORWARD(f_len, 0x100);
+    }
+
+    // Update last plugin's plugin_next
+    ancast_plugin_set_next(ancast_plugin_last, base);
+
+    ancast_plugin_last = base;
+    return (u32)base + ehdr->e_entry + IPX_ENTRY_HDR_SIZE + ALIGN_FORWARD(f_len, 0x100);
+}
+
+
+const uint8_t test_data[0x10] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
+const char* default_config = "; Test config file\n[test]\ntest=1\n";
+
+
+
 u32 ancast_plugins_load(const char* plugins_fpath)
 {
     u32 tmp = 0;
     ancast_plugins_search(plugins_fpath);
 
-    u32 total_size = ancast_plugin_check_size("wafel_core.ipx") + 0x1000;
+    u32 total_size = ancast_plugin_check_size(wafel_core_fn, plugins_fpath) + 0x1000;
     for (int i = 0; i < ancast_plugins_count; i++)
     {
         total_size += ancast_plugin_check_size(ancast_plugins_list[i], plugins_fpath);
