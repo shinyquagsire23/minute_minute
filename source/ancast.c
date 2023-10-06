@@ -29,6 +29,7 @@
 #include "sdcard.h"
 #include "serial.h"
 #include "elfldr_patch.h"
+#include "prsh.h"
 
 char sd_read_buffer[0x200] ALIGNED(0x20);
 const char wafel_core_fn[] = "wafel_core.ipx"; 
@@ -636,6 +637,7 @@ int ancast_plugins_count;
 uintptr_t ancast_plugins_base = 0;
 uintptr_t ancast_plugin_last = 0;
 uintptr_t ancast_plugin_next = 0;
+uintptr_t config_plugin_base = 0;
 
 int ancast_plugin_compare(const void* a, const void* b) {
     return strcmp(*(const char**)a, *(const char**)b);
@@ -670,7 +672,8 @@ u32 ancast_plugins_search(const char* plugins_fpath)
     while ((entry = readdir(dir)) != NULL && ancast_plugins_count < MAX_PLUGINS) {
         if (entry->d_type != DT_DIR
             && !strcmp(entry->d_name + strlen(entry->d_name) - strlen(plugins_ext), plugins_ext)
-            && strcmp(entry->d_name, wafel_core_fn)) 
+            && strcmp(entry->d_name, wafel_core_fn)
+            && entry->d_name[0] != '.') 
         {
             ancast_plugins_list[ancast_plugins_count] = malloc(strlen(entry->d_name) + 1);
             strcpy(ancast_plugins_list[ancast_plugins_count], entry->d_name);
@@ -753,6 +756,13 @@ u32 ancast_plugin_check_size(const char* fn_plugin, const char* plugins_fpath)
         printf("ancast: pre-parsing plugin `%s`\n", tmp);
     }
     fread(&hdr, sizeof(hdr), 1, f_plugin);
+
+    // Verify magic
+    if (read32((uintptr_t)hdr.e_ident) != IPX_ELF_MAGIC) {
+        fclose(f_plugin);
+        return 0;
+    }
+
     fseek(f_plugin, hdr.e_phoff, SEEK_SET);
     Elf32_Phdr* paPhdrs = malloc(sizeof(Elf32_Phdr) * hdr.e_phnum);
     fread(paPhdrs, sizeof(Elf32_Phdr) * hdr.e_phnum, 1, f_plugin);
@@ -785,10 +795,14 @@ u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugin
         return base;
     }
     else {
-        printf("ancast: loading plugin `%s`\n", tmp);
+        printf("ancast: loading plugin `%s` to %08x\n", tmp, base);
     }
     fread(plugin_base, CARVEOUT_SZ, 1, f_plugin);
     fclose(f_plugin);
+    if(read32(base) != IPX_ELF_MAGIC) {
+        printf("ancast: plugin `%s` has invalid magic %08x, skipping...\n", tmp, read32(base));
+        return (u32)base;
+    }
 
     // Update last plugin's plugin_next
     ancast_plugin_set_next(ancast_plugin_last, base);
@@ -799,13 +813,15 @@ u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugin
 
 u32 ancast_plugins_load(const char* plugins_fpath)
 {
+    u32 tmp = 0;
     ancast_plugins_search(plugins_fpath);
 
-    u32 total_size = ancast_plugin_check_size(wafel_core_fn, plugins_fpath) + 0x1000;
+    u32 total_size = ancast_plugin_check_size("wafel_core.ipx") + 0x1000;
     for (int i = 0; i < ancast_plugins_count; i++)
     {
         total_size += ancast_plugin_check_size(ancast_plugins_list[i], plugins_fpath);
     }
+    total_size += 0x10000; // TODO remove data padding/do it right?
 
     // IOS wants coarse page alignment for the carveout
     total_size = ALIGN_FORWARD(total_size, 0x100000);
@@ -819,6 +835,16 @@ u32 ancast_plugins_load(const char* plugins_fpath)
     {
         ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, ancast_plugins_list[i], plugins_fpath);
     }
+
+    // Load DATA segments
+    config_plugin_base = ancast_plugin_next;
+    ancast_plugin_next = ancast_plugin_data_load(ancast_plugin_next, "config.ini", &tmp);
+    if (!tmp) {
+        config_plugin_base = ancast_plugin_next;
+        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, default_config, strlen(default_config)+1);
+    }
+    prsh_add_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1, NULL);
+    ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
 
     return 0;
 }

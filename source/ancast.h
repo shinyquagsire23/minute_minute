@@ -58,4 +58,10 @@ extern uintptr_t ancast_plugins_base;
 #define ANCAST_CONSOLE_TYPE_PROD (0x2)
 #define ANCAST_CONSOLE_TYPE_DEV  (0x1)
 
+#define IPX_ELF_MAGIC (0x7F454C46)
+#define IPX_DATA_MAGIC (0x44415441)
+#define IPX_NORMAL_EHDR_SIZE (0x200)
+#define IPX_ENTRY_HDR_SIZE (0x20)
+#define IPX_DATA_START (IPX_NORMAL_EHDR_SIZE+IPX_ENTRY_HDR_SIZE)
+
 #endif
