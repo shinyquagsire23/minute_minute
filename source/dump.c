@@ -853,16 +853,26 @@ int _dump_restore_mlc(u32 base)
     do res = mlc_read(0, SDHC_BLOCK_COUNT_MAX, sdcard_buf);
     while(res);
 
+    bool allzero = true;
+    for(size_t i = 0; i < SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX; i++){
+        if(mlc_buf[i]){
+            allzero = false;
+            break;
+        }
+    }
     // Check to see if the first block matches, if so, ask the user if they want to continue.
-    if(memcmp(sdcard_buf, mlc_buf, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX) == 0) {
+    if(allzero){
+        printf("MLC: First block is empty, continue restoring?\n");
+    } else if(memcmp(sdcard_buf, mlc_buf, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX) == 0) {
         printf("MLC: First blocks match, continue restoring?\n");
-        if(console_abort_confirmation_power_no_eject_yes()) return;
-        printf("MLC: Continuing restore...\n");
     } else {
         printf("MLC: First blocks do not match!\n");
         printf("MLC: Aborting restore.\n");
         return -3;
     }
+    if(console_abort_confirmation_power_no_eject_yes()) 
+        return;
+    printf("MLC: Continuing restore...\n");
 
     // Do one less iteration than we need, due to having to special case the start and end.
     u32 sdcard_sector = base + SDHC_BLOCK_COUNT_MAX;
