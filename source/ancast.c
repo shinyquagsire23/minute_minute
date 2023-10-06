@@ -31,7 +31,7 @@
 #include "elfldr_patch.h"
 
 char sd_read_buffer[0x200] ALIGNED(0x20);
-const char wafel_core_fn[] = "core.ipx"; 
+const char wafel_core_fn[] = "wafel_core.ipx"; 
 
 typedef struct {
     ancast_header header;
