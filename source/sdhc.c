@@ -176,11 +176,6 @@ sdhc_host_found(struct sdhc_host *hp, struct sdhc_host_params *pa, bus_space_tag
     /* Store specification version. */
     hp->version = HREAD2(hp, SDHC_HOST_CTL_VERSION);
 
-    /*
-     * Reset the host controller and enable interrupts.
-     */
-    (void)sdhc_host_reset(hp);
-
     /* Determine host capabilities. */
     caps = HREAD4(hp, SDHC_CAPABILITIES);
 

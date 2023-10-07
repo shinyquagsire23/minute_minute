@@ -567,6 +567,8 @@ u32 _main(void *base)
 
     printf("Initializing SD card...\n");
     sdcard_init();
+    printf("sdcard_init finished\n");
+    //sdcard_init();
 
     printf("Mounting SD card...\n");
     res = ELM_Mount();
