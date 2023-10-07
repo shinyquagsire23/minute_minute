@@ -87,7 +87,7 @@ menu menu_dump = {
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Return to Main Menu", &menu_close},
     },
-    21, // number of options
+    22, // number of options
     0,
     0
 };
