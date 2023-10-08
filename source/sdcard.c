@@ -65,8 +65,6 @@ void sdcard_attach(sdmmc_chipset_handle_t handle)
 
     DPRINTF(0, ("sdcard: attached new SD/MMC card\n"));
 
-    sdhc_host_reset(card.handle);
-
     if (sdhc_card_detect(card.handle)) {
         DPRINTF(1, ("card is inserted. starting init sequence.\n"));
 
@@ -100,7 +98,6 @@ void sdcard_needs_discover(void)
     u32 ocr = card.handle->ocr;
 
     DPRINTF(0, ("sdcard: card needs discovery.\n"));
-    sdhc_host_reset(card.handle);
     card.new_card = 1;
 
     if (!sdhc_card_detect(card.handle)) {
@@ -116,7 +113,7 @@ void sdcard_needs_discover(void)
     }
 
     DPRINTF(1, ("sdcard: enabling clock\n"));
-    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_LEGACY) != 0) {
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_400KHZ, SDMMC_TIMING_LEGACY) != 0) {
         printf("sdcard: could not enable clock for card\n");
         goto out_power;
     }
@@ -129,6 +126,7 @@ void sdcard_needs_discover(void)
     cmd.c_opcode = MMC_GO_IDLE_STATE;
     cmd.c_flags = SCF_RSP_R0;
     sdhc_exec_command(card.handle, &cmd);
+    sdhc_exec_command(card.handle, &cmd); //WHY
 
     if (cmd.c_error) {
         printf("sdcard: GO_IDLE_STATE failed with %d\n", cmd.c_error);
@@ -326,7 +324,6 @@ void sdcard_needs_discover(void)
 
     sdhc_bus_width(card.handle, 4);
 
-#ifndef MINUTE_BOOT1
     printf("sdcard: enabling highspeed 52MHz clock (%02x)\n", csd_bytes[0xB]);
     if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_52MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
         return;
@@ -341,7 +338,6 @@ void sdcard_needs_discover(void)
     if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
         return;
     }
-#endif
 
     printf("sdcard: could not enable highspeed clock for card, falling back to 25MHz legacy?\n");
     if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_LEGACY) == 0) {

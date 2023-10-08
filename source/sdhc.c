@@ -37,11 +37,7 @@
 //#define SDHC_DEBUG
 
 #define SDHC_COMMAND_TIMEOUT    500
-#ifndef MINUTE_BOOT1
 #define SDHC_TRANSFER_TIMEOUT   5000
-#else
-#define SDHC_TRANSFER_TIMEOUT   100
-#endif
 
 #define sdhc_wait_intr(a,b,c) sdhc_wait_intr_debug(__func__, __LINE__, a, b, c)
 
@@ -179,11 +175,9 @@ sdhc_host_found(struct sdhc_host *hp, struct sdhc_host_params *pa, bus_space_tag
     /* Determine host capabilities. */
     caps = HREAD4(hp, SDHC_CAPABILITIES);
 
-#ifndef MINUTE_BOOT1
     /* Use DMA if the host system and the controller support it. */
     if (usedma && ISSET(caps, SDHC_DMA_SUPPORT))
         SET(hp->flags, SHF_USE_DMA);
-#endif
 
     /*
      * Determine the base clock frequency. (2.2.24)
@@ -228,6 +222,7 @@ sdhc_host_found(struct sdhc_host *hp, struct sdhc_host_params *pa, bus_space_tag
      * Attach the generic SD/MMC bus driver.  (The bus driver must
      * not invoke any chipset functions before it is attached.)
      */
+    sdhc_host_reset(hp);
     hp->pa.attach(hp);
 
     return 0;

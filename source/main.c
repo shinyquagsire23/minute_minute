@@ -382,7 +382,6 @@ retry_sd:
     serial_send_u32(0x5D5D0001);
     printf("Initializing SD card...\n");
     sdcard_init();
-    sdcard_init(); // TODO whyyyyy
     serial_send_u32(0x6D6D0001);
 
     int loaded_from_fat = 0;
@@ -509,7 +508,7 @@ menu menu_main = {
             {"Credits", &main_credits},
             //{"ISFS test", &isfs_test},
     },
-    14, // number of options
+    15, // number of options
     0,
     0
 };
@@ -568,7 +567,6 @@ u32 _main(void *base)
     printf("Initializing SD card...\n");
     sdcard_init();
     printf("sdcard_init finished\n");
-    //sdcard_init();
 
     printf("Mounting SD card...\n");
     res = ELM_Mount();
