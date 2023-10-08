@@ -133,6 +133,10 @@ void    sdhc_dump_regs(struct sdhc_host *);
 #define DPRINTF(n,s)    do {} while(0)
 #endif
 
+void do_nothing(sdmmc_chipset_handle_t handle){
+    return;
+}
+
 /*
  * Called by attachment driver.  For each SD card slot there is one SD
  * host controller standard register set. (1.3)
@@ -219,10 +223,18 @@ sdhc_host_found(struct sdhc_host *hp, struct sdhc_host_params *pa, bus_space_tag
         SET(hp->ocr, MMC_OCR_3_2V_3_3V | MMC_OCR_3_3V_3_4V);
 
     /*
+     * set attach function to do nothing, as it might be called by a pending 
+     * CARD_INSERTED interrupt during reset.
+     * It will be called later explicitly to make sure it is called exactly once
+     */
+    hp->pa.attach = do_nothing;
+    sdhc_host_reset(hp);
+    hp->pa.attach = pa->attach; 
+
+    /*
      * Attach the generic SD/MMC bus driver.  (The bus driver must
      * not invoke any chipset functions before it is attached.)
      */
-    sdhc_host_reset(hp);
     hp->pa.attach(hp);
 
     return 0;

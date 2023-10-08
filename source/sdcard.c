@@ -54,6 +54,7 @@ static struct sdcard_ctx card;
 
 void sdcard_attach(sdmmc_chipset_handle_t handle)
 {
+    printf("Attach start\n");
 #ifndef MINUTE_BOOT1
     //bool should_remount = elm_mounted;
     ELM_Unmount();
@@ -79,6 +80,7 @@ void sdcard_attach(sdmmc_chipset_handle_t handle)
         //}
 #endif
     }
+    printf("Attach end\n");
 }
 
 void sdcard_abort(void) {
