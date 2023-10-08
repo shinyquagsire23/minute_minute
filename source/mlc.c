@@ -57,8 +57,6 @@ void mlc_attach(sdmmc_chipset_handle_t handle)
 
     DPRINTF(0, ("mlc: attached new SD/MMC card\n"));
 
-    sdhc_host_reset(card.handle);
-
     if (sdhc_card_detect(card.handle)) {
         DPRINTF(1, ("card is inserted. starting init sequence.\n"));
 
@@ -87,7 +85,6 @@ void mlc_needs_discover(void)
     const u32 ocr = card.handle->ocr | SD_OCR_SDHC_CAP;
 
     DPRINTF(0, ("mlc: card needs discovery.\n"));
-    sdhc_host_reset(card.handle);
     card.new_card = 1;
 
     if (!sdhc_card_detect(card.handle)) {
