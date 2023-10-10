@@ -115,7 +115,7 @@ void sdcard_needs_discover(void)
     }
 
     DPRINTF(1, ("sdcard: enabling clock\n"));
-    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_400KHZ, SDMMC_TIMING_LEGACY) != 0) {
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_LEGACY) != 0) {
         printf("sdcard: could not enable clock for card\n");
         goto out_power;
     }
