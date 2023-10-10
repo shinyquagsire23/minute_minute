@@ -326,6 +326,35 @@ void sdcard_needs_discover(void)
 
     sdhc_bus_width(card.handle, 4);
 
+    // TODO check CMD6 support
+
+    u8 mode_status[64] ALIGNED(32) = {0};
+
+    DPRINTF(2, ("sdcard: SWITCH FUNC Mode 0\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = SD_SWITCH_FUNC;
+    cmd.c_arg = 0x00FFFFF1;
+    cmd.c_data = mode_status;
+    cmd.c_datalen = sizeof(mode_status);
+    cmd.c_blklen = sizeof(mode_status);
+    cmd.c_flags = SCF_RSP_R1 | SCF_CMD_ADTC | SCF_CMD_READ;
+
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("sdcard: SWITCH FUNC Mode 0 %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        //goto out_clock;
+        return; // 1.0 card, which doesn't support CMD6
+    }
+
+    printf("Mode Status:")
+    for(size_t i=0; i<sizeof(mode_status); i++)
+        printf(" %02X", mode_status[i]);
+    printf("\n");
+
+    printf("Group 1 Support: %02x %02x\n", mode_status[50], mode_status[51]);
+    printf("Group 1 Selection: %02x\n", mode_status[47]);
+
     printf("sdcard: enabling highspeed 52MHz clock (%02x)\n", csd_bytes[0xB]);
     if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_52MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
         return;
