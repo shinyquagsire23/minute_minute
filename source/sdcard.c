@@ -324,7 +324,13 @@ void sdcard_needs_discover(void)
 
     sdhc_bus_width(card.handle, 4);
 
-    // TODO check CMD6 support
+    u16 ccc = SD_CSD_CCC(csd_bytes);
+    printf("CCC (hex): %03X\n", ccc);
+
+    if(!(ccc & SD_CSD_CCC_CMD6)){
+        printf("sdcard: CMD6 not supported, stay in SDR12");
+        return;
+    }
 
     u8 mode_status[64] ALIGNED(32) = {0};
 
@@ -351,7 +357,6 @@ void sdcard_needs_discover(void)
             printf("\n");
         printf(" %02X", mode_status[i]);
     }
-
     printf("\n");
 
     printf("Group 1 Support: %02x %02x\n", mode_status[12], mode_status[13]);

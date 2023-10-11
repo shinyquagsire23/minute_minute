@@ -292,6 +292,7 @@ struct sdmmc_function {
 #define  SD_CSD_SPEED_25_MHZ        0x32
 #define  SD_CSD_SPEED_50_MHZ        0x5a
 #define SD_CSD_CCC(resp)        MMC_RSP_BITS((resp), 84, 12)
+#define SD_CSD_CCC_CMD6         (1<<10)
 #define  SD_CSD_CCC_ALL         0x5f5
 #define SD_CSD_READ_BL_LEN(resp)    MMC_RSP_BITS((resp), 80, 4)
 #define SD_CSD_READ_BL_PARTIAL(resp)    MMC_RSP_BITS((resp), 79, 1)
