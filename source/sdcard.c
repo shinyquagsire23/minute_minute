@@ -54,7 +54,6 @@ static struct sdcard_ctx card;
 
 void sdcard_attach(sdmmc_chipset_handle_t handle)
 {
-    printf("Attach start\n");
 #ifndef MINUTE_BOOT1
     //bool should_remount = elm_mounted;
     ELM_Unmount();
@@ -76,7 +75,6 @@ void sdcard_attach(sdmmc_chipset_handle_t handle)
         //}
 #endif
     }
-    printf("Attach end\n");
 }
 
 void sdcard_abort(void) {
@@ -116,7 +114,7 @@ void sdcard_needs_discover(void)
         goto out_power;
     }
 
-    udelay(100); //Need to wait at least 74 clocks before sending CMD0
+    udelay(10); //Need to wait at least 74 clocks before sending CMD0
 
     sdhc_bus_width(card.handle, 1);
 
@@ -126,7 +124,7 @@ void sdcard_needs_discover(void)
     cmd.c_opcode = MMC_GO_IDLE_STATE;
     cmd.c_flags = SCF_RSP_R0;
     sdhc_exec_command(card.handle, &cmd);
-    //sdhc_exec_command(card.handle, &cmd); //WHY
+    sdhc_exec_command(card.handle, &cmd); //WHY
 
     if (cmd.c_error) {
         printf("sdcard: GO_IDLE_STATE failed with %d\n", cmd.c_error);
