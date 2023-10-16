@@ -579,6 +579,12 @@ sdhc_async_response(struct sdhc_host *hp, struct sdmmc_command *cmd)
         return;
     }
 
+    if (ISSET(status, SDHC_ERROR_INTERRUPT)){
+        printf("sdhc: ERROR interrupt, status=0x%X\n", status);
+        cmd->c_error = 1;
+        return;
+    }
+
 //  printf("command_complete, continuing...\n");
 
     /*
@@ -879,7 +885,7 @@ breakout:
 
         hp->intr_error_status = 0;
         (void)sdhc_soft_reset(hp, SDHC_RESET_DAT|SDHC_RESET_CMD);
-        status = 0;
+        //status = 0;
     }
 
     /* Command timeout has higher priority than command complete. */
@@ -889,7 +895,7 @@ breakout:
 
         hp->intr_error_status = 0;
         (void)sdhc_soft_reset(hp, SDHC_RESET_DAT|SDHC_RESET_CMD);
-        status = 0;
+        //status = 0;
     }
 
     return status;

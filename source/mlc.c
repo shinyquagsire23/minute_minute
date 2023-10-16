@@ -61,7 +61,11 @@ void mlc_attach(sdmmc_chipset_handle_t handle)
 
     if (sdhc_card_detect(card.handle)) {
         DPRINTF(1, ("card is inserted. starting init sequence.\n"));
-        mlc_needs_discover();
+        for (int i = 0; i < 2; i++)
+        {
+            mlc_needs_discover();
+            if (card.inserted) break;
+        }
     }
 }
 
@@ -96,6 +100,13 @@ void mlc_needs_discover(void)
         goto out;
     }
 
+    DPRINTF(1, ("mlc: enabling clock\n"));
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_400KHZ, SDMMC_TIMING_LEGACY) != 0) {
+        printf("mlc: could not enable clock for card\n");
+        goto out_power;
+    }
+
+    // Somehow this need to happen twice or the eMMC will act strange
     DPRINTF(1, ("mlc: enabling clock\n"));
     if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_400KHZ, SDMMC_TIMING_LEGACY) != 0) {
         printf("mlc: could not enable clock for card\n");
@@ -147,10 +158,11 @@ void mlc_needs_discover(void)
             sdhc_exec_command(card.handle, &cmd);
 
             if (cmd.c_error) {
-                if(tries == 0 && (cmd.c_error & ETIMEDOUT)){
+                if(tries == 0){
                     // switch from SD mode to MMC mode
                     card.is_sd = false;
                     ocr |= SD_OCR_SDHC_CAP;
+                    tries--;
                     continue;
                 }
 
