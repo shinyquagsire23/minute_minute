@@ -67,7 +67,12 @@ void sdcard_attach(sdmmc_chipset_handle_t handle)
 
     if (sdhc_card_detect(card.handle)) {
         DPRINTF(1, ("card is inserted. starting init sequence.\n"));
-        sdcard_needs_discover();
+        // retries needed for card swap
+        for (int i = 0; i < 16; i++)
+        {
+            sdcard_needs_discover();
+            if (card.inserted) break;
+        }
 
 #ifndef MINUTE_BOOT1
         //if (should_remount) {
