@@ -54,8 +54,8 @@ void dump_set_sata_type_6(void);
 void dump_set_sata_type_7(void);
 void dump_set_sata_type_8(void);
 
-static u8 nand_page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(128);
-static u8 nand_ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(128);
+static u8 nand_page_buf[PAGE_SIZE + PAGE_SPARE_SIZE] ALIGNED(NAND_DATA_ALIGN);
+static u8 nand_ecc_buf[ECC_BUFFER_ALLOC] ALIGNED(NAND_DATA_ALIGN);
 
 menu menu_dump = {
     "minute", // title
@@ -1334,7 +1334,7 @@ int _dump_slc_to_sdcard_sectors(u32 base, u32 bank)
     // the number of SD transfer iterations required to complete the SLC dump (0x800)
     #define TOTAL_ITERATIONS (NAND_MAX_PAGE / PAGES_PER_ITERATION)
 
-    static u8 page_buf[PAGES_PER_ITERATION][PAGE_SIZE] ALIGNED(64);
+    static u8 page_buf[PAGES_PER_ITERATION][PAGE_SIZE] ALIGNED(NAND_DATA_ALIGN);
 
     sdcard_ack_card();
     if(sdcard_check_card() != SDMMC_INSERTED) {
