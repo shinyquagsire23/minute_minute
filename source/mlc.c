@@ -586,11 +586,6 @@ void mlc_needs_discover(void)
         return;
     }
 
-    printf("mlc: couldn't enable highspeed clocks, trying fallback?\n");
-    if (sdhc_bus_clock(card.handle, 26000, SDMMC_TIMING_HIGHSPEED) == 0) {
-        return;
-    }
-
     printf("mlc: couldn't enable highspeed clocks, trying another fallback?\n");
     if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_LEGACY) == 0) {
         return;
