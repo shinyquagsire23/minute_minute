@@ -382,7 +382,7 @@ void mlc_needs_discover(void)
             if(tries == 0){
                 // switch from SD mode to MMC mode
                 card.is_sd = false;
-                printf("mlc: is not an sd, so it is eMMC");
+                printf("mlc: is not an sd, so it is eMMC\n");
                 return _discover_emmc();
             }
 
