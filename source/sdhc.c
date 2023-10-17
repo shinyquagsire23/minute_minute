@@ -460,7 +460,8 @@ sdhc_bus_clock(struct sdhc_host *hp, int freq, int timing)
         cmd.c_arg = 0;
         cmd.c_flags = SCF_RSP_R2;
         sdhc_exec_command(hp, &cmd);
-        if (cmd.c_error) {
+        // somehow it is ok to ignore the error interrupt after changing clocks
+        if (cmd.c_error & ~1) {
             printf("sdcard: MMC_ALL_SEND_CID failed with %d\n", cmd.c_error);
             return ETIMEDOUT;
         }
