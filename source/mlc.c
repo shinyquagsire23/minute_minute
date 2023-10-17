@@ -80,129 +80,28 @@ void mlc_abort(void) {
     sdhc_exec_command(card.handle, &cmd);
 }
 
-void mlc_needs_discover(void)
-{
+static void _discover_emmc(void){
     struct sdmmc_command cmd;
-    u32 ocr = card.handle->ocr;
-
-    DPRINTF(0, ("mlc: card needs discovery.\n"));
-    card.new_card = 1;
-
-    if (!sdhc_card_detect(card.handle)) {
-        DPRINTF(1, ("mlc: card (no longer?) inserted.\n"));
-        card.inserted = 0;
-        return;
-    }
-
-    DPRINTF(1, ("mlc: enabling power\n"));
-    if (sdhc_bus_power(card.handle, ocr) != 0) {
-        printf("mlc: powerup failed for card\n");
-        goto out;
-    }
-
-    DPRINTF(1, ("mlc: enabling clock\n"));
-    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_400KHZ, SDMMC_TIMING_LEGACY) != 0) {
-        printf("mlc: could not enable clock for card\n");
-        goto out_power;
-    }
-
-    // Somehow this need to happen twice or the eMMC will act strange
-    DPRINTF(1, ("mlc: enabling clock\n"));
-    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_400KHZ, SDMMC_TIMING_LEGACY) != 0) {
-        printf("mlc: could not enable clock for card\n");
-        goto out_power;
-    }
-
-    sdhc_bus_width(card.handle, 1);
-
-    udelay(200); //need to wait at least 74 clocks -> 185usec @ 400KHz
-
-    DPRINTF(1, ("mlc: sending GO_IDLE_STATE\n"));
-
-    memset(&cmd, 0, sizeof(cmd));
-    cmd.c_opcode = MMC_GO_IDLE_STATE;
-    cmd.c_flags = SCF_RSP_R0;
-    sdhc_exec_command(card.handle, &cmd);
-
-    if (cmd.c_error) {
-        printf("mlc: GO_IDLE_STATE failed with %d\n", cmd.c_error);
-        goto out_clock;
-    }
-    DPRINTF(2, ("mlc: GO_IDLE_STATE response: %x\n", MMC_R1(cmd.c_resp)));
-
-    DPRINTF(1, ("mlc: sending SEND_IF_COND\n"));
-
-    memset(&cmd, 0, sizeof(cmd));
-    cmd.c_opcode = SD_SEND_IF_COND;
-    cmd.c_arg = 0x1aa;
-    cmd.c_flags = SCF_RSP_R7;
-    cmd.c_timeout = 100;
-    sdhc_exec_command(card.handle, &cmd);
-
-    if (cmd.c_error || (cmd.c_resp[0] & 0xff) != 0xaa)
-        ocr &= ~SD_OCR_SDHC_CAP;
-    else
-        ocr |= SD_OCR_SDHC_CAP;
-    DPRINTF(2, ("sdcard: SEND_IF_COND ocr: %x\n", ocr));
-
-    card.is_sd = true;
+    u32 ocr = card.handle->ocr | SD_OCR_SDHC_CAP;
 
     for (int tries = 0; tries < 100; tries++) {
         udelay(100000);
 
-        if(card.is_sd){
-            memset(&cmd, 0, sizeof(cmd));
-            cmd.c_opcode = MMC_APP_CMD;
-            cmd.c_arg = 0;
-            cmd.c_flags = SCF_RSP_R1;
-            sdhc_exec_command(card.handle, &cmd);
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.c_opcode = MMC_SEND_OP_COND;
+        cmd.c_arg = ocr;
+        cmd.c_flags = SCF_RSP_R3;
+        sdhc_exec_command(card.handle, &cmd);
 
-            if (cmd.c_error) {
-                if(tries == 0){
-                    // switch from SD mode to MMC mode
-                    card.is_sd = false;
-                    ocr |= SD_OCR_SDHC_CAP;
-                    tries--;
-                    continue;
-                }
-
-                printf("mlc: MMC_APP_CMD failed with %d\n", cmd.c_error);
-                goto out_clock;
-            }
-
-            memset(&cmd, 0, sizeof(cmd));
-            cmd.c_opcode = SD_APP_OP_COND;
-            cmd.c_arg = ocr;
-            cmd.c_flags = SCF_RSP_R3;
-            sdhc_exec_command(card.handle, &cmd);
-
-            if (cmd.c_error) {
-                printf("mlc: SD_APP_OP_COND failed with %d\n", cmd.c_error);
-                goto out_clock;
-            }
-
-            DPRINTF(3, ("mlc: response for SEND_IF_COND: %08x\n",
-                        MMC_R1(cmd.c_resp)));
-            if (ISSET(MMC_R1(cmd.c_resp), MMC_OCR_MEM_READY))
-                break;
-
-        } else { // MMC
-            memset(&cmd, 0, sizeof(cmd));
-            cmd.c_opcode = MMC_SEND_OP_COND;
-            cmd.c_arg = ocr;
-            cmd.c_flags = SCF_RSP_R3;
-            sdhc_exec_command(card.handle, &cmd);
-
-            if (cmd.c_error) {
-                printf("mlc: MMC_SEND_OP_COND failed with %d\n", cmd.c_error);
-                goto out_clock;
-            }
-
-            DPRINTF(3, ("mlc: response for SEND_OP_COND: %08x\n",
-                        MMC_R1(cmd.c_resp)));
-            if (ISSET(MMC_R1(cmd.c_resp), MMC_OCR_MEM_READY))
-                break;
+        if (cmd.c_error) {
+            printf("mlc: MMC_SEND_OP_COND failed with %d\n", cmd.c_error);
+            goto out_clock;
         }
+
+        DPRINTF(3, ("mlc: response for SEND_OP_COND: %08x\n",
+                    MMC_R1(cmd.c_resp)));
+        if (ISSET(MMC_R1(cmd.c_resp), MMC_OCR_MEM_READY))
+            break;
     }
     if (!ISSET(cmd.c_resp[0], MMC_OCR_MEM_READY)) {
         printf("mlc: card failed to powerup.\n");
@@ -273,27 +172,18 @@ void mlc_needs_discover(void)
     u16 ccc = SD_CSD_CCC(csd_bytes);
     printf("CCC (hex): %03X\n", ccc);
 
-    if(card.is_sd){
-            if (csd_bytes[13] == 0xe) { // sdhc
-            unsigned int c_size = csd_bytes[7] << 16 | csd_bytes[6] << 8 | csd_bytes[5];
-            printf("mlc: sdhc mode, c_size=%u, card size = %uk\n", c_size, (c_size + 1)* 512);
-            card.num_sectors = (c_size + 1) * 1024; // number of 512-byte sectors
-        }
-        else {
-            unsigned int taac, nsac, read_bl_len, c_size, c_size_mult;
-            taac = csd_bytes[13];
-            nsac = csd_bytes[12];
-            read_bl_len = csd_bytes[9] & 0xF;
-            c_size = (csd_bytes[8] & 3) << 10;
-            c_size |= (csd_bytes[7] << 2);
-            c_size |= (csd_bytes[6] >> 6);
-            c_size_mult = (csd_bytes[5] & 3) << 1;
-            c_size_mult |= csd_bytes[4] >> 7;
-            printf("taac=%u nsac=%u read_bl_len=%u c_size=%u c_size_mult=%u card size=%u bytes\n",
-                taac, nsac, read_bl_len, c_size, c_size_mult, (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len));
-                    card.num_sectors = (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len) / 512;
-        }
-    }
+    unsigned int taac, nsac, read_bl_len, c_size, c_size_mult;
+    taac = csd_bytes[13];
+    nsac = csd_bytes[12];
+    read_bl_len = csd_bytes[9] & 0xF;
+    c_size = (csd_bytes[8] & 3) << 10;
+    c_size |= (csd_bytes[7] << 2);
+    c_size |= (csd_bytes[6] >> 6);
+    c_size_mult = (csd_bytes[5] & 3) << 1;
+    c_size_mult |= csd_bytes[4] >> 7;
+    printf("taac=%u nsac=%u read_bl_len=%u c_size=%u c_size_mult=%u card size=%u bytes\n",
+        taac, nsac, read_bl_len, c_size, c_size_mult, (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len));
+    card.num_sectors = (c_size + 1) * (4 << c_size_mult) * (1 << read_bl_len) / 512;
 
 
     DPRINTF(1, ("mlc: enabling clock\n"));
@@ -316,7 +206,7 @@ void mlc_needs_discover(void)
         goto out_clock;
     }
 
-    if(!card.is_sd && MMC_R1(cmd.c_resp) & 0x3080000) {
+    if(MMC_R1(cmd.c_resp) & 0x3080000) {
         printf("mlc: MMC_SEND_STATUS response fail 0x%lx\n", MMC_R1(cmd.c_resp));
         card.inserted = card.selected = 0;
         goto out_clock;
@@ -334,138 +224,366 @@ void mlc_needs_discover(void)
         goto out_clock;
     }
 
-    if(card.is_sd){
-        DPRINTF(2, ("sdcard: MMC_APP_CMD\n"));
+    DPRINTF(2, ("mlc: MMC_SWITCH(0x3B70101)\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = MMC_SWITCH;
+    cmd.c_arg = 0x3B70101;
+    cmd.c_flags = SCF_RSP_R1B;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_SWITCH(0x3B70101) failed with %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        goto out_clock;
+    }
+
+
+    sdhc_bus_width(card.handle, 4);
+
+    u8 ext_csd[512] ALIGNED(32) = {0};
+
+    DPRINTF(2, ("mlc: MMC_SEND_EXT_CSD\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = MMC_SEND_EXT_CSD;
+    cmd.c_arg = 0;
+    cmd.c_data = ext_csd;
+    cmd.c_datalen = sizeof(ext_csd);
+    cmd.c_blklen = sizeof(ext_csd);
+    cmd.c_flags = SCF_RSP_R1 | SCF_CMD_ADTC | SCF_CMD_READ;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_SEND_EXT_CSD failed with %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        goto out_clock;
+    }
+
+    u8 card_type = ext_csd[0xC4];
+
+    card.num_sectors = (u32)ext_csd[0xD4] | ext_csd[0xD5] << 8 | ext_csd[0xD6] << 16 | ext_csd[0xD7] << 24;
+    printf("mlc: card_type=0x%x sec_count=0x%lx\n", card_type, card.num_sectors);
+
+    if(!(card_type & 0xE)){
+        printf("mlc: no SDR25 support\n");
+        return;
+    }
+
+    DPRINTF(2, ("mlc: MMC_SWITCH(0x3B90101)\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = MMC_SWITCH;
+    cmd.c_arg = 0x3B90101;
+    cmd.c_flags = SCF_RSP_R1B;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_SWITCH(0x3B90101) failed with %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        goto out_clock;
+    }
+
+    DPRINTF(1, ("mlc: enabling clock\n"));
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_52MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
+        return;
+    }
+
+    printf("mlc: couldn't enable highspeed clocks, trying fallback?\n");
+    if (sdhc_bus_clock(card.handle, 26000, SDMMC_TIMING_HIGHSPEED) == 0) {
+        return;
+    }
+
+    printf("mlc: couldn't enable highspeed clocks, trying another fallback?\n");
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_LEGACY) == 0) {
+        return;
+    }
+
+    printf("mlc: could not enable clock for card?\n");
+    goto out_power;
+
+out_clock:
+    sdhc_bus_width(card.handle, 1);
+    sdhc_bus_clock(card.handle, SDMMC_SDCLK_OFF, SDMMC_TIMING_LEGACY);
+
+out_power:
+    sdhc_bus_power(card.handle, 0);
+out:
+    return;
+}
+
+
+void mlc_needs_discover(void)
+{
+    struct sdmmc_command cmd;
+    u32 ocr = card.handle->ocr;
+
+    DPRINTF(0, ("mlc: card needs discovery.\n"));
+    card.new_card = 1;
+
+    if (!sdhc_card_detect(card.handle)) {
+        DPRINTF(1, ("mlc: card (no longer?) inserted.\n"));
+        card.inserted = 0;
+        return;
+    }
+
+    DPRINTF(1, ("mlc: enabling power\n"));
+    if (sdhc_bus_power(card.handle, ocr) != 0) {
+        printf("mlc: powerup failed for card\n");
+        goto out;
+    }
+
+    DPRINTF(1, ("mlc: enabling clock\n"));
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_400KHZ, SDMMC_TIMING_LEGACY) != 0) {
+        printf("mlc: could not enable clock for card\n");
+        goto out_power;
+    }
+
+    // Somehow this need to happen twice or the eMMC will act strange
+    DPRINTF(1, ("mlc: enabling clock\n"));
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_400KHZ, SDMMC_TIMING_LEGACY) != 0) {
+        printf("mlc: could not enable clock for card\n");
+        goto out_power;
+    }
+
+    sdhc_bus_width(card.handle, 1);
+
+    udelay(200); //need to wait at least 74 clocks -> 185usec @ 400KHz
+
+    DPRINTF(1, ("mlc: sending GO_IDLE_STATE\n"));
+
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = MMC_GO_IDLE_STATE;
+    cmd.c_flags = SCF_RSP_R0;
+    sdhc_exec_command(card.handle, &cmd);
+
+    if (cmd.c_error) {
+        printf("mlc: GO_IDLE_STATE failed with %d\n", cmd.c_error);
+        goto out_clock;
+    }
+    DPRINTF(2, ("mlc: GO_IDLE_STATE response: %x\n", MMC_R1(cmd.c_resp)));
+
+    DPRINTF(1, ("mlc: sending SEND_IF_COND\n"));
+
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = SD_SEND_IF_COND;
+    cmd.c_arg = 0x1aa;
+    cmd.c_flags = SCF_RSP_R7;
+    cmd.c_timeout = 100;
+    sdhc_exec_command(card.handle, &cmd);
+
+    if (cmd.c_error || (cmd.c_resp[0] & 0xff) != 0xaa)
+        ocr &= ~SD_OCR_SDHC_CAP;
+    else
+        ocr |= SD_OCR_SDHC_CAP;
+    DPRINTF(2, ("sdcard: SEND_IF_COND ocr: %x\n", ocr));
+
+    card.is_sd = true;
+
+    for (int tries = 0; tries < 100; tries++) {
+        udelay(100000);
+
         memset(&cmd, 0, sizeof(cmd));
         cmd.c_opcode = MMC_APP_CMD;
-        cmd.c_arg = ((u32)card.rca)<<16;
+        cmd.c_arg = 0;
         cmd.c_flags = SCF_RSP_R1;
         sdhc_exec_command(card.handle, &cmd);
+
         if (cmd.c_error) {
-            printf("sdcard: MMC_APP_CMD failed with %d\n", cmd.c_error);
-            card.inserted = card.selected = 0;
+            if(tries == 0){
+                // switch from SD mode to MMC mode
+                card.is_sd = false;
+                printf("mlc: is not an sd, so it is eMMC");
+                return _discover_emmc();
+            }
+
+            printf("mlc: MMC_APP_CMD failed with %d\n", cmd.c_error);
             goto out_clock;
         }
-        DPRINTF(2, ("sdcard: SD_APP_SET_BUS_WIDTH\n"));
+
         memset(&cmd, 0, sizeof(cmd));
-        cmd.c_opcode = SD_APP_SET_BUS_WIDTH;
-        cmd.c_arg = SD_ARG_BUS_WIDTH_4;
-        cmd.c_flags = SCF_RSP_R1;
+        cmd.c_opcode = SD_APP_OP_COND;
+        cmd.c_arg = ocr;
+        cmd.c_flags = SCF_RSP_R3;
         sdhc_exec_command(card.handle, &cmd);
+
         if (cmd.c_error) {
-            printf("sdcard: SD_APP_SET_BUS_WIDTH failed with %d\n", cmd.c_error);
-            card.inserted = card.selected = 0;
+            printf("mlc: SD_APP_OP_COND failed with %d\n", cmd.c_error);
             goto out_clock;
         }
-    } else { //MMC
+
+        DPRINTF(3, ("mlc: response for SEND_IF_COND: %08x\n",
+                    MMC_R1(cmd.c_resp)));
+        if (ISSET(MMC_R1(cmd.c_resp), MMC_OCR_MEM_READY))
+            break;
+
+    }
+    if (!ISSET(cmd.c_resp[0], MMC_OCR_MEM_READY)) {
+        printf("mlc: card failed to powerup.\n");
+        goto out_power;
+    }
+
+    if (ISSET(MMC_R1(cmd.c_resp), SD_OCR_SDHC_CAP))
+        card.sdhc_blockmode = 1;
+    else
+        card.sdhc_blockmode = 0;
+    DPRINTF(2, ("mlc: HC: %d\n", card.sdhc_blockmode));
+
+    DPRINTF(2, ("mlc: MMC_ALL_SEND_CID\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = MMC_ALL_SEND_CID;
+    cmd.c_arg = 0;
+    cmd.c_flags = SCF_RSP_R2;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_ALL_SEND_CID failed with %d\n", cmd.c_error);
+        goto out_clock;
+    }
+
+    u8 *resp = (u8 *)cmd.c_resp;
+
+    printf("CID: mid=%02x name='%c%c%c%c%c%c%c' prv=%d.%d psn=%02x%02x%02x%02x mdt=%d/%d\n", resp[14],
+        resp[13],resp[12],resp[11],resp[10],resp[9],resp[8],resp[7], resp[6], resp[5] >> 4, resp[5] & 0xf,
+        resp[4], resp[3], resp[2], resp[0] & 0xf, 2000 + (resp[0] >> 4));
 
 
+    DPRINTF(2, ("mlc: SD_SEND_RELATIVE_ADDRESS\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = SD_SEND_RELATIVE_ADDR;
+    cmd.c_arg = 0;
+    cmd.c_flags = SCF_RSP_R6;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: SD_SEND_RCA failed with %d\n", cmd.c_error);
+        goto out_clock;
+    }
 
-        DPRINTF(2, ("mlc: MMC_SWITCH(0x3B70101)\n"));
-        memset(&cmd, 0, sizeof(cmd));
-        cmd.c_opcode = MMC_SWITCH;
-        cmd.c_arg = 0x3B70101;
-        cmd.c_flags = SCF_RSP_R1B;
-        sdhc_exec_command(card.handle, &cmd);
-        if (cmd.c_error) {
-            printf("mlc: MMC_SWITCH(0x3B70101) failed with %d\n", cmd.c_error);
-            card.inserted = card.selected = 0;
-            goto out_clock;
-        }
+    card.rca = MMC_R1(cmd.c_resp)>>16;
+    DPRINTF(2, ("mlc: rca: %08x\n", card.rca));
+
+    card.selected = 0;
+    card.inserted = 1;
+
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = MMC_SEND_CSD;
+    cmd.c_arg = ((u32)card.rca)<<16;
+    cmd.c_flags = SCF_RSP_R2;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_SEND_CSD failed with %d\n", cmd.c_error);
+        goto out_power;
+    }
+
+
+    u32 *resp32 = (u32 *)cmd.c_resp;
+    printf("CSD: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
+
+    u8 *csd_bytes = (u8 *)cmd.c_resp;
+    u16 ccc = SD_CSD_CCC(csd_bytes);
+    printf("CCC (hex): %03X\n", ccc);
+
+    if (csd_bytes[13] == 0xe) { // sdhc
+        unsigned int c_size = csd_bytes[7] << 16 | csd_bytes[6] << 8 | csd_bytes[5];
+        printf("mlc: sdhc mode, c_size=%u, card size = %uk\n", c_size, (c_size + 1)* 512);
+        card.num_sectors = (c_size + 1) * 1024; // number of 512-byte sectors
+    }
+
+    DPRINTF(1, ("mlc: enabling clock\n"));
+    if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_LEGACY) != 0) {
+        printf("mlc: could not enable clock for card\n");
+        goto out_power;
+    }
+
+    mlc_select();
+
+    DPRINTF(2, ("mlc: MMC_SEND_STATUS\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = MMC_SEND_STATUS;
+    cmd.c_arg = ((u32)card.rca)<<16;
+    cmd.c_flags = SCF_RSP_R1;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_SEND_STATUS failed with %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        goto out_clock;
+    }
+
+    DPRINTF(2, ("mlc: MMC_SET_BLOCKLEN\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = MMC_SET_BLOCKLEN;
+    cmd.c_arg = SDMMC_DEFAULT_BLOCKLEN;
+    cmd.c_flags = SCF_RSP_R1;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: MMC_SET_BLOCKLEN failed with %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        goto out_clock;
+    }
+
+    DPRINTF(2, ("sdcard: MMC_APP_CMD\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = MMC_APP_CMD;
+    cmd.c_arg = ((u32)card.rca)<<16;
+    cmd.c_flags = SCF_RSP_R1;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("sdcard: MMC_APP_CMD failed with %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        goto out_clock;
+    }
+    DPRINTF(2, ("sdcard: SD_APP_SET_BUS_WIDTH\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = SD_APP_SET_BUS_WIDTH;
+    cmd.c_arg = SD_ARG_BUS_WIDTH_4;
+    cmd.c_flags = SCF_RSP_R1;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("sdcard: SD_APP_SET_BUS_WIDTH failed with %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        goto out_clock;
     }
 
     sdhc_bus_width(card.handle, 4);
 
-    if(card.is_sd){
-        if(!(ccc & SD_CSD_CCC_CMD6)){
-            printf("mlc: CMD6 not supported, stay in SDR12\n");
-            return;
-        }
-        u8 mode_status[64] ALIGNED(32) = {0};
-        DPRINTF(2, ("mlc: SWITCH FUNC Mode 0\n"));
-        memset(&cmd, 0, sizeof(cmd));
-        cmd.c_opcode = SD_SWITCH_FUNC;
-        cmd.c_arg = 0x00FFFFF1;
-        cmd.c_data = mode_status;
-        cmd.c_datalen = sizeof(mode_status);
-        cmd.c_blklen = sizeof(mode_status);
-        cmd.c_flags = SCF_RSP_R1 | SCF_CMD_ADTC | SCF_CMD_READ;
-        sdhc_exec_command(card.handle, &cmd);
-        if (cmd.c_error) {
-            printf("mlc: SWITCH FUNC Mode 0 %d\n", cmd.c_error);
-            card.inserted = card.selected = 0;
-            //goto out_clock;
-            return; // 1.0 card, which doesn't support CMD6
-        }
-        printf("Mode Status:");
-        for(size_t i=0; i<sizeof(mode_status); i++){
-            if(i%8==0)
-                printf("\n");
-            printf(" %02X", mode_status[i]);
-        }
-        printf("\n");
-        printf("Group 1 Support: %02x %02x\n", mode_status[12], mode_status[13]);
-        printf("Group 1 Selection: %02x\n", mode_status[16]);
-        if(mode_status[16] != 1){
-            // Does not SD25 (52MHz), so leave 25MHz
-            printf("mlc: doesn't support SDR25, staying at SDR12\n");
-            return;
-        }
-        DPRINTF(2, ("mlc: SWITCH FUNC Mode 1\n"));
-        memset(&cmd, 0, sizeof(cmd));
-        cmd.c_opcode = SD_SWITCH_FUNC;
-        cmd.c_arg = 0x80FFFFF1;
-        cmd.c_data = mode_status;
-        cmd.c_datalen = sizeof(mode_status);
-        cmd.c_blklen = sizeof(mode_status);
-        cmd.c_flags = SCF_RSP_R1 | SCF_CMD_ADTC | SCF_CMD_READ;
-        if(mode_status[16] != 1){
-            printf("mlc: switch to SDR25 failed, staying at SDR12\n");
-            return;
-        }
-
-
-    } else {
-
-        u8 ext_csd[512] ALIGNED(32) = {0};
-
-        DPRINTF(2, ("mlc: MMC_SEND_EXT_CSD\n"));
-        memset(&cmd, 0, sizeof(cmd));
-        cmd.c_opcode = MMC_SEND_EXT_CSD;
-        cmd.c_arg = 0;
-        cmd.c_data = ext_csd;
-        cmd.c_datalen = sizeof(ext_csd);
-        cmd.c_blklen = sizeof(ext_csd);
-        cmd.c_flags = SCF_RSP_R1 | SCF_CMD_ADTC | SCF_CMD_READ;
-        sdhc_exec_command(card.handle, &cmd);
-        if (cmd.c_error) {
-            printf("mlc: MMC_SEND_EXT_CSD failed with %d\n", cmd.c_error);
-            card.inserted = card.selected = 0;
-            goto out_clock;
-        }
-
-        u8 card_type = ext_csd[0xC4];
-
-        card.num_sectors = (u32)ext_csd[0xD4] | ext_csd[0xD5] << 8 | ext_csd[0xD6] << 16 | ext_csd[0xD7] << 24;
-        printf("mlc: card_type=0x%x sec_count=0x%lx\n", card_type, card.num_sectors);
-
-        if(!(card_type & 0xE)){
-            printf("mlc: no SDR25 support\n");
-            return;
-        }
-
-        DPRINTF(2, ("mlc: MMC_SWITCH(0x3B90101)\n"));
-        memset(&cmd, 0, sizeof(cmd));
-        cmd.c_opcode = MMC_SWITCH;
-        cmd.c_arg = 0x3B90101;
-        cmd.c_flags = SCF_RSP_R1B;
-        sdhc_exec_command(card.handle, &cmd);
-        if (cmd.c_error) {
-            printf("mlc: MMC_SWITCH(0x3B90101) failed with %d\n", cmd.c_error);
-            card.inserted = card.selected = 0;
-            goto out_clock;
-        }
-
+    if(!(ccc & SD_CSD_CCC_CMD6)){
+        printf("mlc: CMD6 not supported, stay in SDR12\n");
+        return;
+    }
+    u8 mode_status[64] ALIGNED(32) = {0};
+    DPRINTF(2, ("mlc: SWITCH FUNC Mode 0\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = SD_SWITCH_FUNC;
+    cmd.c_arg = 0x00FFFFF1;
+    cmd.c_data = mode_status;
+    cmd.c_datalen = sizeof(mode_status);
+    cmd.c_blklen = sizeof(mode_status);
+    cmd.c_flags = SCF_RSP_R1 | SCF_CMD_ADTC | SCF_CMD_READ;
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("mlc: SWITCH FUNC Mode 0 %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        //goto out_clock;
+        return; // 1.0 card, which doesn't support CMD6
+    }
+    printf("Mode Status:");
+    for(size_t i=0; i<sizeof(mode_status); i++){
+        if(i%8==0)
+            printf("\n");
+        printf(" %02X", mode_status[i]);
+    }
+    printf("\n");
+    printf("Group 1 Support: %02x %02x\n", mode_status[12], mode_status[13]);
+    printf("Group 1 Selection: %02x\n", mode_status[16]);
+    if(mode_status[16] != 1){
+        // Does not SD25 (52MHz), so leave 25MHz
+        printf("mlc: doesn't support SDR25, staying at SDR12\n");
+        return;
+    }
+    DPRINTF(2, ("mlc: SWITCH FUNC Mode 1\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = SD_SWITCH_FUNC;
+    cmd.c_arg = 0x80FFFFF1;
+    cmd.c_data = mode_status;
+    cmd.c_datalen = sizeof(mode_status);
+    cmd.c_blklen = sizeof(mode_status);
+    cmd.c_flags = SCF_RSP_R1 | SCF_CMD_ADTC | SCF_CMD_READ;
+    if(mode_status[16] != 1){
+        printf("mlc: switch to SDR25 failed, staying at SDR12\n");
+        return;
     }
 
     DPRINTF(1, ("mlc: enabling clock\n"));
