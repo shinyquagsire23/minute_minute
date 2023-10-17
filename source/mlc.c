@@ -163,15 +163,10 @@ static void _discover_emmc(void){
         printf("mlc: MMC_SEND_CSD failed with %d\n", cmd.c_error);
         goto out_power;
     }
-
-
     resp32 = (u32 *)cmd.c_resp;
     printf("CSD: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
 
     u8 *csd_bytes = (u8 *)cmd.c_resp;
-    u16 ccc = SD_CSD_CCC(csd_bytes);
-    printf("CCC (hex): %03X\n", ccc);
-
     unsigned int taac, nsac, read_bl_len, c_size, c_size_mult;
     taac = csd_bytes[13];
     nsac = csd_bytes[12];
@@ -471,11 +466,11 @@ void mlc_needs_discover(void)
 
     u32 *resp32 = (u32 *)cmd.c_resp;
     printf("CSD: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
-
-    u8 *csd_bytes = (u8 *)cmd.c_resp;
-    u16 ccc = SD_CSD_CCC(csd_bytes);
+    
+    u16 ccc = SD_CSD_CCC(resp32);
     printf("CCC (hex): %03X\n", ccc);
 
+    u8 *csd_bytes = (u8 *)cmd.c_resp;
     if (csd_bytes[13] == 0xe) { // sdhc
         unsigned int c_size = csd_bytes[7] << 16 | csd_bytes[6] << 8 | csd_bytes[5];
         printf("mlc: sdhc mode, c_size=%u, card size = %uk\n", c_size, (c_size + 1)* 512);
