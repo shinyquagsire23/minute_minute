@@ -554,15 +554,7 @@ void mlc_needs_discover(void)
         //goto out_clock;
         return; // 1.0 card, which doesn't support CMD6
     }
-    printf("Mode Status:");
-    for(size_t i=0; i<sizeof(mode_status); i++){
-        if(i%8==0)
-            printf("\n");
-        printf(" %02X", mode_status[i]);
-    }
-    printf("\n");
-    printf("Group 1 Support: %02x %02x\n", mode_status[12], mode_status[13]);
-    printf("Group 1 Selection: %02x\n", mode_status[16]);
+
     if(mode_status[16] != 1){
         // Does not SD25 (52MHz), so leave 25MHz
         printf("mlc: doesn't support SDR25, staying at SDR12\n");
