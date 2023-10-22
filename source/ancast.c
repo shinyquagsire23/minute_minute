@@ -906,7 +906,7 @@ static u32 ancast_load_red_partitions(uintptr_t plugin_next){
     int res = sdcard_read(0, 1, &mbr);
     if(res) {
         printf("Failed to read MBR (%d)!\n", res);
-        return -1;
+        return plugin_next;
     }
 
     bool legacy = ancast_check_legacy_rednand(&mbr);
@@ -969,6 +969,7 @@ u32 ancast_plugins_load(const char* plugins_fpath)
     }
     prsh_add_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1, NULL);
     ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
+    ancast_plugin_next = ancast_load_red_partitions(ancast_plugin_next);
 
     return 0;
 }
