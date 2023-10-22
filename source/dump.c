@@ -27,6 +27,7 @@
 #include "ancast.h"
 #include "seeprom.h"
 #include "crc32.h"
+#include "mbr.h"
 
 #include "ff.h"
 
@@ -1418,13 +1419,9 @@ int _dump_partition_rednand(void)
     int res = 0;
     FRESULT fres = 0;
 
-    u8 mbr[SDMMC_DEFAULT_BLOCKLEN] ALIGNED(32) = {0};
-    u8* table = &mbr[0x1BE];
-    u8* part2 = &table[0x10];
-    u8* part3 = &table[0x20];
-    u8* part4 = &table[0x30];
+    mbr_sector mbr ALIGNED(32) = {0};
 
-    res = sdcard_read(0, 1, mbr);
+    res = sdcard_read(0, 1, &mbr);
     if(res) {
         printf("Failed to read MBR (%d)!\n", res);
         return -1;
@@ -1476,28 +1473,28 @@ int _dump_partition_rednand(void)
 
     printf("Updating MBR...\n");
 
-    res = sdcard_read(0, 1, mbr);
+    res = sdcard_read(0, 1, &mbr);
     if(res) {
         printf("Failed to read MBR (%d)!\n", res);
         return -3;
     }
 
-    memset(part2, 0x00, 0x10);
-    part2[0x4] = 0xAE;
-    ST_DWORD(&part2[0x8], data_base);
-    ST_DWORD(&part2[0xC], data_sectors);
+    memset(&mbr.partition[1], 0x00, sizeof(mbr.partition[1]));
+    mbr.partition[1].type = 0xAE;
+    ST_DWORD(&mbr.partition[1].lba_start, data_base);
+    ST_DWORD(&mbr.partition[1].lba_length, data_sectors);
 
-    memset(part3, 0x00, 0x10);
-    part3[0x4] = 0xAE;
-    ST_DWORD(&part3[0x8], mlc_base);
-    ST_DWORD(&part3[0xC], mlc_sectors);
+    memset(&mbr.partition[2], 0x00, sizeof(mbr.partition[2]));
+    mbr.partition[1].type = 0xAE;
+    ST_DWORD(&mbr.partition[2].lba_start, mlc_base);
+    ST_DWORD(&mbr.partition[2].lba_length, mlc_sectors);
 
-    memset(part4, 0x00, 0x10);
-    part4[0x4] = 0xAE;
-    ST_DWORD(&part4[0x8], slc_base);
-    ST_DWORD(&part4[0xC], slc_sectors * 2);
+    memset(&mbr.partition[3], 0x00, sizeof(mbr.partition[3]));
+    mbr.partition[3].type = 0xAE;
+    ST_DWORD(&mbr.partition[3].lba_start, slc_base);
+    ST_DWORD(&mbr.partition[3].lba_length, slc_sectors * 2);
 
-    res = sdcard_write(0, 1, mbr);
+    res = sdcard_write(0, 1, &mbr);
     if(res) {
         printf("Failed to write MBR (%d)!\n", res);
         return -4;
