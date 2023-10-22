@@ -891,6 +891,13 @@ static u32 ancast_check_legacy_rednand(mbr_sector *mbr){
     return true;
 }
 
+static u32 ancast_add_partition(uintptr_t plugin_base, partition_entry *mbr_partition, char *name){
+    u32 partition[2] = { LD_DWORD(mbr_partition->lba_start), LD_DWORD(mbr_partition->lba_length) };
+    uintptr_t plugin_next = ancast_plugin_data_copy(plugin_next, partition, sizeof(partition));
+    prsh_add_entry(name, (void*)(plugin_base+IPX_DATA_START), sizeof(partition), NULL);
+    return plugin_next;
+}
+
 static u32 ancast_load_red_partitions(uintptr_t plugin_next){
     if(sdcard_check_card() == SDMMC_NO_CARD)
         return plugin_next;
@@ -903,7 +910,13 @@ static u32 ancast_load_red_partitions(uintptr_t plugin_next){
     }
 
     bool legacy = ancast_check_legacy_rednand(&mbr);
+    if(legacy){
+        plugin_next = ancast_add_partition(plugin_next, &mbr.partition[2], "redmlc");
+        plugin_next = ancast_add_partition(plugin_next, &mbr.partition[3], "redslc");
+        return plugin_next;
+    }
 
+    
 
     return plugin_next;
 }
