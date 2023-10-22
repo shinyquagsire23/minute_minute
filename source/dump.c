@@ -1427,19 +1427,9 @@ int _dump_partition_rednand(void)
         return -1;
     }
 
-    // Already partitioned, so ask about repartitioning
-    // Actually let's always ask
-    //if(part2[0x4] == 0xAE && part3[0x4] == 0xAE && part4[0x4] == 0xAE)
-    {
-        smc_get_events(); // Eat all existing events
-        printf("Repartition SD card?\n");
-        printf("ALL DATA ON THE SD CARD WILL BE OVERWRITTEN!\n");
-        printf("THIS CANNOT BE UNDONE!\n");
-
-        if(console_abort_confirmation_power_no_eject_yes()) return -1;
-    }
-
-    printf("Partitioning SD card...\n");
+    u32 fat_base = LD_DWORD(mbr.partition[0].lba_start);
+    u32 fat_sectors = LD_DWORD(mbr.partition[0].lba_length);
+    u32 fat_end = fat_base + fat_sectors;
 
     const u32 slc_sectors = (NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
     const u32 mlc_sectors = 0x03A20000; // TODO: 8GB model.
@@ -1450,49 +1440,65 @@ int _dump_partition_rednand(void)
     u32 slc_base = slccmpt_base - slc_sectors;
     u32 mlc_base = slc_base - mlc_sectors;
 
-    u32 fat_sectors = mlc_base - 1 - data_sectors;
-    u32 fat_base = mlc_base - fat_sectors;
-    u32 data_base = 0;
+    bool keep_fat = fat_end <= mlc_base;
+
+    if(keep_fat){
+        printf("Keeping first partition\n");
+        printf("ALL DATA ON THE OTHER PARTITIONS WILL BE OVERWRITTEN!\n");
+        printf("THIS CANNOT BE UNDONE!\n");
+    } else {
+        fat_sectors = mlc_base - 1 - data_sectors;
+        fat_base = mlc_base - fat_sectors;
+        printf("Repartition SD card?\n");
+        printf("ALL DATA ON THE SD CARD WILL BE OVERWRITTEN!\n");
+    }
+    printf("THIS CANNOT BE UNDONE!\n");
+    smc_get_events(); // Eat all existing events
+    if(console_abort_confirmation_power_no_eject_yes()) return -1;
+
+    printf("Partitioning SD card...\n");
+
 
     printf("Partition layout on SD with 0x%08lX (0x%08lX) sectors:\n", (u32)sdcard_get_sectors(), end);
 
     printf("FAT32:   0x%08lX->0x%08lX\n", fat_base, fat_base + fat_sectors);
-    printf("DATA:    0x%08lX->0x%08lX\n", data_base, data_base + data_sectors);
     printf("MLC:     0x%08lX->0x%08lX\n", mlc_base, mlc_base + mlc_sectors);
     printf("SLC:     0x%08lX->0x%08lX\n", slc_base, slc_base + slc_sectors);
     printf("SLCCMPT: 0x%08lX->0x%08lX\n", slccmpt_base, slccmpt_base + slc_sectors);
 
     if(console_abort_confirmation_power_exit_eject_continue()) return 1;
 
-    printf("Formatting to FAT32...\n");
-    fres = f_mkfs("sdmc:", 0, 0, fat_base, fat_base + fat_sectors);
-    if(fres != FR_OK) {
-        printf("Failed to format card (%d)!\n", fres);
-        return -2;
+    if(!keep_fat){
+        printf("Formatting to FAT32...\n");
+        fres = f_mkfs("sdmc:", 0, 0, fat_base, fat_base + fat_sectors);
+        if(fres != FR_OK) {
+            printf("Failed to format card (%d)!\n", fres);
+            return -2;
+        }
+        res = sdcard_read(0, 1, &mbr);
+        if(res) {
+            printf("Failed to read MBR (%d)!\n", res);
+            return -3;
+        }
+        mbr.partition[0].type = 0x0C; //FAT32
     }
 
     printf("Updating MBR...\n");
 
-    res = sdcard_read(0, 1, &mbr);
-    if(res) {
-        printf("Failed to read MBR (%d)!\n", res);
-        return -3;
-    }
-
     memset(&mbr.partition[1], 0x00, sizeof(mbr.partition[1]));
-    mbr.partition[1].type = 0xAE;
-    ST_DWORD(mbr.partition[1].lba_start, data_base);
-    ST_DWORD(mbr.partition[1].lba_length, data_sectors);
+    mbr.partition[1].type = 0x83; //Ext2
+    ST_DWORD(mbr.partition[1].lba_start, mlc_base);
+    ST_DWORD(mbr.partition[1].lba_length,  mlc_sectors);
 
     memset(&mbr.partition[2], 0x00, sizeof(mbr.partition[2]));
-    mbr.partition[1].type = 0xAE;
-    ST_DWORD(mbr.partition[2].lba_start, mlc_base);
-    ST_DWORD(mbr.partition[2].lba_length, mlc_sectors);
+    mbr.partition[1].type = 0xF9; //Ext3
+    ST_DWORD(mbr.partition[2].lba_start, slc_base);
+    ST_DWORD(mbr.partition[2].lba_length, slc_sectors);
 
     memset(&mbr.partition[3], 0x00, sizeof(mbr.partition[3]));
-    mbr.partition[3].type = 0xAE;
-    ST_DWORD(mbr.partition[3].lba_start, slc_base);
-    ST_DWORD(mbr.partition[3].lba_length, slc_sectors * 2);
+    mbr.partition[3].type = 0x07; //NTFS
+    ST_DWORD(mbr.partition[3].lba_start, slccmpt_base);
+    ST_DWORD(mbr.partition[3].lba_length, slc_sectors);
 
     res = sdcard_write(0, 1, &mbr);
     if(res) {
@@ -1746,16 +1752,13 @@ void dump_format_rednand(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Formatting redNAND...\n");
 
-    u8 mbr[SDMMC_DEFAULT_BLOCKLEN] ALIGNED(32) = {0};
-    u8* table = &mbr[0x1BE];
-    u8* part3 = &table[0x20];
-    u8* part4 = &table[0x30];
+    mbr_sector mbr ALIGNED(32) = {0};
 
     res = _dump_partition_rednand();
     if(res > 0) return;
     if(res < 0) goto format_exit;
 
-    res = sdcard_read(0, 1, mbr);
+    res = sdcard_read(0, 1, &mbr);
     if(res) {
         printf("Failed to read MBR (%d)!\n", res);
         goto format_exit;
@@ -1780,9 +1783,9 @@ void dump_format_rednand(void)
         }
     }
 
-    u32 mlc_base = LD_DWORD(&part3[0x8]);
-    u32 slc_base = LD_DWORD(&part4[0x8]);
-    u32 slccmpt_base = slc_base + ((NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN);
+    u32 mlc_base = LD_DWORD(mbr.partition[1].lba_start);
+    u32 slc_base = LD_DWORD(mbr.partition[2].lba_start);
+    u32 slccmpt_base = LD_DWORD(mbr.partition[3].lba_start);;
 
     printf("Dumping redNAND...\n");
     res = _dump_copy_rednand(slc_base, slccmpt_base, mlc_base);
