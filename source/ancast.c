@@ -30,6 +30,8 @@
 #include "serial.h"
 #include "elfldr_patch.h"
 #include "prsh.h"
+#include "mbr.h"
+#include "nand.h"
 
 char sd_read_buffer[0x200] ALIGNED(0x20);
 const char wafel_core_fn[] = "wafel_core.ipx"; 
@@ -875,11 +877,39 @@ u32 ancast_plugin_data_load(uintptr_t base, const char* fn_data, uint32_t* p_dat
     return (u32)base + ehdr->e_entry + IPX_ENTRY_HDR_SIZE + ALIGN_FORWARD(f_len, 0x100);
 }
 
+static u32 ancast_check_legacy_rednand(mbr_sector *mbr){
+    for(int i=1; i<4; i++)
+        if(mbr->partition[i].type != 0xAE)
+            return false;
+
+    if(LD_DWORD(mbr->partition[3].lba_length) != (NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN)
+        return false;
+
+    if(LD_DWORD(mbr->partition[3].lba_length) != 0x3A20000)
+        return false;
+    
+    return true;
+}
+
+static u32 ancast_load_red_partitions(uintptr_t plugin_next){
+    if(sdcard_check_card() == SDMMC_NO_CARD)
+        return plugin_next;
+
+    mbr_sector mbr ALIGNED(32) = {0};
+    int res = sdcard_read(0, 1, &mbr);
+    if(res) {
+        printf("Failed to read MBR (%d)!\n", res);
+        return -1;
+    }
+
+    bool legacy = ancast_check_legacy_rednand(&mbr);
+
+
+    return plugin_next;
+}
 
 const uint8_t test_data[0x10] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
 const char* default_config = "; Test config file\n[test]\ntest=1\n";
-
-
 
 u32 ancast_plugins_load(const char* plugins_fpath)
 {
