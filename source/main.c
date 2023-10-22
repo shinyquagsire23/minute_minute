@@ -583,7 +583,6 @@ u32 _main(void *base)
     res = ELM_Mount();
     if(res) {
         printf("Error while mounting SD card (%d).\n", res);
-        panic(0);
     }
 
     crypto_check_de_Fused();
