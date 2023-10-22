@@ -916,7 +916,18 @@ static u32 ancast_load_red_partitions(uintptr_t plugin_next){
         return plugin_next;
     }
 
-    
+    for(int i=1; i<4; i++){
+        switch(mbr.partition[i].type){
+            case 0x83: 
+                plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redmlc");
+                break;
+            case 0xF9:
+                plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redslc");
+                break;
+            case 0x07:
+                plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redslccmpt");
+        }
+    }
 
     return plugin_next;
 }
