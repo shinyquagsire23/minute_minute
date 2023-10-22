@@ -1481,18 +1481,18 @@ int _dump_partition_rednand(void)
 
     memset(&mbr.partition[1], 0x00, sizeof(mbr.partition[1]));
     mbr.partition[1].type = 0xAE;
-    ST_DWORD(&mbr.partition[1].lba_start, data_base);
-    ST_DWORD(&mbr.partition[1].lba_length, data_sectors);
+    ST_DWORD(mbr.partition[1].lba_start, data_base);
+    ST_DWORD(mbr.partition[1].lba_length, data_sectors);
 
     memset(&mbr.partition[2], 0x00, sizeof(mbr.partition[2]));
     mbr.partition[1].type = 0xAE;
-    ST_DWORD(&mbr.partition[2].lba_start, mlc_base);
-    ST_DWORD(&mbr.partition[2].lba_length, mlc_sectors);
+    ST_DWORD(mbr.partition[2].lba_start, mlc_base);
+    ST_DWORD(mbr.partition[2].lba_length, mlc_sectors);
 
     memset(&mbr.partition[3], 0x00, sizeof(mbr.partition[3]));
     mbr.partition[3].type = 0xAE;
-    ST_DWORD(&mbr.partition[3].lba_start, slc_base);
-    ST_DWORD(&mbr.partition[3].lba_length, slc_sectors * 2);
+    ST_DWORD(mbr.partition[3].lba_start, slc_base);
+    ST_DWORD(mbr.partition[3].lba_length, slc_sectors * 2);
 
     res = sdcard_write(0, 1, &mbr);
     if(res) {
