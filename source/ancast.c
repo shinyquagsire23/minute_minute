@@ -32,6 +32,7 @@
 #include "prsh.h"
 #include "mbr.h"
 #include "nand.h"
+#include "ff.h"
 
 char sd_read_buffer[0x200] ALIGNED(0x20);
 const char wafel_core_fn[] = "wafel_core.ipx"; 
@@ -893,7 +894,7 @@ static u32 ancast_check_legacy_rednand(mbr_sector *mbr){
 
 static u32 ancast_add_partition(uintptr_t plugin_base, partition_entry *mbr_partition, char *name){
     u32 partition[2] = { LD_DWORD(mbr_partition->lba_start), LD_DWORD(mbr_partition->lba_length) };
-    uintptr_t plugin_next = ancast_plugin_data_copy(plugin_next, partition, sizeof(partition));
+    uintptr_t plugin_next = ancast_plugin_data_copy(plugin_next, (uint8_t*)partition, sizeof(partition));
     prsh_add_entry(name, (void*)(plugin_base+IPX_DATA_START), sizeof(partition), NULL);
     return plugin_next;
 }
