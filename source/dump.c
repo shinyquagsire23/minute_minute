@@ -1445,7 +1445,6 @@ int _dump_partition_rednand(void)
     if(keep_fat){
         printf("Keeping first partition\n");
         printf("ALL DATA ON THE OTHER PARTITIONS WILL BE OVERWRITTEN!\n");
-        printf("THIS CANNOT BE UNDONE!\n");
     } else {
         fat_sectors = mlc_base - 1 - data_sectors;
         fat_base = mlc_base - fat_sectors;
