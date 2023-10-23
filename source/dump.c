@@ -1785,7 +1785,7 @@ void dump_format_rednand(void)
 
     u32 mlc_base = LD_DWORD(mbr.partition[1].lba_start);
     u32 slc_base = LD_DWORD(mbr.partition[2].lba_start);
-    u32 slccmpt_base = LD_DWORD(mbr.partition[3].lba_start);;
+    u32 slccmpt_base = LD_DWORD(mbr.partition[3].lba_start);
 
     printf("Dumping redNAND...\n");
     res = _dump_copy_rednand(slc_base, slccmpt_base, mlc_base);
