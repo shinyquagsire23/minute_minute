@@ -1432,7 +1432,7 @@ int _dump_partition_rednand(void)
     u32 fat_end = fat_base + fat_sectors;
 
     const u32 slc_sectors = (NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
-    const u32 mlc_sectors = 0x03A20000; // TODO: 8GB model.
+    const u32 mlc_sectors =  TOTAL_SECTORS; // TODO: 8GB model.
     const u32 data_sectors = 0x100000 / SDMMC_DEFAULT_BLOCKLEN;
 
     u32 end = (u32)sdcard_get_sectors() & 0xFFFF0000;

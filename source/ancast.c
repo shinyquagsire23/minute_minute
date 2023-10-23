@@ -30,6 +30,8 @@
 #include "serial.h"
 #include "elfldr_patch.h"
 #include "prsh.h"
+#include "mbr.h"
+#include "nand.h"
 
 char sd_read_buffer[0x200] ALIGNED(0x20);
 const char wafel_core_fn[] = "wafel_core.ipx"; 
@@ -875,11 +877,63 @@ u32 ancast_plugin_data_load(uintptr_t base, const char* fn_data, uint32_t* p_dat
     return (u32)base + ehdr->e_entry + IPX_ENTRY_HDR_SIZE + ALIGN_FORWARD(f_len, 0x100);
 }
 
+static u32 ancast_check_legacy_rednand(mbr_sector *mbr){
+    for(int i=1; i<4; i++)
+        if(mbr->partition[i].type != 0xAE)
+            return false;
+
+    if(LD_DWORD(mbr->partition[3].lba_length) != (NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN)
+        return false;
+
+    if(LD_DWORD(mbr->partition[3].lba_length) != 0x3A20000)
+        return false;
+    
+    return true;
+}
+
+static u32 ancast_add_partition(uintptr_t plugin_base, partition_entry *mbr_partition, char *name){
+    u32 partition[2] = { LD_DWORD(mbr_partition->lba_start), LD_DWORD(mbr_partition->lba_length) };
+    uintptr_t plugin_next = ancast_plugin_data_copy(plugin_next, partition, sizeof(partition));
+    prsh_add_entry(name, (void*)(plugin_base+IPX_DATA_START), sizeof(partition), NULL);
+    return plugin_next;
+}
+
+static u32 ancast_load_red_partitions(uintptr_t plugin_next){
+    if(sdcard_check_card() == SDMMC_NO_CARD)
+        return plugin_next;
+
+    mbr_sector mbr ALIGNED(32) = {0};
+    int res = sdcard_read(0, 1, &mbr);
+    if(res) {
+        printf("Failed to read MBR (%d)!\n", res);
+        return plugin_next;
+    }
+
+    bool legacy = ancast_check_legacy_rednand(&mbr);
+    if(legacy){
+        plugin_next = ancast_add_partition(plugin_next, &mbr.partition[2], "redmlc");
+        plugin_next = ancast_add_partition(plugin_next, &mbr.partition[3], "redslc");
+        return plugin_next;
+    }
+
+    for(int i=1; i<4; i++){
+        switch(mbr.partition[i].type){
+            case 0x83: 
+                plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redmlc");
+                break;
+            case 0xF9:
+                plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redslc");
+                break;
+            case 0x07:
+                plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redslccmpt");
+        }
+    }
+
+    return plugin_next;
+}
 
 const uint8_t test_data[0x10] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
 const char* default_config = "; Test config file\n[test]\ntest=1\n";
-
-
 
 u32 ancast_plugins_load(const char* plugins_fpath)
 {
@@ -915,6 +969,7 @@ u32 ancast_plugins_load(const char* plugins_fpath)
     }
     prsh_add_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1, NULL);
     ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
+    ancast_plugin_next = ancast_load_red_partitions(ancast_plugin_next);
 
     return 0;
 }
