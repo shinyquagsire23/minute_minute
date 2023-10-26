@@ -1490,7 +1490,7 @@ int _dump_partition_rednand(void)
     ST_DWORD(mbr.partition[1].lba_length,  mlc_sectors);
 
     memset(&mbr.partition[2], 0x00, sizeof(mbr.partition[2]));
-    mbr.partition[1].type = 0xF9; //Ext3
+    mbr.partition[2].type = 0xF9; //Ext3
     ST_DWORD(mbr.partition[2].lba_start, slc_base);
     ST_DWORD(mbr.partition[2].lba_length, slc_sectors);
 
