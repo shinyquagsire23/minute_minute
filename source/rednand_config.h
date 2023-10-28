@@ -10,5 +10,6 @@ typedef struct {
     rednand_partition slccmpt;
     rednand_partition mlc;
     bool disable_scfm;
+    bool scfm_on_slccmpt;
 } PACKED rednand_config;
 
