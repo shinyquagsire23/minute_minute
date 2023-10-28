@@ -921,13 +921,14 @@ static u32 ancast_load_red_partitions(uintptr_t plugin_next){
 
     for(int i=1; i<4; i++){
         switch(mbr.partition[i].type){
-            case 0x83: 
+            case MBR_PARTITION_TYPE_MLC_NOSCFM: 
+            case MBR_PARTITION_TYPE_MLC: 
                 plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redmlc");
                 break;
-            case 0xF9:
+            case MBR_PARTITION_TYPE_SLC: :
                 plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redslc");
                 break;
-            case 0x07:
+            case MBR_PARTITION_TYPE_SLCCMPT:
                 plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redslccmpt");
         }
     }

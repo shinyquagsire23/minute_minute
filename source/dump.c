@@ -1485,17 +1485,17 @@ int _dump_partition_rednand(void)
     printf("Updating MBR...\n");
 
     memset(&mbr.partition[1], 0x00, sizeof(mbr.partition[1]));
-    mbr.partition[1].type = 0x83; //Ext2
+    mbr.partition[1].type = MBR_PARTITION_TYPE_MLC;
     ST_DWORD(mbr.partition[1].lba_start, mlc_base);
     ST_DWORD(mbr.partition[1].lba_length,  mlc_sectors);
 
     memset(&mbr.partition[2], 0x00, sizeof(mbr.partition[2]));
-    mbr.partition[2].type = 0xF9; //Ext3
+    mbr.partition[2].type = MBR_PARTITION_TYPE_SLC;
     ST_DWORD(mbr.partition[2].lba_start, slc_base);
     ST_DWORD(mbr.partition[2].lba_length, slc_sectors);
 
     memset(&mbr.partition[3], 0x00, sizeof(mbr.partition[3]));
-    mbr.partition[3].type = 0x07; //NTFS
+    mbr.partition[3].type = MBR_PARTITION_TYPE_SLCCMPT;
     ST_DWORD(mbr.partition[3].lba_start, slccmpt_base);
     ST_DWORD(mbr.partition[3].lba_length, slc_sectors);
 

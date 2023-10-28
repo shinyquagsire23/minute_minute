@@ -1,6 +1,11 @@
 #pragma once
 
-#include <types.h>
+#include "types.h"
+
+#define MBR_PARTITION_TYPE_SLC 0x0E //FAT16
+#define MBR_PARTITION_TYPE_SLCCMPT 0x0D
+#define MBR_PARTITION_TYPE_MLC 0x83 // Linux ext
+#define MBR_PARTITION_TYPE_MLC_NOSCFM 0x07 // NTFS
 
 typedef struct {
     u8 bootable;
