@@ -2,6 +2,8 @@
 
 #include "types.h"
 
+#define MBR_MAX_PARTITIONS 4
+
 #define MBR_PARTITION_TYPE_SLC 0x0E //FAT16
 #define MBR_PARTITION_TYPE_SLCCMPT 0x0D
 #define MBR_PARTITION_TYPE_MLC 0x83 // Linux ext

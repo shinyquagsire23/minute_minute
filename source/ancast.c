@@ -31,6 +31,7 @@
 #include "elfldr_patch.h"
 #include "prsh.h"
 #include "mbr.h"
+#include "rednand_config.h"
 #include "nand.h"
 #include "ff.h"
 
@@ -901,37 +902,59 @@ static u32 ancast_add_partition(uintptr_t plugin_base, partition_entry *mbr_part
     return plugin_next;
 }
 
-static u32 ancast_load_red_partitions(uintptr_t plugin_next){
+static rednand_partition mbr_to_rednand_partition(partition_entry *mbr_part){
+    rednand_partition  ret = { .lba_start = LD_DWORD(mbr_part->lba_start),
+                               .lba_length = LD_DWORD(mbr_part->lba_length)};
+    return ret;
+}
+
+static u32 ancast_load_red_partitions(uintptr_t plugin_base){
     if(sdcard_check_card() == SDMMC_NO_CARD)
-        return plugin_next;
+        return plugin_base;
 
     mbr_sector mbr ALIGNED(32) = {0};
     int res = sdcard_read(0, 1, &mbr);
     if(res) {
         printf("Failed to read MBR (%d)!\n", res);
-        return plugin_next;
+        return plugin_base;
     }
+
+    rednand_config rednand = { 0 };
 
     bool legacy = ancast_check_legacy_rednand(&mbr);
     if(legacy){
-        plugin_next = ancast_add_partition(plugin_next, &mbr.partition[2], "redmlc");
-        plugin_next = ancast_add_partition(plugin_next, &mbr.partition[3], "redslc");
-        return plugin_next;
-    }
+        rednand.mlc = ancast_load_red_partitions(mbr.partition[2]);
+        u32 slc_start = LD_DWORD(mbr_part->lba_start);
+        rednand.slc.lba_start = slc_start
+        rednand.slc.lba_length = (NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
+        rednand.slccmpt.lba_start = slc_start + (NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
+        rednand.slccmpt.length = (NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
+    } else {
+        for(int i=1; i < MBR_MAX_PARTITIONS; i++){
+            switch(mbr.partition[i].type){
 
-    for(int i=1; i<4; i++){
-        switch(mbr.partition[i].type){
-            case MBR_PARTITION_TYPE_MLC_NOSCFM: 
-            case MBR_PARTITION_TYPE_MLC: 
-                plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redmlc");
-                break;
-            case MBR_PARTITION_TYPE_SLC: :
-                plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redslc");
-                break;
-            case MBR_PARTITION_TYPE_SLCCMPT:
-                plugin_next = ancast_add_partition(plugin_next, &mbr.partition[i], "redslccmpt");
+                case MBR_PARTITION_TYPE_MLC_NOSCFM:
+                    rednand.disable_scfm = true;
+                case MBR_PARTITION_TYPE_MLC:
+                    if(rednand.mlc.lba_start || rednand.mlc.lba_length)
+                        printf("WARNING: Duplicate Partition redmlc"),
+                    rednand.mlc = ancast_load_red_partitions(mbr.partition[i]);;
+                    break;
+                case MBR_PARTITION_TYPE_SLC:
+                    if(rednand.slc.lba_start || rednand.slc.lba_length)
+                        printf("WARNING: Duplicate Partition redslc");
+                    rednand.slc = ancast_load_red_partitions(mbr.partition[i]);;
+                    break;
+                case MBR_PARTITION_TYPE_SLCCMPT:
+                    if(rednand.slccmpt.lba_start || rednand.slccmpt.lba_length)
+                        printf("WARNING: Duplicate Partition redslccmpt");
+                    rednand.slccmpt = ancast_load_red_partitions(mbr.partition[i]);
+            }
         }
     }
+    
+    uintptr_t plugin_next = ancast_plugin_data_copy(plugin_base, (uint8_t*)rednand, sizeof(rednand));
+    prsh_add_entry("rednand", (void*)(plugin_base+IPX_DATA_START), sizeof(rednand_config), NULL);
 
     return plugin_next;
 }
