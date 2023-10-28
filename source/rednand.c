@@ -206,14 +206,15 @@ static int apply_ini_config(void){
 
 int init_rednand(void){
     memset(rednand, 0, sizeof(rednand));
-    int mbr_error = rednand_load_mbr();
-    if(mbr_error < 0)
-        return -1;
-    
+
     int ini_error = rednand_load_ini();
     if(ini_error < 0)
-        return -2;
+        return -1;
 
+    int mbr_error = rednand_load_mbr();
+    if(mbr_error < 0)
+        return -2;
+    
     int apply_error = apply_ini_config();
     if(apply_error < 0)
         return -3;
