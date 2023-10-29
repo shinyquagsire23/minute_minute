@@ -114,7 +114,7 @@ static int _isfs_read_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_cou
     }
 
     u8 index = ctx->bank & 0xFF;
-    rednand_partition redpart = index?rednand.slccmpt:rednand.slccmpt;
+    rednand_partition redpart = index?rednand.slccmpt:rednand.slc;
 
     if(!redpart.lba_length)
         return -1;
