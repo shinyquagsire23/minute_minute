@@ -32,6 +32,8 @@
 #include "prsh.h"
 #include "ff.h"
 
+#include "rednand.h"
+
 char sd_read_buffer[0x200] ALIGNED(0x20);
 const char wafel_core_fn[] = "wafel_core.ipx"; 
 
@@ -877,9 +879,9 @@ u32 ancast_plugin_data_load(uintptr_t base, const char* fn_data, uint32_t* p_dat
 }
 
 static u32 ancast_load_red_partitions(uintptr_t plugin_base){
-    if(sdcard_check_card() == SDMMC_NO_CARD)
+    if(!rednand.initilized)
         return plugin_base;
-    
+
     uintptr_t plugin_next = ancast_plugin_data_copy(plugin_base, (uint8_t*)rednand, sizeof(rednand));
     prsh_add_entry("rednand", (void*)(plugin_base+IPX_DATA_START), sizeof(rednand_config), NULL);
 

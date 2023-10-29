@@ -180,6 +180,16 @@ static int apply_ini_config(void){
         return -1;
     }
 
+    if(rednand_ini.slc && !rednand_ini.mlc && rednand_ini.disable_scfm){
+        printf("%sDisabeling scfm for sys nand is not allowed\n", ini_error);
+        return -1;
+    }
+
+    if(rednand_ini.slc && !rednand_ini.mlc && rednand_ini.scfm_on_slccmpt){
+        printf("%sMigrating scfm for sys nand is not allowed\n", ini_error);
+        return -1;
+    }
+
     int slcerror = check_apply_partition(rednand_ini.slc, rednand_ini.slc_set, &rednand.slc, "redslc");
     int slccmpterror = check_apply_partition(rednand_ini.slccmpt, rednand_ini.slccmpt_set, &rednand.slccmpt, "redslccmpt");
     int mlcerror = check_apply_partition(rednand_ini.mlc, rednand_ini.mlc_set, &rednand.mlc, "redmlc");
@@ -205,7 +215,7 @@ static int apply_ini_config(void){
 
 
 int init_rednand(void){
-    memset(rednand, 0, sizeof(rednand));
+    clear_readnand();
 
     int ini_error = rednand_load_ini();
     if(ini_error < 0)
@@ -219,5 +229,10 @@ int init_rednand(void){
     if(apply_error < 0)
         return -3;
 
+    rednand.initilized = true;
     return mbr_error | ini_error | apply_error;
+}
+
+void clear_readnand(void){
+    memset(rednand, 0, sizeof(rednand));
 }
