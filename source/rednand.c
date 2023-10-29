@@ -12,7 +12,7 @@ static const char ini_error[] = "ERROR in rednand.ini: ";
 
 rednand_config rednand = { 0 };
 
-struct {
+static struct {
     bool slc;
     bool slc_set;
     bool slccmpt;

@@ -25,6 +25,7 @@
 #include "sdmmc.h"
 #include "sdcard.h"
 #include "memory.h"
+#include "rednand.h"
 
 #include "isfshax.h"
 
@@ -112,15 +113,13 @@ static int _isfs_read_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_cou
         return (page * CLUSTER_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
     }
 
-    u8 mbr[SDMMC_DEFAULT_BLOCKLEN] ALIGNED(32) = {0};
-    if(sdcard_read(0, 1, mbr)) return -1;
-
-    u8* part4 = &mbr[0x1EE];
-    if(part4[0x4] != 0xAE) return -2;
-    u32 lba = LD_DWORD(&part4[0x8]);
-
     u8 index = ctx->bank & 0xFF;
-    u32 base = lba + (index * make_sector(NAND_MAX_PAGE));
+    rednand_partition redpart = index?rednand.slccmpt:rednand.slccmpt;
+
+    if(!redpart.lba_length)
+        return -1;
+
+    u32 base = redpart.lba_start
 
     if(sdcard_read(base + make_sector(start_cluster), make_sector(cluster_count), data))
         return -1;
@@ -842,12 +841,11 @@ int isfs_dirclose(isfs_dir* dir)
 
 int isfs_init(void)
 {
-    if(initialized) return 0;
-
     for(int i = 0; i < _isfs_num_volumes(); i++)
     {
         isfs_ctx* ctx = &isfs[i];
-
+        if(ctx->mounted)
+            continue;
         if(!ctx->super) ctx->super = memalign(NAND_DATA_ALIGN, 0x80 * PAGE_SIZE);
         if(!ctx->super) return -1;
 
