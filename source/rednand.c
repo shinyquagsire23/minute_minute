@@ -39,7 +39,7 @@ static int rednand_ini_handler(void* user, const char* section, const char* name
         return -2; // we only have boolean values
     }
 
-    if(!strcmp("partition", section)){
+    if(!strcmp("partitions", section)){
         if(!strcmp("slc", name)){
             rednand_ini.slc = bool_val;
             rednand_ini.slc_set = true;
