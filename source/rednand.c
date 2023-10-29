@@ -2,7 +2,12 @@
 #include "mbr.h"
 #include "nand.h"
 #include "sdmmc.h"
+#include "sdcard.h"
+
+#include "ff.h"
 #include "ini.h"
+
+#include <string.h>
 
 #define REDSLC_MMC_BLOCKS ((NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN)
 
@@ -76,7 +81,7 @@ static int rednand_ini_handler(void* user, const char* section, const char* name
 
 static int rednand_load_ini(void)
 {
-    memset(rednand_ini, 0, sizeof(rednand_ini));
+    memset(&rednand_ini, 0, sizeof(rednand_ini));
     FILE* file = fopen(rednand_ini_file, "r");
     if(!file) {
         printf("minini: Failed to open `%s`!\n", rednand_ini_file);
@@ -213,9 +218,12 @@ static int apply_ini_config(void){
     return ret;
 }
 
+void clear_rednand(void){
+    memset(&rednand, 0, sizeof(rednand));
+}
 
 int init_rednand(void){
-    clear_readnand();
+    clear_rednand();
 
     int ini_error = rednand_load_ini();
     if(ini_error < 0)
@@ -231,8 +239,4 @@ int init_rednand(void){
 
     rednand.initilized = true;
     return mbr_error | ini_error | apply_error;
-}
-
-void clear_readnand(void){
-    memset(rednand, 0, sizeof(rednand));
 }

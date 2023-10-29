@@ -4,4 +4,4 @@ extern rednand_config rednand;
 
 int init_rednand(void);
 
-void clear_readnand(void);
+void clear_rednand(void);

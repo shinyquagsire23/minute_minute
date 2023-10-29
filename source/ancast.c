@@ -882,7 +882,7 @@ static u32 ancast_load_red_partitions(uintptr_t plugin_base){
     if(!rednand.initilized)
         return plugin_base;
 
-    uintptr_t plugin_next = ancast_plugin_data_copy(plugin_base, (uint8_t*)rednand, sizeof(rednand));
+    uintptr_t plugin_next = ancast_plugin_data_copy(plugin_base, (uint8_t*)&rednand, sizeof(rednand));
     prsh_add_entry("rednand", (void*)(plugin_base+IPX_DATA_START), sizeof(rednand_config), NULL);
 
     return plugin_next;

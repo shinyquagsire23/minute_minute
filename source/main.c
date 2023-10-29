@@ -1011,9 +1011,9 @@ void main_quickboot_patch_rednand(void)
         return;
     }
     if(error){
-        printf("Continue\n")
+        printf("Continue\n");
         if (console_abort_confirmation_power_no_eject_yes()){
-            clear_readnand();
+            clear_rednand();
             return;
         }
     }

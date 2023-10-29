@@ -119,9 +119,7 @@ static int _isfs_read_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_cou
     if(!redpart.lba_length)
         return -1;
 
-    u32 base = redpart.lba_start
-
-    if(sdcard_read(base + make_sector(start_cluster), make_sector(cluster_count), data))
+    if(sdcard_read(redpart.lba_start + make_sector(start_cluster), make_sector(cluster_count), data))
         return -1;
     return 0;
 }
