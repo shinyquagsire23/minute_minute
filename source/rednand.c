@@ -32,14 +32,14 @@ static struct {
 static int rednand_ini_handler(void* user, const char* section, const char* name, const char* value)
 {
     bool bool_val = false;
-    if(strcmp("true", value))
+    if(!strcmp("true", value))
         bool_val = true;
     else if(strcmp("false", value)){
         printf("%sInvalid value: %s, section: %s, key: %s\n", ini_error, value, section, name);
         return -2; // we only have boolean values
     }
 
-    if(!strcmp("partiton", section)){
+    if(!strcmp("partition", section)){
         if(!strcmp("slc", name)){
             rednand_ini.slc = bool_val;
             rednand_ini.slc_set = true;
@@ -50,8 +50,8 @@ static int rednand_ini_handler(void* user, const char* section, const char* name
             rednand_ini.slccmpt_set = true;
             return 0;
         }
-        if(!strcmp("slc", name)){
-            rednand_ini.slc = bool_val;
+        if(!strcmp("mlc", name)){
+            rednand_ini.mlc = bool_val;
             rednand_ini.mlc_set = true;
             return 0;
         }
@@ -75,6 +75,8 @@ static int rednand_ini_handler(void* user, const char* section, const char* name
         printf("%sInvalid scfm option: %s\n", ini_error, name);
         return 2;
     }
+
+    printf("%sInvalid section: %s\n", ini_error, section);
 
     return 3;
 }
@@ -144,13 +146,13 @@ static int rednand_load_mbr(void){
                 case MBR_PARTITION_TYPE_MLC_NOSCFM:
                     rednand.disable_scfm = true;
                 case MBR_PARTITION_TYPE_MLC:
-                    part_error!= mbr_to_rednand_partition(&mbr.partition[i], &rednand.mlc, "redmlc");
+                    part_error!= mbr_to_rednand_partition(&mbr.partition[i], &rednand.mlc, "mlc");
                     break;
                 case MBR_PARTITION_TYPE_SLC:
-                    part_error!= mbr_to_rednand_partition(&mbr.partition[i], &rednand.slc, "redslc");
+                    part_error!= mbr_to_rednand_partition(&mbr.partition[i], &rednand.slc, "slc");
                     break;
                 case MBR_PARTITION_TYPE_SLCCMPT:
-                    part_error!= mbr_to_rednand_partition(&mbr.partition[i], &rednand.slccmpt, "redslccmpt");
+                    part_error!= mbr_to_rednand_partition(&mbr.partition[i], &rednand.slccmpt, "slccmpt");
             }
         }
     }
@@ -162,7 +164,7 @@ static int check_apply_partition(bool enabled, bool set, rednand_partition *part
     int ret = 0;
     if(!enabled){
         if(part->lba_length && !set){
-            printf("WARNING: %s partition exists but is not configured in rednand.ini", name);
+            printf("WARNING: %s partition exists but is not configured in rednand.ini\n", name);
             ret = 1;
         }
         memset(part, 0, sizeof(rednand_partition));
@@ -195,9 +197,9 @@ static int apply_ini_config(void){
         return -1;
     }
 
-    int slcerror = check_apply_partition(rednand_ini.slc, rednand_ini.slc_set, &rednand.slc, "redslc");
-    int slccmpterror = check_apply_partition(rednand_ini.slccmpt, rednand_ini.slccmpt_set, &rednand.slccmpt, "redslccmpt");
-    int mlcerror = check_apply_partition(rednand_ini.mlc, rednand_ini.mlc_set, &rednand.mlc, "redmlc");
+    int slcerror = check_apply_partition(rednand_ini.slc, rednand_ini.slc_set, &rednand.slc, "slc");
+    int slccmpterror = check_apply_partition(rednand_ini.slccmpt, rednand_ini.slccmpt_set, &rednand.slccmpt, "slccmpt");
+    int mlcerror = check_apply_partition(rednand_ini.mlc, rednand_ini.mlc_set, &rednand.mlc, "mlc");
     if(slcerror<0 || slccmpterror <0 || mlcerror <0){
         return -1;
     }
