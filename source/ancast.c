@@ -34,6 +34,8 @@
 
 #include "rednand.h"
 
+extern bool minute_on_slc;
+
 char sd_read_buffer[0x200] ALIGNED(0x20);
 const char wafel_core_fn[] = "wafel_core.ipx"; 
 
@@ -926,6 +928,9 @@ u32 ancast_plugins_load(const char* plugins_fpath)
     prsh_add_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1, NULL);
     ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
     ancast_plugin_next = ancast_load_red_partitions(ancast_plugin_next);
+
+    if(minute_on_slc)
+        prsh_add_entry("minute_on_slc", NULL, 0, NULL);
 
     return 0;
 }
