@@ -65,16 +65,15 @@ void sdcard_attach(sdmmc_chipset_handle_t handle)
 
     DPRINTF(0, ("sdcard: attached new SD/MMC card\n"));
 
-    sdhc_host_reset(card.handle);
-
     if (sdhc_card_detect(card.handle)) {
         DPRINTF(1, ("card is inserted. starting init sequence.\n"));
-
+        // retries needed for card swap
         for (int i = 0; i < 16; i++)
         {
             sdcard_needs_discover();
             if (card.inserted) break;
         }
+
 #ifndef MINUTE_BOOT1
         //if (should_remount) {
         ELM_Mount();
@@ -100,7 +99,6 @@ void sdcard_needs_discover(void)
     u32 ocr = card.handle->ocr;
 
     DPRINTF(0, ("sdcard: card needs discovery.\n"));
-    sdhc_host_reset(card.handle);
     card.new_card = 1;
 
     if (!sdhc_card_detect(card.handle)) {
@@ -121,6 +119,8 @@ void sdcard_needs_discover(void)
         goto out_power;
     }
 
+    udelay(10); //Need to wait at least 74 clocks before sending CMD0
+
     sdhc_bus_width(card.handle, 1);
 
     DPRINTF(1, ("sdcard: sending GO_IDLE_STATE\n"));
@@ -129,6 +129,7 @@ void sdcard_needs_discover(void)
     cmd.c_opcode = MMC_GO_IDLE_STATE;
     cmd.c_flags = SCF_RSP_R0;
     sdhc_exec_command(card.handle, &cmd);
+    sdhc_exec_command(card.handle, &cmd); //WHY
 
     if (cmd.c_error) {
         printf("sdcard: GO_IDLE_STATE failed with %d\n", cmd.c_error);
@@ -326,7 +327,66 @@ void sdcard_needs_discover(void)
 
     sdhc_bus_width(card.handle, 4);
 
-#ifndef MINUTE_BOOT1
+    u16 ccc = SD_CSD_CCC(csd_bytes);
+    printf("CCC (hex): %03X\n", ccc);
+
+    if(!(ccc & SD_CSD_CCC_CMD6)){
+        printf("sdcard: CMD6 not supported, stay in SDR12");
+        return;
+    }
+
+    u8 mode_status[64] ALIGNED(32) = {0};
+
+    DPRINTF(2, ("sdcard: SWITCH FUNC Mode 0\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = SD_SWITCH_FUNC;
+    cmd.c_arg = 0x00FFFFF1;
+    cmd.c_data = mode_status;
+    cmd.c_datalen = sizeof(mode_status);
+    cmd.c_blklen = sizeof(mode_status);
+    cmd.c_flags = SCF_RSP_R1 | SCF_CMD_ADTC | SCF_CMD_READ;
+
+    sdhc_exec_command(card.handle, &cmd);
+    if (cmd.c_error) {
+        printf("sdcard: SWITCH FUNC Mode 0 %d\n", cmd.c_error);
+        card.inserted = card.selected = 0;
+        //goto out_clock;
+        return; // 1.0 card, which doesn't support CMD6
+    }
+
+    printf("Mode Status:");
+    for(size_t i=0; i<sizeof(mode_status); i++){
+        if(i%8==0)
+            printf("\n");
+        printf(" %02X", mode_status[i]);
+    }
+    printf("\n");
+
+    printf("Group 1 Support: %02x %02x\n", mode_status[12], mode_status[13]);
+    printf("Group 1 Selection: %02x\n", mode_status[16]);
+
+    if(mode_status[16] != 1){
+        // Does not SD25 (52MHz), so leave 25MHz
+        printf("sdcard: doesn't support SDR25, staying at SDR12\n");
+        return;
+    }
+
+    DPRINTF(2, ("sdcard: SWITCH FUNC Mode 1\n"));
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.c_opcode = SD_SWITCH_FUNC;
+    cmd.c_arg = 0x80FFFFF1;
+    cmd.c_data = mode_status;
+    cmd.c_datalen = sizeof(mode_status);
+    cmd.c_blklen = sizeof(mode_status);
+    cmd.c_flags = SCF_RSP_R1 | SCF_CMD_ADTC | SCF_CMD_READ;
+
+    if(mode_status[16] != 1){
+        printf("sdcard: switch to SDR25 failed, staying at SDR12\n");
+        return;
+    }
+
+    udelay(100); //give card time to switch to Highspeed mode
+
     printf("sdcard: enabling highspeed 52MHz clock (%02x)\n", csd_bytes[0xB]);
     if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_52MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
         return;
@@ -341,7 +401,6 @@ void sdcard_needs_discover(void)
     if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_HIGHSPEED) == 0) {
         return;
     }
-#endif
 
     printf("sdcard: could not enable highspeed clock for card, falling back to 25MHz legacy?\n");
     if (sdhc_bus_clock(card.handle, SDMMC_SDCLK_25MHZ, SDMMC_TIMING_LEGACY) == 0) {

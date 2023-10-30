@@ -15,16 +15,42 @@
 #include "nand.h"
 #include <sys/iosupport.h>
 
+#define ISFSVOL_SLC             0
+#define ISFSVOL_SLCCMPT         1
+#define ISFSVOL_REDSLC             2
+#define ISFSVOL_REDSLCCMPT         3
+
 #define ISFSSUPER_CLUSTERS  0x10
 #define ISFSSUPER_SIZE      (ISFSSUPER_CLUSTERS * CLUSTER_SIZE)
+#define ISFSVOL_FLAG_HMAC       1
+#define ISFSVOL_FLAG_ENCRYPTED  2
+#define ISFSVOL_FLAG_READBACK   4
+
+#define ISFSVOL_OK              0
+#define ISFSVOL_ECC_CORRECTED   0x10
+#define ISFSVOL_HMAC_PARTIAL    0x20
+#define ISFSVOL_ERROR_WRITE     -0x10
+#define ISFSVOL_ERROR_READ      -0x20
+#define ISFSVOL_ERROR_ERASE     -0x30
+#define ISFSVOL_ERROR_HMAC      -0x40
+#define ISFSVOL_ERROR_READBACK  -0x50
+
+#define ISFSAES_BLOCK_SIZE 0x10
+
+#define FAT_CLUSTER_LAST        0xFFFB // last cluster within a chain
+#define FAT_CLUSTER_RESERVED    0xFFFC // reserved cluster
+#define FAT_CLUSTER_BAD         0xFFFD // bad block (marked at factory)
+#define FAT_CLUSTER_EMPTY       0xFFFE // empty (unused / available) space
 
 typedef struct {
     int volume;
     const char name[0x10];
     const u32 bank;
+    const u32 super_count;
+    int index;
     u8* super;
     u32 generation;
-    u8 version;
+    u32 version;
     bool mounted;
     u32 aes[0x10/sizeof(u32)];
     u8 hmac[0x14];
@@ -57,8 +83,34 @@ typedef struct {
     isfs_fst* child;
 } isfs_dir;
 
+typedef struct {
+    u16 x1;
+    u16 uid;
+    char name[0x0C];
+    u32 iblk;
+    u32 ifst;
+    u32 x3;
+    u8 pad0[0x24];
+} isfs_hmac_data;
+_Static_assert(sizeof(isfs_hmac_data) == 0x40, "isfs_hmac_data size must be 0x40!");
+
+typedef struct {
+    u8 pad0[0x12];
+    u16 cluster;
+    u8 pad1[0x2b];
+} isfs_hmac_meta;
+_Static_assert(sizeof(isfs_hmac_meta) == 0x40, "isfs_hmac_meta size must be 0x40!");
+
+typedef struct isfs_hdr {
+    char magic[4];
+    u32 generation;
+    u32 x1;
+} PACKED isfs_hdr;
+_Static_assert(sizeof(isfs_hdr) == 0xC, "isfs_hdr size must be 0xC!");
+
 int isfs_init(void);
 int isfs_fini(void);
+int isfs_load_keys(isfs_ctx* ctx);
 
 void isfs_print_fst(isfs_fst* fst);
 isfs_fst* isfs_stat(const char* path);
@@ -70,6 +122,14 @@ int isfs_seek(isfs_file* file, s32 offset, int whence);
 int isfs_read(isfs_file* file, void* buffer, size_t size, size_t* bytes_read);
 
 char* _isfs_do_volume(const char* path, isfs_ctx** ctx);
+isfs_ctx* isfs_get_volume(int volume);
+int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data);
+int isfs_read_super(isfs_ctx *ctx, void *super, int index);
+#ifdef NAND_WRITE_ENABLED
+int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data);
+int isfs_write_super(isfs_ctx *ctx, void *super, int index);
+#endif
+
 isfs_fst* _isfs_get_fst(isfs_ctx* ctx);
 u16* _isfs_get_fat(isfs_ctx* ctx);
 

@@ -37,11 +37,7 @@
 //#define SDHC_DEBUG
 
 #define SDHC_COMMAND_TIMEOUT    500
-#ifndef MINUTE_BOOT1
 #define SDHC_TRANSFER_TIMEOUT   5000
-#else
-#define SDHC_TRANSFER_TIMEOUT   100
-#endif
 
 #define sdhc_wait_intr(a,b,c) sdhc_wait_intr_debug(__func__, __LINE__, a, b, c)
 
@@ -137,6 +133,10 @@ void    sdhc_dump_regs(struct sdhc_host *);
 #define DPRINTF(n,s)    do {} while(0)
 #endif
 
+void do_nothing(sdmmc_chipset_handle_t handle){
+    return;
+}
+
 /*
  * Called by attachment driver.  For each SD card slot there is one SD
  * host controller standard register set. (1.3)
@@ -176,19 +176,12 @@ sdhc_host_found(struct sdhc_host *hp, struct sdhc_host_params *pa, bus_space_tag
     /* Store specification version. */
     hp->version = HREAD2(hp, SDHC_HOST_CTL_VERSION);
 
-    /*
-     * Reset the host controller and enable interrupts.
-     */
-    (void)sdhc_host_reset(hp);
-
     /* Determine host capabilities. */
     caps = HREAD4(hp, SDHC_CAPABILITIES);
 
-#ifndef MINUTE_BOOT1
     /* Use DMA if the host system and the controller support it. */
     if (usedma && ISSET(caps, SDHC_DMA_SUPPORT))
         SET(hp->flags, SHF_USE_DMA);
-#endif
 
     /*
      * Determine the base clock frequency. (2.2.24)
@@ -228,6 +221,15 @@ sdhc_host_found(struct sdhc_host *hp, struct sdhc_host_params *pa, bus_space_tag
         SET(hp->ocr, MMC_OCR_2_9V_3_0V | MMC_OCR_3_0V_3_1V);
     if (ISSET(caps, SDHC_VOLTAGE_SUPP_3_3V))
         SET(hp->ocr, MMC_OCR_3_2V_3_3V | MMC_OCR_3_3V_3_4V);
+
+    /*
+     * set attach function to do nothing, as it might be called by a pending 
+     * CARD_INSERTED interrupt during reset.
+     * It will be called later explicitly to make sure it is called exactly once
+     */
+    hp->pa.attach = do_nothing;
+    sdhc_host_reset(hp);
+    hp->pa.attach = pa->attach; 
 
     /*
      * Attach the generic SD/MMC bus driver.  (The bus driver must
@@ -458,7 +460,8 @@ sdhc_bus_clock(struct sdhc_host *hp, int freq, int timing)
         cmd.c_arg = 0;
         cmd.c_flags = SCF_RSP_R2;
         sdhc_exec_command(hp, &cmd);
-        if (cmd.c_error) {
+        // somehow it is ok to ignore the error interrupt after changing clocks
+        if (cmd.c_error & ~1) {
             printf("sdcard: MMC_ALL_SEND_CID failed with %d\n", cmd.c_error);
             return ETIMEDOUT;
         }
@@ -567,11 +570,19 @@ sdhc_async_response(struct sdhc_host *hp, struct sdmmc_command *cmd)
 
     int status = sdhc_wait_intr(hp, SDHC_COMMAND_COMPLETE, cmd->c_timeout);
     if (!ISSET(status, SDHC_COMMAND_COMPLETE)) {
-        cmd->c_error = ETIMEDOUT;
-        printf("timeout dump: error_intr: 0x%x intr: 0x%x\n", hp->intr_error_status, hp->intr_status);
 //      sdhc_dump_regs(hp);
         SET(cmd->c_flags, SCF_ITSDONE);
         hp->data_command = 0;
+    }
+    if (ISSET(status, SDHC_ERROR_TIMEOUT)){
+        cmd->c_error = ETIMEDOUT;
+        printf("timeout dump: error_intr: 0x%x intr: 0x%x\n", hp->intr_error_status, hp->intr_status);
+        return;
+    }
+
+    if (ISSET(status, SDHC_ERROR_INTERRUPT)){
+        printf("sdhc: ERROR interrupt, status=0x%X\n", status);
+        cmd->c_error = 1;
         return;
     }
 
@@ -694,6 +705,7 @@ sdhc_start_command(struct sdhc_host *hp, struct sdmmc_command *cmd)
         command |= SDHC_RESP_LEN_48;
 
     /* Wait until command and data inhibit bits are clear. (1.5) */
+    //u32 inhibit_mask = (cmd->c_opcode == MMC_SEND_STATUS) ? SDHC_CMD_INHIBIT_DAT : SDHC_CMD_INHIBIT_MASK;
     if ((error = sdhc_wait_state(hp, SDHC_CMD_INHIBIT_MASK, 0)) != 0)
         return error;
 
@@ -874,7 +886,7 @@ breakout:
 
         hp->intr_error_status = 0;
         (void)sdhc_soft_reset(hp, SDHC_RESET_DAT|SDHC_RESET_CMD);
-        status = 0;
+        //status = 0;
     }
 
     /* Command timeout has higher priority than command complete. */
@@ -884,7 +896,7 @@ breakout:
 
         hp->intr_error_status = 0;
         (void)sdhc_soft_reset(hp, SDHC_RESET_DAT|SDHC_RESET_CMD);
-        status = 0;
+        //status = 0;
     }
 
     return status;
@@ -906,7 +918,7 @@ sdhc_intr(struct sdhc_host *hp)
     /* Find out which interrupts are pending. */
     status = HREAD2(hp, SDHC_NINTR_STATUS);
     if (!ISSET(status, SDHC_NINTR_STATUS_MASK)) {
-        DPRINTF(1, ("unknown interrupt\n"));
+        DPRINTF(1, ("unknown interrupt %08lx\n", status));
         return 0;
     }
 

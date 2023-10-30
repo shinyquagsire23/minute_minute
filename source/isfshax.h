@@ -39,9 +39,12 @@ typedef struct isfshax_super
     u16 fat[CLUSTER_COUNT];
     isfs_fst fst[6143];
     isfshax_info isfshax;
-} PACKED ALIGNED(64) isfshax_super;
+} PACKED ALIGNED(NAND_DATA_ALIGN) isfshax_super;
 
 _Static_assert(sizeof(isfshax_super) == ISFSSUPER_SIZE, "isfshax_super must be 0x40000");
 
 #define ISFSHAX_INFO_OFFSET         offsetof(isfshax_super, isfshax)
 
+#ifdef NAND_WRITE_ENABLED
+int isfshax_refresh(void);
+#endif

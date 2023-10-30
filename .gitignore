@@ -26,6 +26,7 @@ __pycache__/
 local.properties
 .settings/
 .loadpath
+.directory
 
 # Project-specific
 fw.img
@@ -39,7 +40,7 @@ boot1.img
 ios_orig.img
 debug/
 debug_boot1/
-
+debug_isfshax/
 # my notes
 dram*.txt
 fat*.txt
@@ -50,3 +51,4 @@ cast_test.py
 fat_mnt/
 
 .DS_Store
+.vscode

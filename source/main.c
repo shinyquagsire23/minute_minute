@@ -50,6 +50,7 @@
 #include "gpu.h"
 #include "exi.h"
 #include "interactive_console.h"
+#include "isfshax.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -65,12 +66,15 @@ static struct {
 bool autoboot = false;
 u32 autoboot_timeout_s = 3;
 char autoboot_file[256] = "ios.patch";
+const char sd_plugin_dir[] = "sdmc:/wiiu/ios_plugins";
+const char slc_plugin_dir[] = "slc:/sys/hax/ios_plugins";
 int main_loaded_from_boot1 = 0;
 int main_is_de_Fused = 0;
 int main_force_pause = 0;
 int main_allow_legacy_patches = 0;
 
 int main_autoboot(void);
+void main_quickboot_patch_slc(void);
 
 extern char sd_read_buffer[0x200];
 
@@ -78,6 +82,20 @@ void silly_tests();
 
 #ifdef MINUTE_BOOT1
 extern otp_t otp;
+
+static bool read_ancast(const char *path){
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        return false;
+    }
+    size_t read = fread((void*)ALL_PURPOSE_TMP_BUF, 1, 0x800000, f);
+    if (!read) {
+        return false;
+    }
+    fclose(f);
+
+    return *(u32*)ALL_PURPOSE_TMP_BUF == ANCAST_MAGIC; 
+}
 
 u32 _main(void *base)
 {
@@ -246,6 +264,7 @@ u32 _main(void *base)
     serial_send_u32(latte_get_hw_version());
     serial_send_u32(0x4D454D32); // MEM2
 
+#ifndef ISFSHAX_STAGE2
     // Init DRAM
     init_mem2(mem_mode);
     udelay(500000);
@@ -287,6 +306,7 @@ u32 _main(void *base)
     if (!is_good) {
         serial_fatal();
     }
+#endif //NOT ISFSHAX_STAGE2
 
     serial_send_u32(0x4D454D30); // MEM0
 
@@ -331,12 +351,38 @@ u32 _main(void *base)
 
     serial_send_u32(pflags_val);
 
+#ifdef ISFSHAX_STAGE2
+    //Skip ISFS boot by pressing power
+    if (!(smc_get_events() & SMC_POWER_BUTTON)) {
+        serial_send_u32(0x5D4D0001);
+        printf("Mounting SLC...\n");
+        irq_initialize();
+        isfs_init();
+        serial_send_u32(0x5D4D0003);
+        isfshax_refresh();
+        serial_send_u32(0x5D4D0004);
+        bool ok = read_ancast("slc:/sys/hax/fw.img");
+        if(ok)
+            boot.vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
+        serial_send_u32(0x5D4D0005);
+        printf("Unmounting SLC...\n");
+        isfs_fini();
+        irq_shutdown();
+        serial_send_u32(0x5D4D0008);
+        if(boot.vector){
+            boot.mode = 0;
+            menu_reset();
+            goto boot;
+        }
+        serial_send_u32(0x5D4D00FF);
+    }
+#endif //ISFSHAX_STAGE2
+
 retry_sd:
     serial_send_u32(0x5D5D0001);
     printf("Initializing SD card...\n");
     sdcard_init();
-    sdcard_init(); // TODO whyyyyy
-    serial_send_u32(0x5D5D0002);
+    serial_send_u32(0x6D6D0001);
 
     int loaded_from_fat = 0;
 
@@ -397,22 +443,23 @@ fat_fail:
         }*/
         goto retry_sd;
     }
+    printf("Shutting down SD card...\n");
+    sdcard_exit();
 
+boot:
+    serial_send_u32(0x6D6D0001);
     // Reset LED to purple if SD card is successful.
     if (!(pflags_val & (PON_SMC_TIMER | PFLAG_ENTER_BG_NORMAL_MODE)))
     {
         smc_set_notification_led(LEDRAW_PURPLE);
     }
-
+    serial_send_u32(0x6D6D0002);
     dc_flushall();
     ic_invalidateall();
-
-    printf("Shutting down SD card...\n");
-    sdcard_exit();
-
+    serial_send_u32(0x6D6D0003);
     printf("Shutting down caches and MMU...\n");
     mem_shutdown();
-
+    serial_send_u32(0x6D6D0004);
     switch(boot.mode) {
         case 0:
             if(boot.vector) {
@@ -426,10 +473,11 @@ fat_fail:
         //case 1: smc_power_off(); break;
         //case 2: smc_reset(); break;
     }
-    
+    serial_send_u32(0x6D6D0005);
     // Let minute know that we're launched from boot1
     memcpy((char*)ALL_PURPOSE_TMP_BUF, PASSALONG_MAGIC_BOOT1, 8);
 
+    serial_send_u32(0x6D6D00FF);
     return boot.vector;
 }
 #else // MINUTE_BOOT1
@@ -443,8 +491,9 @@ menu menu_main = {
     },
     1, // number of subtitles
     {
-            {"Patch and boot IOS", &main_quickboot_patch}, // options
-            {"Patch and boot ios_orig.img", &main_swapboot_patch}, // options
+            {"Patch (slc) and boot IOS (slc)", &main_quickboot_patch_slc},
+            {"Patch (sd) and boot IOS (slc)", &main_quickboot_patch}, // options
+            {"Patch (sd) and boot sdmc:/ios_orig.img", &main_swapboot_patch}, // options
             {"Boot 'ios.img'", &main_quickboot_fw},
             {"Boot IOP firmware file", &main_boot_fw},
             {"Boot PowerPC ELF file", &main_boot_ppc},
@@ -459,7 +508,7 @@ menu menu_main = {
             {"Credits", &main_credits},
             //{"ISFS test", &isfs_test},
     },
-    14, // number of options
+    15, // number of options
     0,
     0
 };
@@ -510,8 +559,14 @@ u32 _main(void *base)
     printf("crypto support initialized\n");
     latte_print_hardware_info();
 
+    //printf("Mounting SLC...\n");
+    //isfs_init();
+    //main_quickboot_patch_slc();
+    //goto skip_menu;
+
     printf("Initializing SD card...\n");
     sdcard_init();
+    printf("sdcard_init finished\n");
 
     printf("Mounting SD card...\n");
     res = ELM_Mount();
@@ -603,6 +658,7 @@ u32 _main(void *base)
 
     printf("Mounting SLC...\n");
     isfs_init();
+
     //isfs_test();
 
 #if 0
@@ -805,7 +861,7 @@ int main_autoboot(void)
         boot.is_patched = 0;
     }
     else if (magic == 0x53414C54) {
-        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", autoboot_file); // slc:/sys/title/00050010/1000400a/code/fw.img
+        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", autoboot_file, sd_plugin_dir); // slc:/sys/title/00050010/1000400a/code/fw.img
         boot.is_patched = 1;
     }
     
@@ -883,10 +939,28 @@ ppc_exit:
     console_power_to_exit();
 }
 
+
+void main_quickboot_patch_slc(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", slc_plugin_dir); // ios_orig.img
+    boot.is_patched = 1;
+    boot.needs_otp = 1;
+
+    if(boot.vector) {
+        boot.mode = 0;
+        menu_reset();
+    } else {
+        printf("Failed to load IOS with patches!\n");
+        console_power_to_continue();
+    }
+}
+  
+
 void main_quickboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch"); // ios_orig.img
+    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir); // ios_orig.img
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
@@ -902,7 +976,7 @@ void main_quickboot_patch(void)
 void main_swapboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch");
+    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir);
     boot.is_patched = 1;
     boot.needs_otp = 1;
 

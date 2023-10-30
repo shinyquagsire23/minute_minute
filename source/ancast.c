@@ -32,6 +32,7 @@
 #include "prsh.h"
 
 char sd_read_buffer[0x200] ALIGNED(0x20);
+const char wafel_core_fn[] = "wafel_core.ipx"; 
 
 typedef struct {
     ancast_header header;
@@ -542,7 +543,7 @@ u32 ancast_iop_load_from_memory(void* ancast_mem)
 }
 
 extern int main_allow_legacy_patches;
-u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
+u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plugins_fpath)
 {
     u32* patch_base = (u32*)0x100;
 
@@ -624,7 +625,7 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch)
     // copy code out
     memcpy((void*)ALL_PURPOSE_TMP_BUF, elfldr_patch, elfldr_patch_len);
 
-    ancast_plugins_load();
+    ancast_plugins_load(plugins_fpath);
     
     return vector;
 }
@@ -642,11 +643,10 @@ int ancast_plugin_compare(const void* a, const void* b) {
     return strcmp(*(const char**)a, *(const char**)b);
 }
 
-u32 ancast_plugins_search()
+u32 ancast_plugins_search(const char* plugins_fpath)
 {
     DIR* dir;
     struct dirent* entry;
-    const char* plugins_fpath = "sdmc:/wiiu/ios_plugins";
     const char* plugins_ext = ".ipx";
 
     if (!ancast_plugins_list) {
@@ -672,7 +672,7 @@ u32 ancast_plugins_search()
     while ((entry = readdir(dir)) != NULL && ancast_plugins_count < MAX_PLUGINS) {
         if (entry->d_type != DT_DIR
             && !strcmp(entry->d_name + strlen(entry->d_name) - strlen(plugins_ext), plugins_ext)
-            && strcmp(entry->d_name, "wafel_core.ipx")
+            && strcmp(entry->d_name, wafel_core_fn)
             && entry->d_name[0] != '.') 
         {
             ancast_plugins_list[ancast_plugins_count] = malloc(strlen(entry->d_name) + 1);
@@ -740,11 +740,11 @@ u32 ancast_plugin_size(uintptr_t base)
     return ALIGN_FORWARD(wafel_plugin_max_addr(base) - base, 0x1000);
 }
 
-u32 ancast_plugin_check_size(const char* fn_plugin)
+u32 ancast_plugin_check_size(const char* fn_plugin, const char* plugins_fpath)
 {
     char tmp[256];
     Elf32_Ehdr hdr;
-    snprintf(tmp, sizeof(tmp)-1, "sdmc:/wiiu/ios_plugins/%s", fn_plugin);
+    snprintf(tmp, sizeof(tmp)-1, "%s/%s", plugins_fpath, fn_plugin);
 
     FILE* f_plugin = fopen(tmp, "rb");
     if(!f_plugin)
@@ -782,11 +782,11 @@ u32 ancast_plugin_check_size(const char* fn_plugin)
     return (u32)ALIGN_FORWARD(max_addr, 0x1000);
 }
 
-u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin)
+u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugins_fpath)
 {
     char tmp[256];
     u8* plugin_base = (u8*)base; // TODO dynamic
-    snprintf(tmp, sizeof(tmp)-1, "sdmc:/wiiu/ios_plugins/%s", fn_plugin);
+    snprintf(tmp, sizeof(tmp)-1, "%s/%s", plugins_fpath, fn_plugin);
 
     FILE* f_plugin = fopen(tmp, "rb");
     if(!f_plugin)
@@ -879,15 +879,16 @@ u32 ancast_plugin_data_load(uintptr_t base, const char* fn_data, uint32_t* p_dat
 const uint8_t test_data[0x10] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
 const char* default_config = "; Test config file\n[test]\ntest=1\n";
 
-u32 ancast_plugins_load()
+
+u32 ancast_plugins_load(const char* plugins_fpath)
 {
     u32 tmp = 0;
-    ancast_plugins_search();
+    ancast_plugins_search(plugins_fpath);
 
-    u32 total_size = ancast_plugin_check_size("wafel_core.ipx") + 0x1000;
+    u32 total_size = ancast_plugin_check_size(wafel_core_fn, plugins_fpath) + 0x1000;
     for (int i = 0; i < ancast_plugins_count; i++)
     {
-        total_size += ancast_plugin_check_size(ancast_plugins_list[i]);
+        total_size += ancast_plugin_check_size(ancast_plugins_list[i], plugins_fpath);
     }
     total_size += 0x10000; // TODO remove data padding/do it right?
 
@@ -898,11 +899,21 @@ u32 ancast_plugins_load()
     ancast_plugin_next = ancast_plugins_base;
     ancast_plugin_last = 0;
 
-    ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, "wafel_core.ipx");
+    ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, wafel_core_fn, plugins_fpath);
     for (int i = 0; i < ancast_plugins_count; i++)
     {
-        ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, ancast_plugins_list[i]);
+        ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, ancast_plugins_list[i], plugins_fpath);
     }
+
+    // Load DATA segments
+    config_plugin_base = ancast_plugin_next;
+    ancast_plugin_next = ancast_plugin_data_load(ancast_plugin_next, "config.ini", &tmp);
+    if (!tmp) {
+        config_plugin_base = ancast_plugin_next;
+        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, default_config, strlen(default_config)+1);
+    }
+    prsh_add_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1, NULL);
+    ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
 
     // Load DATA segments
     config_plugin_base = ancast_plugin_next;
