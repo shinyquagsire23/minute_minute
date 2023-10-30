@@ -118,21 +118,21 @@ const char* _dump_sata_type_str(int type)
     {
         case 0:
             return "Unk0";
-        case 1:
+        case SATA_TYPE_DEFAULT:
             return "Default";
-        case 2:
+        case SATA_TYPE_NODRIVE:
             return "No device";
-        case 3:
+        case SATA_TYPE_ROMDRIVE:
             return "ROM drive (Retail)";
-        case 4:
+        case SATA_TYPE_RDRIVE:
             return "R drive (Test/Kiosk CAT-I)";
-        case 5:
+        case SATA_TYPE_MION:
             return "MION (Debug)";
-        case 6:
+        case SATA_TYPE_SES:
             return "SES (Kiosk CAT-SES)";
-        case 7:
+        case SATA_TYPE_GEN2HDD:
             return "GEN2-HDD (Kiosk CAT-I with HDD)";
-        case 8:
+        case SATA_TYPE_GEN1HDD:
             return "GEN1-HDD (Kiosk CAT-I with HDD)";
         default:
             return "Unk";

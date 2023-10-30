@@ -17,6 +17,15 @@
 
 #include "types.h"
 
+#define SATA_TYPE_DEFAULT 1
+#define SATA_TYPE_NODRIVE 2
+#define SATA_TYPE_ROMDRIVE 3
+#define SATA_TYPE_RDRIVE 4
+#define SATA_TYPE_MION 5
+#define SATA_TYPE_SES 6
+#define SATA_TYPE_GEN2HDD 7
+#define SATA_TYPE_GEN1HDD 8
+
 typedef struct
 {
     // Bank 0 (Wii)
