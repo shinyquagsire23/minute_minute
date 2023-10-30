@@ -36,49 +36,49 @@ static int rednand_ini_handler(void* user, const char* section, const char* name
         bool_val = true;
     else if(strcmp("false", value)){
         printf("%sInvalid value: %s, section: %s, key: %s\n", ini_error, value, section, name);
-        return -2; // we only have boolean values
+        return 0; // we only have boolean values
     }
 
     if(!strcmp("partitions", section)){
         if(!strcmp("slc", name)){
             rednand_ini.slc = bool_val;
             rednand_ini.slc_set = true;
-            return 0;
+            return 1;
         }
         if(!strcmp("slccmpt", name)){
             rednand_ini.slccmpt = bool_val;
             rednand_ini.slccmpt_set = true;
-            return 0;
+            return 1;
         }
         if(!strcmp("mlc", name)){
             rednand_ini.mlc = bool_val;
             rednand_ini.mlc_set = true;
-            return 0;
+            return 1;
         }
         printf("%sInvalid partition: %s\n", ini_error, name);
-        return 2;
+        return 0;
     }
 
     if(!strcmp("scfm", section)){
         if(!strcmp("disable", name)){
             rednand_ini.disable_scfm = bool_val;
-            return 0;
+            return 1;
         }
         if(!strcmp("on_slccmpt", name)){
             rednand_ini.scfm_on_slccmpt = bool_val;
-            return 0;
+            return 1;
         }
         if(!strcmp("allow_sys", name)){
             rednand_ini.allow_sys_scfm = bool_val;
-            return 0;
+            return 1;
         }
         printf("%sInvalid scfm option: %s\n", ini_error, name);
-        return 2;
+        return 0;
     }
 
     printf("%sInvalid section: %s\n", ini_error, section);
 
-    return 3;
+    return 0;
 }
 
 static int rednand_load_ini(void)
@@ -91,6 +91,8 @@ static int rednand_load_ini(void)
     }
 
     int res = ini_parse_file(file, rednand_ini_handler, NULL);
+
+    printf("%sLine: %i\n", ini_error, res);
 
     fclose(file);
 
