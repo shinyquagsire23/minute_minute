@@ -815,7 +815,7 @@ u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugin
 u32 ancast_plugin_data_copy(uintptr_t base, const uint8_t* p_data, uint32_t data_size)
 {
     u8* plugin_base = (u8*)base; // TODO dynamic
-
+    
     // Make a fake ELF header
     Elf32_Ehdr* ehdr = (Elf32_Ehdr*)base;
     memset(plugin_base, 0, IPX_NORMAL_EHDR_SIZE + IPX_ENTRY_HDR_SIZE);
@@ -844,7 +844,7 @@ u32 ancast_plugin_data_load(uintptr_t base, const char* fn_data, uint32_t* p_dat
     if (p_data_size) {
         *p_data_size = 0;
     }
-
+    
     // Make a fake ELF header
     Elf32_Ehdr* ehdr = (Elf32_Ehdr*)base;
     memset(plugin_base, 0, IPX_NORMAL_EHDR_SIZE + IPX_ENTRY_HDR_SIZE);
@@ -880,7 +880,6 @@ const uint8_t test_data[0x10] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
 const char* default_config = "; Test config file\n[test]\ntest=1\n";
 
 
-
 u32 ancast_plugins_load(const char* plugins_fpath)
 {
     u32 tmp = 0;
@@ -905,6 +904,16 @@ u32 ancast_plugins_load(const char* plugins_fpath)
     {
         ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, ancast_plugins_list[i], plugins_fpath);
     }
+
+    // Load DATA segments
+    config_plugin_base = ancast_plugin_next;
+    ancast_plugin_next = ancast_plugin_data_load(ancast_plugin_next, "config.ini", &tmp);
+    if (!tmp) {
+        config_plugin_base = ancast_plugin_next;
+        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, default_config, strlen(default_config)+1);
+    }
+    prsh_add_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1, NULL);
+    ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
 
     // Load DATA segments
     config_plugin_base = ancast_plugin_next;
