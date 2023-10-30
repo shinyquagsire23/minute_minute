@@ -818,7 +818,7 @@ u32 ancast_plugin_load(uintptr_t base, const char* fn_plugin, const char* plugin
 u32 ancast_plugin_data_copy(uintptr_t base, const uint8_t* p_data, uint32_t data_size)
 {
     u8* plugin_base = (u8*)base; // TODO dynamic
-
+    
     // Make a fake ELF header
     Elf32_Ehdr* ehdr = (Elf32_Ehdr*)base;
     memset(plugin_base, 0, IPX_NORMAL_EHDR_SIZE + IPX_ENTRY_HDR_SIZE);
@@ -847,7 +847,7 @@ u32 ancast_plugin_data_load(uintptr_t base, const char* fn_data, uint32_t* p_dat
     if (p_data_size) {
         *p_data_size = 0;
     }
-
+    
     // Make a fake ELF header
     Elf32_Ehdr* ehdr = (Elf32_Ehdr*)base;
     memset(plugin_base, 0, IPX_NORMAL_EHDR_SIZE + IPX_ENTRY_HDR_SIZE);
