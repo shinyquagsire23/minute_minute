@@ -64,7 +64,7 @@ static struct {
     int needs_otp;
 } boot = {0};
 
-bool autoboot = false;
+int autoboot = 0;
 u32 autoboot_timeout_s = 3;
 char autoboot_file[256] = "ios.patch";
 const char sd_plugin_dir[] = "sdmc:/wiiu/ios_plugins";
@@ -832,7 +832,7 @@ skip_menu:
 int boot_ini(const char* key, const char* value)
 {
     if(!strcmp(key, "autoboot"))
-        autoboot = minini_get_bool(value, 0);
+        autoboot = (u32)minini_get_uint(value, 0);
     if(!strcmp(key, "autoboot_file"))
         strncpy(autoboot_file, value, sizeof(autoboot_file));
     if(!strcmp(key, "autoboot_timeout"))
@@ -847,48 +847,12 @@ int boot_ini(const char* key, const char* value)
 
 int main_autoboot(void)
 {
-    FILE* f = fopen(autoboot_file, "rb");
-
-    int force_patch = (!strcmp(autoboot_file, "ios.patch") || !strlen(autoboot_file));
-    if(f == NULL && !force_patch)
-    {
-        printf("Failed to open %s.\n", autoboot_file);
-        console_power_to_continue();
+    if(autoboot >= menu_main.entries || autoboot < 1){
+        printf("Invalid autoboot option: %i\n", autoboot);
         return -1;
     }
-
-    u32 magic;
-    if (force_patch) {
-        magic = 0x53414C54;
-    }
-    else {
-        fread(&magic, 1, sizeof(magic), f);
-        fclose(f);
-    }
-    
-    boot.needs_otp = 1;
-    
-    // Ancast image.
-    if(magic == 0xEFA282D9) {
-        boot.vector = ancast_iop_load(autoboot_file);
-        boot.is_patched = 0;
-    }
-    else if (magic == 0x53414C54) {
-        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", autoboot_file, sd_plugin_dir); // slc:/sys/title/00050010/1000400a/code/fw.img
-        boot.is_patched = 1;
-    }
-    
-    if(boot.vector)
-    {
-        boot.mode = 0;
-        return 0;
-    }
-    else
-    {
-        printf("Failed to load file for autoboot: %s\n", autoboot_file);
-        console_power_to_continue();
-        return -2;
-    }
+    menu_main.option[autoboot-1].callback();
+    return 0;
 }
 
 void main_reload(void)
