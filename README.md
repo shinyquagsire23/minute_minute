@@ -4,6 +4,12 @@ doot dooo do do doot
 
 boot1 replacement based on minute, includes stuff like DRAM init and PRSH handling.
 
+## Autobooting
+
+Autobooting can be configured in the `[boot]` section in [minute/minute.ini](config_example/minute.ini). Set `autoboot` to the number (starting at 1) of the menu entry you want to autoboot. 0 disabled autobooting. A timeout in can be set with the `autoboot_timeout` option (default is 3).
+
+If no SD card is inserted, minute was loaded from SLC and the `slc:/sys/hax/ios_plugins` directory exists minute will try autobooting from SLC (first option in minute).
+
 ## redNAND
 
 redNAND allows replacing one or more of the Wii Us internal storage devices (SLCCMPT, SLC, MLC) with partitions on the SD card. redNAND is implemented in stroopwafel, but configured through minute. The SLC and SLCCMPT parition are without the ECC/HMAC data. \
