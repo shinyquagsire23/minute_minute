@@ -146,13 +146,13 @@ static int rednand_load_mbr(void){
                 case MBR_PARTITION_TYPE_MLC_NOSCFM:
                     rednand.disable_scfm = true;
                 case MBR_PARTITION_TYPE_MLC:
-                    part_error!= mbr_to_rednand_partition(&mbr.partition[i], &rednand.mlc, "mlc");
+                    part_error|= mbr_to_rednand_partition(&mbr.partition[i], &rednand.mlc, "mlc");
                     break;
                 case MBR_PARTITION_TYPE_SLC:
-                    part_error!= mbr_to_rednand_partition(&mbr.partition[i], &rednand.slc, "slc");
+                    part_error|= mbr_to_rednand_partition(&mbr.partition[i], &rednand.slc, "slc");
                     break;
                 case MBR_PARTITION_TYPE_SLCCMPT:
-                    part_error!= mbr_to_rednand_partition(&mbr.partition[i], &rednand.slccmpt, "slccmpt");
+                    part_error|= mbr_to_rednand_partition(&mbr.partition[i], &rednand.slccmpt, "slccmpt");
             }
         }
     }
