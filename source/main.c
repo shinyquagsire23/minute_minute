@@ -56,6 +56,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <malloc.h>
+#include <dirent.h>
 
 static struct {
     int mode;
@@ -672,6 +673,15 @@ u32 _main(void *base)
     printf("Mounting SLC...\n");
     isfs_init();
 
+    if(sdcard_check_card() == SDMMC_NO_CARD){
+        int dir = opendir(slc_plugin_dir);
+        if (dir) {
+            closedir(dir);
+            printf("No SD Card found, autobooting SLC\n");
+            autoboot = 1;
+        }
+    }
+
     //isfs_test();
 
 #if 0
@@ -851,7 +861,9 @@ int main_autoboot(void)
         printf("Invalid autoboot option: %i\n", autoboot);
         return -1;
     }
-    menu_main.option[autoboot-1].callback();
+    menu_item entry = menu_main.option[autoboot-1];
+    printf("Autobooting %i: %s\n", autoboot, entry.text);
+    entry.callback();
     return 0;
 }
 
