@@ -30,6 +30,9 @@
 #include "serial.h"
 #include "elfldr_patch.h"
 #include "prsh.h"
+#include "ff.h"
+
+#include "rednand.h"
 
 char sd_read_buffer[0x200] ALIGNED(0x20);
 const char wafel_core_fn[] = "wafel_core.ipx"; 
@@ -875,10 +878,18 @@ u32 ancast_plugin_data_load(uintptr_t base, const char* fn_data, uint32_t* p_dat
     return (u32)base + ehdr->e_entry + IPX_ENTRY_HDR_SIZE + ALIGN_FORWARD(f_len, 0x100);
 }
 
+static u32 ancast_load_red_partitions(uintptr_t plugin_base){
+    if(!rednand.initilized)
+        return plugin_base;
+
+    uintptr_t plugin_next = ancast_plugin_data_copy(plugin_base, (uint8_t*)&rednand, sizeof(rednand));
+    prsh_add_entry("rednand", (void*)(plugin_base+IPX_DATA_START), sizeof(rednand_config), NULL);
+
+    return plugin_next;
+}
 
 const uint8_t test_data[0x10] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
 const char* default_config = "; Test config file\n[test]\ntest=1\n";
-
 
 u32 ancast_plugins_load(const char* plugins_fpath)
 {
@@ -914,16 +925,7 @@ u32 ancast_plugins_load(const char* plugins_fpath)
     }
     prsh_add_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1, NULL);
     ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
-
-    // Load DATA segments
-    config_plugin_base = ancast_plugin_next;
-    ancast_plugin_next = ancast_plugin_data_load(ancast_plugin_next, "config.ini", &tmp);
-    if (!tmp) {
-        config_plugin_base = ancast_plugin_next;
-        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, default_config, strlen(default_config)+1);
-    }
-    prsh_add_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1, NULL);
-    ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
+    ancast_plugin_next = ancast_load_red_partitions(ancast_plugin_next);
 
     return 0;
 }

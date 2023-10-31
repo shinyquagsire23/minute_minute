@@ -25,6 +25,7 @@
 #include "sdmmc.h"
 #include "sdcard.h"
 #include "memory.h"
+#include "rednand.h"
 
 #include "isfshax.h"
 
@@ -107,30 +108,39 @@ static int _isfs_super_check_slot(isfs_ctx *ctx, u32 index)
     return 0;
 }
 
-static int _isfs_read_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, void *data){
+static int _isfs_decrypt_cluster(const isfs_ctx* ctx, u8 *cluster_data){
+    aes_reset();
+    aes_set_key((u8*)ctx->aes);
+    aes_empty_iv();
+    aes_decrypt(cluster_data, cluster_data, CLUSTER_SIZE / ISFSAES_BLOCK_SIZE, 0);  
+}
+
+static int _isfs_read_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *data){
     inline u32 make_sector(u32 page) {
         return (page * CLUSTER_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
     }
 
-    u8 mbr[SDMMC_DEFAULT_BLOCKLEN] ALIGNED(32) = {0};
-    if(sdcard_read(0, 1, mbr)) return -1;
-
-    u8* part4 = &mbr[0x1EE];
-    if(part4[0x4] != 0xAE) return -2;
-    u32 lba = LD_DWORD(&part4[0x8]);
-
     u8 index = ctx->bank & 0xFF;
-    u32 base = lba + (index * make_sector(NAND_MAX_PAGE));
+    rednand_partition redpart = index?rednand.slccmpt:rednand.slc;
 
-    if(sdcard_read(base + make_sector(start_cluster), make_sector(cluster_count), data))
+    if(!redpart.lba_length)
         return -1;
+
+    if(sdcard_read(redpart.lba_start + make_sector(start_cluster), make_sector(cluster_count), data))
+        return -1;
+
+    if(flags & ISFSVOL_FLAG_ENCRYPTED){
+        for (int p = 0; p < cluster_count; p++){
+            _isfs_decrypt_cluster(ctx, data + p * CLUSTER_SIZE);
+        }
+    }
     return 0;
 }
 
 int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data)
 {
     if(ctx->bank & 0x80000000) {
-        return _isfs_read_sd(ctx, start_cluster, cluster_count, data);
+        return _isfs_read_sd(ctx, start_cluster, cluster_count, flags, data);
     }
 
     u8 saved_hmacs[2][20] = {0}, hmac[20] = {0};
@@ -184,12 +194,7 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
 
         /* decrypt cluster */
         if (flags & ISFSVOL_FLAG_ENCRYPTED)
-        {
-            aes_reset();
-            aes_set_key((u8*)ctx->aes);
-            aes_empty_iv();
-            aes_decrypt(cluster_data, cluster_data, CLUSTER_SIZE / ISFSAES_BLOCK_SIZE, 0);            
-        }
+            _isfs_decrypt_cluster(ctx, cluster_data);
     }
 
     /* verify hmac */
@@ -842,12 +847,11 @@ int isfs_dirclose(isfs_dir* dir)
 
 int isfs_init(void)
 {
-    if(initialized) return 0;
-
     for(int i = 0; i < _isfs_num_volumes(); i++)
     {
         isfs_ctx* ctx = &isfs[i];
-
+        if(ctx->mounted)
+            continue;
         if(!ctx->super) ctx->super = memalign(NAND_DATA_ALIGN, 0x80 * PAGE_SIZE);
         if(!ctx->super) return -1;
 

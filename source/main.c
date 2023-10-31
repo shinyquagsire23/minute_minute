@@ -51,6 +51,7 @@
 #include "exi.h"
 #include "interactive_console.h"
 #include "isfshax.h"
+#include "rednand.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -69,12 +70,14 @@ char autoboot_file[256] = "ios.patch";
 const char sd_plugin_dir[] = "sdmc:/wiiu/ios_plugins";
 const char slc_plugin_dir[] = "slc:/sys/hax/ios_plugins";
 int main_loaded_from_boot1 = 0;
+bool minute_on_slc = false; 
 int main_is_de_Fused = 0;
 int main_force_pause = 0;
 int main_allow_legacy_patches = 0;
 
 int main_autoboot(void);
 void main_quickboot_patch_slc(void);
+void main_quickboot_patch_rednand(void);
 
 extern char sd_read_buffer[0x200];
 
@@ -372,6 +375,7 @@ u32 _main(void *base)
         if(boot.vector){
             boot.mode = 0;
             menu_reset();
+            minute_on_slc = true;
             goto boot;
         }
         serial_send_u32(0x5D4D00FF);
@@ -476,6 +480,10 @@ boot:
     serial_send_u32(0x6D6D0005);
     // Let minute know that we're launched from boot1
     memcpy((char*)ALL_PURPOSE_TMP_BUF, PASSALONG_MAGIC_BOOT1, 8);
+    if(minute_on_slc)
+        memcpy((char*)ALL_PURPOSE_TMP_BUF+8, PASSALONG_MAGIC_DEVICE_SLC, 8);
+    else
+        memcpy((char*)ALL_PURPOSE_TMP_BUF+8, PASSALONG_MAGIC_DEVICE_SD, 8);
 
     serial_send_u32(0x6D6D00FF);
     return boot.vector;
@@ -492,6 +500,7 @@ menu menu_main = {
     1, // number of subtitles
     {
             {"Patch (slc) and boot IOS (slc)", &main_quickboot_patch_slc},
+            {"Patch (sd) and boot IOS redNAND", &main_quickboot_patch_rednand},
             {"Patch (sd) and boot IOS (slc)", &main_quickboot_patch}, // options
             {"Patch (sd) and boot sdmc:/ios_orig.img", &main_swapboot_patch}, // options
             {"Boot 'ios.img'", &main_quickboot_fw},
@@ -522,6 +531,11 @@ u32 _main(void *base)
     if (!memcmp((char*)ALL_PURPOSE_TMP_BUF, PASSALONG_MAGIC_BOOT1, 8)) {
         main_loaded_from_boot1 = 1;
         memset((char*)ALL_PURPOSE_TMP_BUF, 0, 8);
+
+        if (!memcmp((char*)ALL_PURPOSE_TMP_BUF+8, PASSALONG_MAGIC_DEVICE_SLC, 8)) {
+            minute_on_slc = 1;
+            memset((char*)ALL_PURPOSE_TMP_BUF+8, 0, 8);
+        }
     }
     if (read32(MAGIC_PLUG_ADDR) == MAGIC_PLUG)
     {
@@ -572,7 +586,6 @@ u32 _main(void *base)
     res = ELM_Mount();
     if(res) {
         printf("Error while mounting SD card (%d).\n", res);
-        panic(0);
     }
 
     crypto_check_de_Fused();
@@ -955,7 +968,7 @@ void main_quickboot_patch_slc(void)
         console_power_to_continue();
     }
 }
-  
+
 
 void main_quickboot_patch(void)
 {
@@ -977,6 +990,38 @@ void main_swapboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
     boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir);
+    boot.is_patched = 1;
+    boot.needs_otp = 1;
+
+    if(boot.vector) {
+        boot.mode = 0;
+        menu_reset();
+    } else {
+        printf("Failed to load IOS with patches!\n");
+        console_power_to_continue();
+    }
+}
+
+void main_quickboot_patch_rednand(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+    int error = init_rednand();
+    if(error<0){
+        console_power_to_continue();
+        return;
+    }
+    if(error){
+        printf("Continue\n");
+        if (console_abort_confirmation_power_no_eject_yes()){
+            clear_rednand();
+            return;
+        }
+    }
+    if(rednand.slc.lba_length){
+        isfs_init(); // mount redslc
+        boot.vector = ancast_patch_load("redslc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir);
+    } else
+        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir); // ios_orig.img
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
