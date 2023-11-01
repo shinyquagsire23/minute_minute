@@ -28,7 +28,7 @@ Windows Disk Mangement doesn't support multiple partitions on SD cards, so you n
 ### SCFM
 
 SCFM is a block level write cache for the MLC which resides on the SLC. This creates a coupeling between to SLC and the MLC, which needs to be consistent at all times. You can not restore one without the other. This also means using the red MLC with the sys SLC or the other way around is not allowed unless explicitly enabled to prevent damage to the sys nand. \
-MLC only redirection is still possible by disabeling SCFM. But that requires a MLC, which is consitent without SCFM. There are two ways to achive that. Either [rebuid a fresh MLC](https://gbatemp.net/threads/how-to-upgrading-rebuilding-wii-u-internal-memory-mlc.636309/) on the redNAND partition or use a MLC Dump which was obtained through the [recovery_menu](https://github.com/jan-hofmeier/recovery_menu/releases). Format the Partition to NTFS before writing the backup to change the ID to the correct type. The MLC clone obtained bye `Format redNAND` option requires SCFM, same for the mlc.bin obtained bei the original nanddumper.
+MLC only redirection is still possible by disabeling SCFM. But that requires a MLC, which is consitent without SCFM. There are two ways to achive that. Either [rebuid a fresh MLC](https://gbatemp.net/threads/how-to-upgrading-rebuilding-wii-u-internal-memory-mlc.636309/) on the redNAND partition or use a MLC Dump which was obtained through the [recovery_menu](https://github.com/jan-hofmeier/recovery_menu/releases). Format the Partition to NTFS before writing the backup to change the ID to the correct type. The MLC clone obtained by `Format redNAND` option requires SCFM, same for the mlc.bin obtained bei the original nanddumper.
 
 ### redNAND configuration
 
