@@ -451,15 +451,7 @@ static isfs_fst* _isfs_check_dir(isfs_ctx* ctx, isfs_fst* fst, const char* path)
 
     if(size > sizeof(fst->name)) return NULL;
 
-    char name[sizeof(fst->name) + 1] = {0};
-    memcpy(name, path, size);
-
-    char fst_name[sizeof(fst->name) + 1] = {0};
-    memcpy(fst_name, fst->name, sizeof(fst->name));
-
-    //ISFS_debug("dir: %s vs %s\n", name, fst_name);
-
-    if(size == 0 || !strcmp(name, fst_name))
+    if(size == 0 || !strncmp(path, fst->name, sizeof(fst->name)))
     {
         if(fst->sub != 0xFFFF && remaining != NULL && remaining[1] != '\0')
         {
