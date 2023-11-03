@@ -428,12 +428,11 @@ static isfs_fst* _isfs_find_fst(isfs_ctx* ctx, isfs_fst* fst, const char* path);
 
 static isfs_fst* _isfs_check_file(isfs_ctx* ctx, isfs_fst* fst, const char* path)
 {
-    char fst_name[sizeof(fst->name) + 1] = {0};
-    memcpy(fst_name, fst->name, sizeof(fst->name));
-
+    //char fst_name[sizeof(fst->name) + 1] = {0};
+    //memcpy(fst_name, fst->name, sizeof(fst->name));
     //ISFS_debug("file: %s vs %s\n", path, fst_name);
 
-    if(!strcmp(fst_name, path))
+    if(!strncmp(fst->name, path, sizeof(fst->name)))
         return fst;
 
     return NULL;
@@ -671,6 +670,23 @@ isfs_fst* isfs_stat(const char* path)
     if(!ctx || !path) return NULL;
 
     return _isfs_find_fst(ctx, NULL, path);
+}
+
+int isfs_unlink(const char* path){
+    if(!path)
+        return -1;
+    isfs_ctx* ctx = NULL;
+    path = _isfs_do_volume(path, &ctx);
+    ISFS_debug("volume found: %p\n", ctx);
+    if(!ctx)return -2;
+
+    isfs_fst* fst = _isfs_find_fst(ctx, NULL, path);
+    ISFS_debug("fst found: %p\n", fst);
+    if(!fst) return -3;
+
+    if(!_isfs_fst_is_file(fst)) return -4;
+
+    fst
 }
 
 int isfs_open(isfs_file* file, const char* path)
