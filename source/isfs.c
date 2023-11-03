@@ -450,8 +450,9 @@ static isfs_fst* _isfs_check_dir(isfs_ctx* ctx, isfs_fst* fst, const char* path)
     if(remaining) size = remaining - path;
 
     if(size > sizeof(fst->name)) return NULL;
+    if(size < sizeof(fst->name) && fst->name[size+1]) return NULL;
 
-    if(size == 0 || !strncmp(path, fst->name, sizeof(fst->name)))
+    if(size == 0 || !memcmp(path, fst->name, size))
     {
         if(fst->sub != 0xFFFF && remaining != NULL && remaining[1] != '\0')
         {
