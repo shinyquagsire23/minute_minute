@@ -485,22 +485,20 @@ static isfs_fst* _isfs_find_fst(isfs_ctx* ctx, isfs_fst* fst, const char* path)
     isfs_fst* root = _isfs_get_fst(ctx);
     if(!fst) fst = root;
 
-    if(fst->sib != 0xFFFF) {
-        isfs_fst* result = _isfs_find_fst(ctx, &root[fst->sib], path);
-        if(result) return result;
+    while(true) {
+        switch(_isfs_fst_get_type(fst)) {
+            case 1:
+                return _isfs_check_file(ctx, fst, path);
+            case 2:
+                return _isfs_check_dir(ctx, fst, path);
+            default:
+                printf("ISFS: Unknown mode! (%d)\n", _isfs_fst_get_type(fst));
+                break;
+        }
+        if(fst->sib == 0xFFFF)
+            return NULL;
+        fst = root[fst->sib];
     }
-
-    switch(_isfs_fst_get_type(fst)) {
-        case 1:
-            return _isfs_check_file(ctx, fst, path);
-        case 2:
-            return _isfs_check_dir(ctx, fst, path);
-        default:
-            printf("ISFS: Unknown mode! (%d)\n", _isfs_fst_get_type(fst));
-            break;
-    }
-
-    return NULL;
 }
 
 char* _isfs_do_volume(const char* path, isfs_ctx** ctx)
