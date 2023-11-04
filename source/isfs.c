@@ -424,7 +424,7 @@ static void _isfs_print_dir(isfs_ctx* ctx, isfs_fst* fst)
     _isfs_print_fst(fst);
 }
 
-static isfs_fst* _isfs_find_fst(isfs_ctx* ctx, isfs_fst* fst, const char* path);
+static isfs_fst* _isfs_find_fst(isfs_ctx* ctx, isfs_fst* fst, const char* path, void** parent);
 
 static isfs_fst* _isfs_check_file(isfs_ctx* ctx, isfs_fst* fst, const char* path)
 {
@@ -438,7 +438,7 @@ static isfs_fst* _isfs_check_file(isfs_ctx* ctx, isfs_fst* fst, const char* path
     return NULL;
 }
 
-static isfs_fst* _isfs_check_dir(isfs_ctx* ctx, isfs_fst* fst, const char* path)
+static isfs_fst* _isfs_check_dir(isfs_ctx* ctx, isfs_fst* fst, const char* path, void** parent)
 {
     isfs_fst* root = _isfs_get_fst(ctx);
 
@@ -457,7 +457,9 @@ static isfs_fst* _isfs_check_dir(isfs_ctx* ctx, isfs_fst* fst, const char* path)
         if(fst->sub != 0xFFFF && remaining != NULL && remaining[1] != '\0')
         {
             while(*remaining == '/') remaining++;
-            return _isfs_find_fst(ctx, &root[fst->sub], remaining);
+            if(parent)
+                *parent = &fst->sub;
+            return _isfs_find_fst(ctx, &root[fst->sub], remaining, parent);
         }
 
         return fst;
@@ -481,7 +483,7 @@ static bool _isfs_fst_is_dir(const isfs_fst* fst)
     return _isfs_fst_get_type(fst) == 2;
 }
 
-static isfs_fst* _isfs_find_fst(isfs_ctx* ctx, isfs_fst* fst, const char* path)
+static isfs_fst* _isfs_find_fst(isfs_ctx* ctx, isfs_fst* fst, const char* path, void** parent)
 {
     isfs_fst* root = _isfs_get_fst(ctx);
     if(!fst) fst = root;
@@ -491,14 +493,16 @@ static isfs_fst* _isfs_find_fst(isfs_ctx* ctx, isfs_fst* fst, const char* path)
             case 1:
                 return _isfs_check_file(ctx, fst, path);
             case 2:
-                return _isfs_check_dir(ctx, fst, path);
+                return _isfs_check_dir(ctx, fst, path, parent);
             default:
                 printf("ISFS: Unknown mode! (%d)\n", _isfs_fst_get_type(fst));
                 break;
         }
         if(fst->sib == 0xFFFF)
             return NULL;
-        fst = root[fst->sib];
+        if(parent)
+            *parent = &fst->sib;
+        fst = &root[fst->sib];
     }
 }
 
@@ -660,7 +664,7 @@ isfs_fst* isfs_stat(const char* path)
     path = _isfs_do_volume(path, &ctx);
     if(!ctx || !path) return NULL;
 
-    return _isfs_find_fst(ctx, NULL, path);
+    return _isfs_find_fst(ctx, NULL, path, NULL);
 }
 
 int isfs_unlink(const char* path){
@@ -669,15 +673,32 @@ int isfs_unlink(const char* path){
     isfs_ctx* ctx = NULL;
     path = _isfs_do_volume(path, &ctx);
     ISFS_debug("volume found: %p\n", ctx);
-    if(!ctx)return -2;
+    if(!ctx)return -ENOENT;
 
-    isfs_fst* fst = _isfs_find_fst(ctx, NULL, path);
+    void *parent;
+    isfs_fst* fst = _isfs_find_fst(ctx, NULL, path, &parent);
     ISFS_debug("fst found: %p\n", fst);
-    if(!fst) return -3;
+    if(!fst) return -ENOENT;
 
-    if(!_isfs_fst_is_file(fst)) return -4;
+    if(!_isfs_fst_is_file(fst)) return -EISDIR;
 
-    fst
+    //parent might be unaligned
+    memcpy(parent, &fst->sib, sizeof(fst->sib)); //remove from directory
+
+    u16* fat = _isfs_get_fat(ctx);
+    u16 cluster = fst->sub;
+    while(cluster < 0xFFFB) {  
+        u16 next_cluster = fat[cluster];
+        fat[cluster] = 0xFFFE;
+        cluster = next_cluster;
+    }
+
+    memset(fst, 0, sizeof(isfs_fst));
+
+    int res = isfs_commit_super(ctx);
+    if(res)
+        return -EIO;
+    return 0;
 }
 
 int isfs_open(isfs_file* file, const char* path)
@@ -689,7 +710,7 @@ int isfs_open(isfs_file* file, const char* path)
     ISFS_debug("volume found: %p\n", ctx);
     if(!ctx)return -2;
 
-    isfs_fst* fst = _isfs_find_fst(ctx, NULL, path);
+    isfs_fst* fst = _isfs_find_fst(ctx, NULL, path, NULL);
     ISFS_debug("fst found: %p\n", fst);
     if(!fst) return -3;
 
@@ -796,7 +817,7 @@ int isfs_diropen(isfs_dir* dir, const char* path)
     path = _isfs_do_volume(path, &ctx);
     if(!ctx) return -2;
 
-    isfs_fst* fst = _isfs_find_fst(ctx, NULL, path);
+    isfs_fst* fst = _isfs_find_fst(ctx, NULL, path, NULL);
     if(!fst) return -3;
 
     if(!_isfs_fst_is_dir(fst)) return -4;
@@ -1051,6 +1072,15 @@ static int _isfsdev_dirclose_r(struct _reent* r, DIR_ITER* dirState)
     return 0;
 }
 
+static int _isfsdev_unlink_r(struct _reent* r, const char* path){
+    int res = isfs_unlink(path);
+    if(res) {
+        r->_errno = -res;
+        return -1;
+    }
+    return 0;
+}
+
 int _isfsdev_init(isfs_ctx* ctx)
 {
     devoptab_t* dotab = &ctx->devoptab;
@@ -1074,7 +1104,6 @@ int _isfsdev_init(isfs_ctx* ctx)
     dotab->rename_r = _isfsdev_stub_r;
     dotab->rmdir_r = _isfsdev_stub_r;
     dotab->statvfs_r = _isfsdev_stub_r;
-    dotab->unlink_r = _isfsdev_stub_r;
     dotab->write_r = _isfsdev_stub_r;
 
     dotab->close_r = _isfsdev_close_r;
@@ -1086,6 +1115,7 @@ int _isfsdev_init(isfs_ctx* ctx)
     dotab->diropen_r = _isfsdev_diropen_r;
     dotab->dirnext_r = _isfsdev_dirnext_r;
     dotab->dirreset_r = _isfsdev_dirreset_r;
+    dotab->unlink_r = _isfsdev_unlink_r;
 
     AddDevice(dotab);
 
