@@ -2038,7 +2038,7 @@ static void _dump_delete(const char* path){
 
     int res = f_unlink(path);
     if(res)
-        printf("Delete failed\n");
+        printf("Delete failed: %i\n", res);
     else
         printf("Delete complete!\n");
 
