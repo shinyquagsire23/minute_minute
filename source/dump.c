@@ -28,6 +28,7 @@
 #include "seeprom.h"
 #include "crc32.h"
 #include "mbr.h"
+#include "rednand.h"
 
 #include "ff.h"
 
@@ -82,6 +83,8 @@ menu menu_dump = {
             {"Restore BOOT1_SLCCMPT.IMG", &dump_restore_boot1_vwii_img},
             {"Restore seeprom.bin", &dump_restore_seeprom},
             {"Erase MLC", &dump_erase_mlc},
+            {"Delete scfm.img", &_dump_delete_scfm},
+            {"Delete redNAND scfm.img", &_dump_delete_scfm_rednand},
             {"Restore redNAND", &dump_restore_rednand},
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
@@ -2023,6 +2026,46 @@ void dump_otp_via_prshhax(void)
 
 fail:
     console_power_to_exit();
+}
+
+static void _dump_delete(const char* path){
+    printf("Delete %s\n", path);
+
+    if (console_abort_confirmation_power_no_eject_yes()) 
+        return;
+
+    printf("Deleting...\n");
+
+    int res = f_unlink(path);
+    if(res)
+        printf("Delete failed\n");
+    else
+        printf("Delete complete!\n");
+
+    console_power_to_exit();
+
+}
+
+static void _dump_delete_scfm(void){
+    gfx_clear(GFX_ALL, BLACK);
+    _dump_delete("slc:/scfm.img");
+}
+
+static void _dump_delete_scfm_rednand(void){
+    gfx_clear(GFX_ALL, BLACK);
+    int error = init_rednand();
+    if(error<0){
+        console_power_to_continue();
+        return;
+    }
+    if(!rednand.slc.lba_length){
+        printf("redslc not configured\n");
+        console_power_to_continue();
+        return;
+    }
+
+    isfs_init(); // mount redslc
+    _dump_delete("redslc:/scfm.img");
 }
 
 #endif // MINUTE_BOOT1
