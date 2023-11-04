@@ -79,6 +79,7 @@ int main_allow_legacy_patches = 0;
 int main_autoboot(void);
 void main_quickboot_patch_slc(void);
 void main_quickboot_patch_rednand(void);
+void main_swapboot_patch_rednand(void);
 
 extern char sd_read_buffer[0x200];
 
@@ -504,6 +505,7 @@ menu menu_main = {
             {"Patch (sd) and boot IOS redNAND", &main_quickboot_patch_rednand},
             {"Patch (sd) and boot IOS (slc)", &main_quickboot_patch}, // options
             {"Patch (sd) and boot sdmc:/ios_orig.img", &main_swapboot_patch}, // options
+            {"Patch (sd) and boot sdmc:/ios_orig.img redNAND", &main_swapboot_patch_rednand},
             {"Boot 'ios.img'", &main_quickboot_fw},
             {"Boot IOP firmware file", &main_boot_fw},
             {"Boot PowerPC ELF file", &main_boot_ppc},
@@ -998,6 +1000,34 @@ void main_quickboot_patch_rednand(void)
         boot.vector = ancast_patch_load("redslc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir);
     } else
         boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir); // ios_orig.img
+    boot.is_patched = 1;
+    boot.needs_otp = 1;
+
+    if(boot.vector) {
+        boot.mode = 0;
+        menu_reset();
+    } else {
+        printf("Failed to load IOS with patches!\n");
+        console_power_to_continue();
+    }
+}
+
+void main_swapboot_patch_rednand(void)
+{
+    int error = init_rednand();
+    if(error<0){
+        console_power_to_continue();
+        return;
+    }
+    if(error){
+        printf("Continue\n");
+        if (console_abort_confirmation_power_no_eject_yes()){
+            clear_rednand();
+            return;
+        }
+    }
+    gfx_clear(GFX_ALL, BLACK);
+    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir);
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
