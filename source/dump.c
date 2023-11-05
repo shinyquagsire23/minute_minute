@@ -14,6 +14,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <unistd.h>
 
 #include "sdmmc.h"
 #include "sdhc.h"
@@ -2036,7 +2037,7 @@ static void _dump_delete(const char* path){
 
     printf("Deleting...\n");
 
-    int res = f_unlink(path);
+    int res = unlink(path);
     if(res)
         printf("Delete failed: %i\n", res);
     else
