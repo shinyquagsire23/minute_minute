@@ -1848,6 +1848,7 @@ void dump_restore_rednand(void)
     printf("redNAND restore complete!\n");
 
 restore_exit:
+    clear_rednand();
     console_power_to_exit();
 }
 
