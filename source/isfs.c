@@ -229,8 +229,34 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
 }
 
 #ifdef NAND_WRITE_ENABLED
+static int _isfs_write_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *data){
+    inline u32 make_sector(u32 page) {
+        return (page * CLUSTER_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
+    }
+
+    u8 index = ctx->bank & 0xFF;
+    rednand_partition redpart = index?rednand.slccmpt:rednand.slc;
+
+    if(!redpart.lba_length)
+        return -1;
+
+    if(sdcard_write(redpart.lba_start + make_sector(start_cluster), make_sector(cluster_count), data))
+        return -1;
+
+    if(flags & ISFSVOL_FLAG_ENCRYPTED){
+        for (int p = 0; p < cluster_count; p++){
+            _isfs_decrypt_cluster(ctx, data + p * CLUSTER_SIZE);
+        }
+    }
+    return 0;
+}
+
 int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data)
 {
+    if(ctx->bank & 0x80000000) {
+        return _isfs_write_sd(ctx, start_cluster, cluster_count, flags, data);
+    }
+
     static u8 blockpg[BLOCK_PAGES][PAGE_SIZE] ALIGNED(NAND_DATA_ALIGN), blocksp[BLOCK_PAGES][PAGE_SPARE_SIZE];
     static u8 pgbuf[PAGE_SIZE] ALIGNED(NAND_DATA_ALIGN);
     u8 hmac[20] = {0};
