@@ -71,7 +71,8 @@ char autoboot_file[256] = "ios.patch";
 const char sd_plugin_dir[] = "sdmc:/wiiu/ios_plugins";
 const char slc_plugin_dir[] = "slc:/sys/hax/ios_plugins";
 int main_loaded_from_boot1 = 0;
-bool minute_on_slc = false; 
+bool minute_on_slc = false;
+bool minute_on_sd = false;
 int main_is_de_Fused = 0;
 int main_force_pause = 0;
 int main_allow_legacy_patches = 0;
@@ -536,7 +537,10 @@ u32 _main(void *base)
         memset((char*)ALL_PURPOSE_TMP_BUF, 0, 8);
 
         if (!memcmp((char*)ALL_PURPOSE_TMP_BUF+8, PASSALONG_MAGIC_DEVICE_SLC, 8)) {
-            minute_on_slc = 1;
+            minute_on_slc = true;
+            memset((char*)ALL_PURPOSE_TMP_BUF+8, 0, 8);
+        } else if (!memcmp((char*)ALL_PURPOSE_TMP_BUF+8, PASSALONG_MAGIC_DEVICE_SD, 8)) {
+            minute_on_sd = true;
             memset((char*)ALL_PURPOSE_TMP_BUF+8, 0, 8);
         }
     }
