@@ -87,7 +87,7 @@ menu menu_dump = {
             {"Delete scfm.img", &_dump_delete_scfm},
             {"Delete SLCCMPT scfm.img", &_dump_delete_scfm_slccmpt},
             {"Delete redNAND scfm.img", &_dump_delete_scfm_rednand},
-            {"Restore redNAND", &dump_restore_rednand},
+            {"Restore redNAND MLC", &dump_restore_rednand},
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
@@ -1829,28 +1829,13 @@ void dump_restore_rednand(void)
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring redNAND...\n");
 
-    u8 mbr[SDMMC_DEFAULT_BLOCKLEN] ALIGNED(32) = {0};
-    u8* table = &mbr[0x1BE];
-    u8* part2 = &table[0x10];
-    u8* part3 = &table[0x20];
-    u8* part4 = &table[0x30];
-
-    res = sdcard_read(0, 1, mbr);
-    if(res) {
-        printf("Failed to read MBR (%d)!\n", res);
-        goto restore_exit;
-    }
-
-    if(part2[0x4] != 0xAE || part3[0x4] != 0xAE || part4[0x4] != 0xAE) {
-        printf("SD card is not formatted for redNAND!\n");
+    int res = rednand_load_mbr();
+    if(res < 0 || !rednand.mlc.lba_length){
+        printf("Failed to find redNAND MLC partition\n");
         goto restore_exit;
     }
 
     smc_get_events(); // Eat all existing events
-
-    u32 mlc_base = LD_DWORD(&part3[0x8]);
-    u32 slc_base = LD_DWORD(&part4[0x8]);
-    u32 slccmpt_base = slc_base + ((NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN);
 
     printf("Restoring MLC...\n");
     res = _dump_restore_mlc(mlc_base);
@@ -1864,6 +1849,7 @@ void dump_restore_rednand(void)
     printf("redNAND restore complete!\n");
 
 restore_exit:
+    clear_rednand();
     console_power_to_exit();
 }
 

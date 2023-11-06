@@ -124,7 +124,7 @@ static int mbr_to_rednand_partition(partition_entry *mbr_part, rednand_partition
     return 0;
 }
 
-static int rednand_load_mbr(void){
+int rednand_load_mbr(void){
     mbr_sector mbr ALIGNED(32) = {0};
     int res = sdcard_read(0, 1, &mbr);
     if(res) {
