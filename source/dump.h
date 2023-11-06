@@ -50,6 +50,7 @@ void dump_otp_via_prshhax(void);
 void dump_sync_seeprom_boot1_versions(void);
 
 static void _dump_delete_scfm(void);
+static void _dump_delete_scfm_slccmpt(void);
 static void _dump_delete_scfm_rednand(void);
 
 #endif

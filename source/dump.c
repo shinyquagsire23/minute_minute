@@ -85,6 +85,7 @@ menu menu_dump = {
             {"Restore seeprom.bin", &dump_restore_seeprom},
             {"Erase MLC", &dump_erase_mlc},
             {"Delete scfm.img", &_dump_delete_scfm},
+            {"Delete SLCCMPT scfm.img", &_dump_delete_scfm_slccmpt},
             {"Delete redNAND scfm.img", &_dump_delete_scfm_rednand},
             {"Restore redNAND", &dump_restore_rednand},
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
@@ -92,7 +93,7 @@ menu menu_dump = {
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Return to Main Menu", &menu_close},
     },
-    24, // number of options
+    25, // number of options
     0,
     0
 };
@@ -2050,6 +2051,11 @@ static void _dump_delete(const char* path){
 static void _dump_delete_scfm(void){
     gfx_clear(GFX_ALL, BLACK);
     _dump_delete("slc:/scfm.img");
+}
+
+static void _dump_delete_scfm_slccmpt(void){
+    gfx_clear(GFX_ALL, BLACK);
+    _dump_delete("slccmpt:/scfm.img");
 }
 
 static void _dump_delete_scfm_rednand(void){
