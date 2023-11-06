@@ -1824,8 +1824,6 @@ erase_exit:
 
 void dump_restore_rednand(void)
 {
-    int res = 0;
-
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring redNAND...\n");
 
@@ -1838,7 +1836,7 @@ void dump_restore_rednand(void)
     smc_get_events(); // Eat all existing events
 
     printf("Restoring MLC...\n");
-    res = _dump_restore_mlc(mlc_base);
+    res = _dump_restore_mlc(rednand.mlc.lba_start);
     if(res) {
         printf("Failed to restore MLC (%d)!\n", res);
         goto restore_exit;
