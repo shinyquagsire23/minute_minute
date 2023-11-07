@@ -1094,6 +1094,9 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
         return -3;
     }
 
+    printf("Unmounting ISFSs\n");
+    isfs_fini();
+
     printf("Initializing %s...\n", name);
     nand_initialize(bank);
 
@@ -1208,6 +1211,9 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
     printf("%u pages failed to program\n", program_failed);
 
     _dump_sync_seeprom_boot1_versions();
+
+    printf("Mounting ISFSs\n");
+    isfs_init();
 
     return ret;
 
