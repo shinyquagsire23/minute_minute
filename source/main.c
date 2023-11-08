@@ -521,7 +521,7 @@ menu menu_main = {
             {"Credits", &main_credits},
             //{"ISFS test", &isfs_test},
     },
-    15, // number of options
+    17, // number of options
     0,
     0
 };
