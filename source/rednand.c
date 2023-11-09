@@ -220,7 +220,7 @@ static int apply_ini_config(void){
         ret |= 4;
     }
 
-    printf("Rednand Config:\n slccmpt: %i\n slc: %i\n  mlc: %i\n disable scfm: %i\n", rednand.slccmpt, rednand.slc, rednand.mlc, rednand.disable_scfm);
+    printf("Rednand Config:\n slccmpt: %i\n slc: %i\n  mlc: %i\n disable scfm: %i\n", rednand.slccmpt.lba_length, rednand.slc.lba_length, rednand.mlc.lba_length, rednand.disable_scfm);
 
     return ret;
 }
