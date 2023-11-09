@@ -209,7 +209,7 @@ static int apply_ini_config(void){
     int ret = slcerror | slccmpterror | mlcerror;
 
     if(rednand_ini.mlc && rednand_ini.disable_scfm != rednand.disable_scfm){
-        printf("WARNING: rednand.ini scfm config missmatches red mlc partition type\nContinuing can lead to CORRUPTION!!! Stop if you didn't expect this warning");
+        printf("WARNING: rednand.ini scfm config missmatches red mlc partition type\nContinuing can lead to CORRUPTION!!! Stop if you didn't expect this warning\n");
         rednand.disable_scfm = rednand_ini.disable_scfm;
         ret |= 2;
     }
