@@ -101,15 +101,18 @@ static int rednand_load_ini(void)
 }
 
 static u32 rednand_check_legacy(mbr_sector *mbr){
-    for(int i=1; i<4; i++)
-        if(mbr->partition[i].type != 0xAE)
+    for(int i=2; i<4; i++)
+        if(mbr->partition[i].type != 0xAE){
             return false;
+        }
 
-    if(LD_DWORD(mbr->partition[3].lba_length) != REDSLC_MMC_BLOCKS * 2)
+    if(LD_DWORD(mbr->partition[3].lba_length) != REDSLC_MMC_BLOCKS * 2){
         return false;
+    }
 
-    if(LD_DWORD(mbr->partition[2].lba_length) != 0x3A20000)
+    if(LD_DWORD(mbr->partition[2].lba_length) != 0x3A20000){
         return false;
+    }
     
     return true;
 }
