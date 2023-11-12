@@ -20,7 +20,6 @@
  * SD Host Controller driver based on the SD Host Controller Standard
  * Simplified Specification Version 1.00 (www.sdcard.com).
  */
-
 #include "bsdtypes.h"
 #include "sdmmc.h"
 #include "sdhc.h"
@@ -36,6 +35,7 @@
 
 //#define SDHC_DEBUG
 
+#define	EREMOTEIO	121
 #define SDHC_COMMAND_TIMEOUT    500
 #define SDHC_TRANSFER_TIMEOUT   5000
 
@@ -808,6 +808,10 @@ sdhc_transfer_data(struct sdhc_host *hp, struct sdmmc_command *cmd)
 #endif
     //if (ISSET(cmd->c_flags, SCF_CMD_READ))
     //        ahb_flush_from(hp->pa.wb);
+    if(MMC_R1(cmd->c_resp) & MMC_R1_ANY_ERROR){
+        printf("Card %lx reported error. status: %08lx\n", hp->ioh, MMC_R1(cmd->c_resp));
+        cmd->c_error = EREMOTEIO;
+    }
 
     if (error != 0)
         cmd->c_error = error;
