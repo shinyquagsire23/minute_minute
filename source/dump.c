@@ -779,14 +779,14 @@ int _dump_mlc(u32 base)
 
     // Do one less iteration than we need, due to having to special case the start and end.
     u32 sdcard_sector = base;
-    for(u32 sector = 0; sector < (TOTAL_SECTORS - SDHC_BLOCK_COUNT_MAX); sector += SDHC_BLOCK_COUNT_MAX)
+    for(u32 sector = SDHC_BLOCK_COUNT_MAX; sector < TOTAL_SECTORS; sector += SDHC_BLOCK_COUNT_MAX)
     {
         int complete = 0;
         // Make sure to retry until the command succeeded, probably superfluous but harmless...
         while(complete != 0b11) {
             // Issue commands if we didn't already complete them.
             if(!(complete & 0b01))
-                mres = mlc_start_read(sector + SDHC_BLOCK_COUNT_MAX, SDHC_BLOCK_COUNT_MAX, mlc_buf, &mlc_cmd);
+                mres = mlc_start_read(sector, SDHC_BLOCK_COUNT_MAX, mlc_buf, &mlc_cmd);
             if(!(complete & 0b10))
                 sres = sdcard_start_write(sdcard_sector, SDHC_BLOCK_COUNT_MAX, sdcard_buf, &sdcard_cmd);
 
