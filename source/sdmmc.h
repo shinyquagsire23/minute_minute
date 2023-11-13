@@ -235,11 +235,11 @@ struct sdmmc_function {
 #define MMC_R1_READY_FOR_DATA       (1<<8)  /* ready for next transfer */
 #define MMC_R1_SWITCH_ERROR         (1<<7) 
 #define MMC_R1_APP_CMD              (1<<5)  /* app. commands supported */
-#define MMC_R1_ANY_ERROR (MMC_R1_ADDRESS_OUT_OF_RANGE || MMC_R1_ADDRESS_MISALIGN || MMC_R1_BLOCK_LEN_ERROR || \
-                          MMC_R1_ERASE_SEQ_ERROR || MMC_R1_ERASE_PARAM || MMC_R1_WP_VIOLATION || \
-                          MMC_R1_LOCK_UNLOCK_FAILED || MMC_R1_COM_CRC_ERROR || MMC_R1_ILLEGAL_COMMAND || \
-                          MMC_R1_CARD_ECC_FAILED || MMC_R1_CC_ERROR || MMC_R1_HYNIX_ERROR || MMC_R1_CID_CSD_OVERWRITE || \
-                          MMC_R1_WP_ERASE_SKIP || MMC_R1_ERASE_RESET || MMC_R1_SWITCH_ERROR)
+#define MMC_R1_ANY_ERROR (MMC_R1_ADDRESS_OUT_OF_RANGE | MMC_R1_ADDRESS_MISALIGN | MMC_R1_BLOCK_LEN_ERROR | \
+                          MMC_R1_ERASE_SEQ_ERROR | MMC_R1_ERASE_PARAM | MMC_R1_WP_VIOLATION | \
+                          MMC_R1_LOCK_UNLOCK_FAILED | MMC_R1_COM_CRC_ERROR | MMC_R1_ILLEGAL_COMMAND | \
+                          MMC_R1_CARD_ECC_FAILED | MMC_R1_CC_ERROR | MMC_R1_HYNIX_ERROR | MMC_R1_CID_CSD_OVERWRITE | \
+                          MMC_R1_WP_ERASE_SKIP | MMC_R1_ERASE_RESET | MMC_R1_SWITCH_ERROR)
 
 /* 48-bit response decoding (32 bits w/o CRC) */
 #define MMC_R1(resp)            ((resp)[0])
