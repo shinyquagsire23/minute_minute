@@ -2065,4 +2065,35 @@ static void _dump_delete_scfm_rednand(void){
     _dump_delete("redslc:/scfm.img");
 }
 
+static void _dump_dir(const char* dir, const char* dest){
+    gfx_clear(GFX_ALL, BLACK);
+    printf("Dumping %s\n", dir);
+
+    int res = mkdir(dest, 777);
+    if(res){
+        if(errno != EEXIST) {
+            printf("ERROR creating %s: %i\n", dest, errno);
+            console_power_to_continue();
+            return;
+        }
+        printf("Warning: '%s' directory already exists\n", dest);
+        if (console_abort_confirmation_power_no_eject_yes()) 
+            return;
+    }
+    int dfd = opendir(dir);
+    if(!dfd){
+        printf("ERROR opening %s: %i\n", dir, errno);
+        console_power_to_continue();
+        return;
+    }
+    struct dirent *dp;
+    while(dp = readdir(dfd)){
+        
+    } 
+}
+
+static void _dump_logs_slc(void){
+    _dump_dir("slc:/sys/logs", "sdmc:/logs");
+}
+
 #endif // MINUTE_BOOT1
