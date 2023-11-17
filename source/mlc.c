@@ -717,6 +717,9 @@ int mlc_end_read(struct sdmmc_command* cmdbuf)
     if (cmdbuf->c_error) {
         printf("mlc: MMC_READ_BLOCK_%s failed with %d\n", cmdbuf->c_opcode == MMC_READ_BLOCK_MULTIPLE ? "MULTIPLE" : "SINGLE", cmdbuf->c_error);
         return -1;
+    } else if(ISSET(cmdbuf->c_flags, SCF_RSP_R1) && (MMC_R1(cmdbuf->c_resp) & MMC_R1_ANY_ERROR)){
+        printf("mlc: reported read error. status: %08lx\n", MMC_R1(cmdbuf->c_resp));
+        return -2;
     }
     if(cmdbuf->c_opcode == MMC_READ_BLOCK_MULTIPLE)
         DPRINTF(2, ("mlc: async MMC_READ_BLOCK_MULTIPLE finished\n"));
@@ -860,6 +863,9 @@ int mlc_end_write(struct sdmmc_command* cmdbuf)
     if (cmdbuf->c_error) {
         printf("mlc: MMC_WRITE_BLOCK_%s failed with %d\n", cmdbuf->c_opcode == MMC_WRITE_BLOCK_MULTIPLE ? "MULTIPLE" : "SINGLE", cmdbuf->c_error);
         return -1;
+    } else if(ISSET(cmdbuf->c_flags, SCF_RSP_R1) && (MMC_R1(cmdbuf->c_resp) & MMC_R1_ANY_ERROR)){
+        printf("mlc: reported write error. status: %08lx\n", MMC_R1(cmdbuf->c_resp));
+        return -2;
     }
     if(cmdbuf->c_opcode == MMC_WRITE_BLOCK_MULTIPLE)
         DPRINTF(2, ("mlc: async MMC_WRITE_BLOCK_MULTIPLE finished\n"));
