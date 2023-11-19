@@ -1113,6 +1113,8 @@ int _isfsdev_init(isfs_ctx* ctx)
     dotab->dirreset_r = _isfsdev_dirreset_r;
 #ifdef NAND_WRITE_ENABLED
     dotab->unlink_r = _isfsdev_unlink_r;
+#else
+    dotab->unlink_r = _isfsdev_stub_r;
 #endif
 
     AddDevice(dotab);
