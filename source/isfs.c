@@ -659,6 +659,7 @@ isfs_fst* isfs_stat(const char* path)
     return _isfs_find_fst(ctx, path, NULL);
 }
 
+#ifdef NAND_WRITE_ENABLED
 int isfs_unlink(const char* path){
     if(!path)
         return -1;
@@ -692,6 +693,7 @@ int isfs_unlink(const char* path){
         return -EIO;
     return 0;
 }
+#endif //NAND_WRITE_ENABLED
 
 int isfs_open(isfs_file* file, const char* path)
 {
@@ -1064,6 +1066,7 @@ static int _isfsdev_dirclose_r(struct _reent* r, DIR_ITER* dirState)
     return 0;
 }
 
+#ifdef NAND_WRITE_ENABLED
 static int _isfsdev_unlink_r(struct _reent* r, const char* path){
     int res = isfs_unlink(path);
     if(res) {
@@ -1072,6 +1075,7 @@ static int _isfsdev_unlink_r(struct _reent* r, const char* path){
     }
     return 0;
 }
+#endif
 
 int _isfsdev_init(isfs_ctx* ctx)
 {
@@ -1107,7 +1111,9 @@ int _isfsdev_init(isfs_ctx* ctx)
     dotab->diropen_r = _isfsdev_diropen_r;
     dotab->dirnext_r = _isfsdev_dirnext_r;
     dotab->dirreset_r = _isfsdev_dirreset_r;
+#ifdef NAND_WRITE_ENABLED
     dotab->unlink_r = _isfsdev_unlink_r;
+#endif
 
     AddDevice(dotab);
 
