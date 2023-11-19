@@ -1430,7 +1430,7 @@ int _dump_partition_rednand(void)
     int res = 0;
     FRESULT fres = 0;
 
-    mbr_sector mbr ALIGNED(64) = {0};
+    mbr_sector mbr ALIGNED(32) = {0};
 
     res = sdcard_read(0, 1, &mbr);
     if(res) {
