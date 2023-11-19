@@ -767,8 +767,8 @@ int _dump_mlc(u32 base)
     // and then wait for them both to complete at the end of each iteration.
     struct sdmmc_command mlc_cmd = {0}, sdcard_cmd = {0};
 
-    u8* sector_buf1 = memalign(64, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
-    u8* sector_buf2 = memalign(64, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
+    u8* sector_buf1 = memalign(32, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
+    u8* sector_buf2 = memalign(32, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
 
     u8* mlc_buf = sector_buf2;
     u8* sdcard_buf = sector_buf1;
@@ -845,8 +845,8 @@ int _dump_restore_mlc(u32 base)
     // and then wait for them both to complete at the end of each iteration.
     struct sdmmc_command mlc_cmd = {0}, sdcard_cmd = {0};
 
-    u8* sector_buf1 = memalign(64, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
-    u8* sector_buf2 = memalign(64, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
+    u8* sector_buf1 = memalign(32, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
+    u8* sector_buf2 = memalign(32, SDMMC_DEFAULT_BLOCKLEN * SDHC_BLOCK_COUNT_MAX);
 
     u8* mlc_buf = sector_buf2;
     u8* sdcard_buf = sector_buf1;
