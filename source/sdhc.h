@@ -61,7 +61,7 @@ int sdhc_intr(struct sdhc_host *);
 #ifdef MINUTE_BOOT1
 #define SDHC_BLOCK_COUNT_MAX 1
 #else
-#define SDHC_BLOCK_COUNT_MAX        512
+#define SDHC_BLOCK_COUNT_MAX        256
 #endif
 #define SDHC_ARGUMENT           0x08
 #define SDHC_TRANSFER_MODE      0x0c
