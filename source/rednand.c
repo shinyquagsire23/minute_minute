@@ -92,7 +92,8 @@ static int rednand_load_ini(void)
 
     int res = ini_parse_file(file, rednand_ini_handler, NULL);
 
-    printf("%sLine: %i\n", ini_error, res);
+    if(res)
+        printf("%sLine: %i\n", ini_error, res);
 
     fclose(file);
 
