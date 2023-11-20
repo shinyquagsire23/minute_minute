@@ -77,6 +77,7 @@ menu menu_dump = {
             {"Dump BOOT1_SLCCMPT.RAW", &dump_boot1_vwii_raw},
             {"Dump factory log", &dump_factory_log},
             {"Dump sys crash logs", &dump_logs_slc},
+            {"Dump sys crash logs from redslc", &dump_logs_redslc},
             {"Format redNAND", &dump_format_rednand},
             {"Restore SLC.RAW", &dump_restore_slc_raw},
             {"Restore SLC.IMG", &dump_restore_slc_img},
@@ -96,7 +97,7 @@ menu menu_dump = {
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Return to Main Menu", &menu_close},
     },
-    26, // number of options
+    27, // number of options
     0,
     0
 };
@@ -2127,7 +2128,6 @@ int copy_file(const char* from, const char* to){
 }
 
 static void _copy_dir(const char* dir, const char* dest){
-    gfx_clear(GFX_ALL, BLACK);
     printf("Dumping %s\n", dir);
 
     int res = mkdir(dest, 777);
@@ -2154,6 +2154,7 @@ static void _copy_dir(const char* dir, const char* dest){
         char dst_pathbuf[255];
         snprintf(dst_pathbuf, 254, "%s/%s", dest, dp->d_name);
 
+        printf("Dumping %s\n", src_pathbuf);
         int res = copy_file(src_pathbuf, dst_pathbuf);
         if(res){
             printf("Error copying %s\n", src_pathbuf);
@@ -2165,7 +2166,27 @@ static void _copy_dir(const char* dir, const char* dest){
 }
 
 void dump_logs_slc(void){
+    gfx_clear(GFX_ALL, BLACK);
     _copy_dir("slc:/sys/logs", "sdmc:/logs");
+    console_power_or_eject_to_return();
+}
+
+void dump_logs_redslc(void){
+    gfx_clear(GFX_ALL, BLACK);
+    int error = init_rednand();
+    if(error<0){
+        console_power_to_continue();
+        return;
+    }
+    if(!rednand.slc.lba_length){
+        printf("redslc not configured\n");
+        console_power_to_continue();
+        return;
+    }
+
+    isfs_init(); // mount redslc
+    _copy_dir("redslc:/sys/logs", "sdmc:/redlogs");
+    console_power_or_eject_to_return();
 }
 
 #endif // MINUTE_BOOT1
