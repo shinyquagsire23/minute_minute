@@ -35,6 +35,7 @@
 #include "rednand.h"
 
 extern bool minute_on_slc;
+extern bool minute_on_sd;
 
 char sd_read_buffer[0x200] ALIGNED(0x20);
 const char wafel_core_fn[] = "wafel_core.ipx"; 
@@ -929,7 +930,7 @@ u32 ancast_plugins_load(const char* plugins_fpath)
     ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
     ancast_plugin_next = ancast_load_red_partitions(ancast_plugin_next);
 
-    if(minute_on_slc)
+    if(minute_on_slc || (!minute_on_sd && sdcard_check_card() == SDMMC_NO_CARD))
         prsh_add_entry("minute_on_slc", NULL, 0, NULL);
 
     return 0;

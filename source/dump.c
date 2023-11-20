@@ -14,6 +14,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <unistd.h>
 
 #include "sdmmc.h"
 #include "sdhc.h"
@@ -28,6 +29,7 @@
 #include "seeprom.h"
 #include "crc32.h"
 #include "mbr.h"
+#include "rednand.h"
 
 #include "ff.h"
 
@@ -82,13 +84,16 @@ menu menu_dump = {
             {"Restore BOOT1_SLCCMPT.IMG", &dump_restore_boot1_vwii_img},
             {"Restore seeprom.bin", &dump_restore_seeprom},
             {"Erase MLC", &dump_erase_mlc},
-            {"Restore redNAND", &dump_restore_rednand},
+            {"Delete scfm.img", &_dump_delete_scfm},
+            {"Delete SLCCMPT scfm.img", &_dump_delete_scfm_slccmpt},
+            {"Delete redNAND scfm.img", &_dump_delete_scfm_rednand},
+            {"Restore redNAND MLC", &dump_restore_rednand},
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Return to Main Menu", &menu_close},
     },
-    22, // number of options
+    25, // number of options
     0,
     0
 };
@@ -774,14 +779,14 @@ int _dump_mlc(u32 base)
 
     // Do one less iteration than we need, due to having to special case the start and end.
     u32 sdcard_sector = base;
-    for(u32 sector = 0; sector < (TOTAL_SECTORS - SDHC_BLOCK_COUNT_MAX); sector += SDHC_BLOCK_COUNT_MAX)
+    for(u32 sector = SDHC_BLOCK_COUNT_MAX; sector < TOTAL_SECTORS; sector += SDHC_BLOCK_COUNT_MAX)
     {
         int complete = 0;
         // Make sure to retry until the command succeeded, probably superfluous but harmless...
         while(complete != 0b11) {
             // Issue commands if we didn't already complete them.
             if(!(complete & 0b01))
-                mres = mlc_start_read(sector + SDHC_BLOCK_COUNT_MAX, SDHC_BLOCK_COUNT_MAX, mlc_buf, &mlc_cmd);
+                mres = mlc_start_read(sector, SDHC_BLOCK_COUNT_MAX, mlc_buf, &mlc_cmd);
             if(!(complete & 0b10))
                 sres = sdcard_start_write(sdcard_sector, SDHC_BLOCK_COUNT_MAX, sdcard_buf, &sdcard_cmd);
 
@@ -1089,6 +1094,9 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
         return -3;
     }
 
+    printf("Unmounting ISFSs\n");
+    isfs_fini();
+
     printf("Initializing %s...\n", name);
     nand_initialize(bank);
 
@@ -1203,6 +1211,9 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
     printf("%u pages failed to program\n", program_failed);
 
     _dump_sync_seeprom_boot1_versions();
+
+    printf("Mounting ISFSs\n");
+    isfs_init();
 
     return ret;
 
@@ -1819,36 +1830,19 @@ erase_exit:
 
 void dump_restore_rednand(void)
 {
-    int res = 0;
-
     gfx_clear(GFX_ALL, BLACK);
     printf("Restoring redNAND...\n");
 
-    u8 mbr[SDMMC_DEFAULT_BLOCKLEN] ALIGNED(32) = {0};
-    u8* table = &mbr[0x1BE];
-    u8* part2 = &table[0x10];
-    u8* part3 = &table[0x20];
-    u8* part4 = &table[0x30];
-
-    res = sdcard_read(0, 1, mbr);
-    if(res) {
-        printf("Failed to read MBR (%d)!\n", res);
-        goto restore_exit;
-    }
-
-    if(part2[0x4] != 0xAE || part3[0x4] != 0xAE || part4[0x4] != 0xAE) {
-        printf("SD card is not formatted for redNAND!\n");
+    int res = rednand_load_mbr();
+    if(res < 0 || !rednand.mlc.lba_length){
+        printf("Failed to find redNAND MLC partition\n");
         goto restore_exit;
     }
 
     smc_get_events(); // Eat all existing events
 
-    u32 mlc_base = LD_DWORD(&part3[0x8]);
-    u32 slc_base = LD_DWORD(&part4[0x8]);
-    u32 slccmpt_base = slc_base + ((NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN);
-
     printf("Restoring MLC...\n");
-    res = _dump_restore_mlc(mlc_base);
+    res = _dump_restore_mlc(rednand.mlc.lba_start);
     if(res) {
         printf("Failed to restore MLC (%d)!\n", res);
         goto restore_exit;
@@ -1859,6 +1853,7 @@ void dump_restore_rednand(void)
     printf("redNAND restore complete!\n");
 
 restore_exit:
+    clear_rednand();
     console_power_to_exit();
 }
 
@@ -2023,6 +2018,51 @@ void dump_otp_via_prshhax(void)
 
 fail:
     console_power_to_exit();
+}
+
+static void _dump_delete(const char* path){
+    printf("Delete %s\n", path);
+
+    if (console_abort_confirmation_power_no_eject_yes()) 
+        return;
+
+    printf("Deleting...\n");
+
+    int res = unlink(path);
+    if(res)
+        printf("Delete failed: %i\n", res);
+    else
+        printf("Delete complete!\n");
+
+    console_power_to_exit();
+
+}
+
+static void _dump_delete_scfm(void){
+    gfx_clear(GFX_ALL, BLACK);
+    _dump_delete("slc:/scfm.img");
+}
+
+static void _dump_delete_scfm_slccmpt(void){
+    gfx_clear(GFX_ALL, BLACK);
+    _dump_delete("slccmpt:/scfm.img");
+}
+
+static void _dump_delete_scfm_rednand(void){
+    gfx_clear(GFX_ALL, BLACK);
+    int error = init_rednand();
+    if(error<0){
+        console_power_to_continue();
+        return;
+    }
+    if(!rednand.slc.lba_length){
+        printf("redslc not configured\n");
+        console_power_to_continue();
+        return;
+    }
+
+    isfs_init(); // mount redslc
+    _dump_delete("redslc:/scfm.img");
 }
 
 #endif // MINUTE_BOOT1

@@ -130,7 +130,6 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
 int isfs_write_super(isfs_ctx *ctx, void *super, int index);
 #endif
 
-isfs_fst* _isfs_get_fst(isfs_ctx* ctx);
 u16* _isfs_get_fat(isfs_ctx* ctx);
 
 void isfs_test(void);

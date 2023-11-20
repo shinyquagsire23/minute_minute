@@ -101,15 +101,18 @@ static int rednand_load_ini(void)
 }
 
 static u32 rednand_check_legacy(mbr_sector *mbr){
-    for(int i=1; i<4; i++)
-        if(mbr->partition[i].type != 0xAE)
+    for(int i=2; i<4; i++)
+        if(mbr->partition[i].type != 0xAE){
             return false;
+        }
 
-    if(LD_DWORD(mbr->partition[3].lba_length) != REDSLC_MMC_BLOCKS * 2);
+    if(LD_DWORD(mbr->partition[3].lba_length) != REDSLC_MMC_BLOCKS * 2){
         return false;
+    }
 
-    if(LD_DWORD(mbr->partition[2].lba_length) != 0x3A20000)
+    if(LD_DWORD(mbr->partition[2].lba_length) != 0x3A20000){
         return false;
+    }
     
     return true;
 }
@@ -124,7 +127,7 @@ static int mbr_to_rednand_partition(partition_entry *mbr_part, rednand_partition
     return 0;
 }
 
-static int rednand_load_mbr(void){
+int rednand_load_mbr(void){
     mbr_sector mbr ALIGNED(32) = {0};
     int res = sdcard_read(0, 1, &mbr);
     if(res) {
@@ -209,7 +212,7 @@ static int apply_ini_config(void){
     int ret = slcerror | slccmpterror | mlcerror;
 
     if(rednand_ini.mlc && rednand_ini.disable_scfm != rednand.disable_scfm){
-        printf("WARNING: rednand.ini scfm config missmatches red mlc partition type\n");
+        printf("WARNING: rednand.ini scfm config missmatches red mlc partition type\nContinuing can lead to CORRUPTION!!! Stop if you didn't expect this warning\n");
         rednand.disable_scfm = rednand_ini.disable_scfm;
         ret |= 2;
     }
@@ -219,6 +222,8 @@ static int apply_ini_config(void){
         printf("WARNING: disabeling scfm on slccmpt\n");
         ret |= 4;
     }
+
+    printf("Rednand Config:\n slccmpt: %i\n slc: %i\n mlc: %i\n disable scfm: %i\n", rednand.slccmpt.lba_length, rednand.slc.lba_length, rednand.mlc.lba_length, rednand.disable_scfm);
 
     return ret;
 }

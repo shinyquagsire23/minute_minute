@@ -229,8 +229,34 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
 }
 
 #ifdef NAND_WRITE_ENABLED
+static int _isfs_write_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *data){
+    inline u32 make_sector(u32 page) {
+        return (page * CLUSTER_SIZE) / SDMMC_DEFAULT_BLOCKLEN;
+    }
+
+    u8 index = ctx->bank & 0xFF;
+    rednand_partition redpart = index?rednand.slccmpt:rednand.slc;
+
+    if(!redpart.lba_length)
+        return -1;
+
+    if(sdcard_write(redpart.lba_start + make_sector(start_cluster), make_sector(cluster_count), data))
+        return -1;
+
+    if(flags & ISFSVOL_FLAG_ENCRYPTED){
+        for (int p = 0; p < cluster_count; p++){
+            _isfs_decrypt_cluster(ctx, data + p * CLUSTER_SIZE);
+        }
+    }
+    return 0;
+}
+
 int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data)
 {
+    if(ctx->bank & 0x80000000) {
+        return _isfs_write_sd(ctx, start_cluster, cluster_count, flags, data);
+    }
+
     static u8 blockpg[BLOCK_PAGES][PAGE_SIZE] ALIGNED(NAND_DATA_ALIGN), blocksp[BLOCK_PAGES][PAGE_SPARE_SIZE];
     static u8 pgbuf[PAGE_SIZE] ALIGNED(NAND_DATA_ALIGN);
     u8 hmac[20] = {0};
@@ -364,7 +390,7 @@ static u32 _isfs_get_super_generation(void* buffer)
     return read32((u32)buffer + 4);
 }
 
-isfs_fst* _isfs_get_fst(isfs_ctx* ctx)
+static isfs_fst* _isfs_get_fst(isfs_ctx* ctx)
 {
     return (isfs_fst*)&ctx->super[0x10000 + 0x0C];
 }
@@ -424,56 +450,6 @@ static void _isfs_print_dir(isfs_ctx* ctx, isfs_fst* fst)
     _isfs_print_fst(fst);
 }
 
-static isfs_fst* _isfs_find_fst(isfs_ctx* ctx, isfs_fst* fst, const char* path);
-
-static isfs_fst* _isfs_check_file(isfs_ctx* ctx, isfs_fst* fst, const char* path)
-{
-    char fst_name[sizeof(fst->name) + 1] = {0};
-    memcpy(fst_name, fst->name, sizeof(fst->name));
-
-    //ISFS_debug("file: %s vs %s\n", path, fst_name);
-
-    if(!strcmp(fst_name, path))
-        return fst;
-
-    return NULL;
-}
-
-static isfs_fst* _isfs_check_dir(isfs_ctx* ctx, isfs_fst* fst, const char* path)
-{
-    isfs_fst* root = _isfs_get_fst(ctx);
-
-    if(fst->sub != 0xFFFF)
-        _isfs_print_dir(ctx, &root[fst->sub]);
-
-    size_t size = strlen(path);
-    const char* remaining = strchr(path, '/');
-    if(remaining) size = remaining - path;
-
-    if(size > sizeof(fst->name)) return NULL;
-
-    char name[sizeof(fst->name) + 1] = {0};
-    memcpy(name, path, size);
-
-    char fst_name[sizeof(fst->name) + 1] = {0};
-    memcpy(fst_name, fst->name, sizeof(fst->name));
-
-    //ISFS_debug("dir: %s vs %s\n", name, fst_name);
-
-    if(size == 0 || !strcmp(name, fst_name))
-    {
-        if(fst->sub != 0xFFFF && remaining != NULL && remaining[1] != '\0')
-        {
-            while(*remaining == '/') remaining++;
-            return _isfs_find_fst(ctx, &root[fst->sub], remaining);
-        }
-
-        return fst;
-    }
-
-    return NULL;
-}
-
 static int _isfs_fst_get_type(const isfs_fst* fst)
 {
     return fst->mode & 3;
@@ -489,28 +465,38 @@ static bool _isfs_fst_is_dir(const isfs_fst* fst)
     return _isfs_fst_get_type(fst) == 2;
 }
 
-static isfs_fst* _isfs_find_fst(isfs_ctx* ctx, isfs_fst* fst, const char* path)
-{
+static isfs_fst* _isfs_find_fst(isfs_ctx* ctx, const char* path, void** parent){
     isfs_fst* root = _isfs_get_fst(ctx);
-    if(!fst) fst = root;
+    if(parent)
+        *parent = &root->sub;
+    u16 next = root->sub;
+    while(next!=0xFFFF){
+        ISFS_debug("remaining path: %s\n", path);
+        isfs_fst* fst = &root[next];
+        while(*path== '/') path++;
+        const char* remaining = strchr(path, '/');
 
-    if(fst->sib != 0xFFFF) {
-        isfs_fst* result = _isfs_find_fst(ctx, &root[fst->sib], path);
-        if(result) return result;
+        size_t size = remaining ? remaining - path : strlen(path);
+
+        while((remaining && _isfs_fst_is_file(fst)) // skip files
+                || (size < sizeof(fst->name) && fst->name[size]) //check if fst name length
+                || memcmp(path, fst->name, size)){ //check name
+            if(fst->sib == 0xFFFF)
+                return NULL;
+            if(parent)
+                *parent = &fst->sib;
+            fst = &root[fst->sib];
+        }
+        if(!remaining)
+            return fst;
+        if(parent)
+            *parent = &fst->sub;
+        next = fst->sub; // go down
+        path = remaining;
     }
-
-    switch(_isfs_fst_get_type(fst)) {
-        case 1:
-            return _isfs_check_file(ctx, fst, path);
-        case 2:
-            return _isfs_check_dir(ctx, fst, path);
-        default:
-            printf("ISFS: Unknown mode! (%d)\n", _isfs_fst_get_type(fst));
-            break;
-    }
-
     return NULL;
 }
+
 
 char* _isfs_do_volume(const char* path, isfs_ctx** ctx)
 {
@@ -670,7 +656,41 @@ isfs_fst* isfs_stat(const char* path)
     path = _isfs_do_volume(path, &ctx);
     if(!ctx || !path) return NULL;
 
-    return _isfs_find_fst(ctx, NULL, path);
+    return _isfs_find_fst(ctx, path, NULL);
+}
+
+int isfs_unlink(const char* path){
+    if(!path)
+        return -1;
+    isfs_ctx* ctx = NULL;
+    path = _isfs_do_volume(path, &ctx);
+    ISFS_debug("volume found: %p\n", ctx);
+    if(!ctx)return -ENOENT;
+
+    void *parent;
+    isfs_fst* fst = _isfs_find_fst(ctx, path, &parent);
+    ISFS_debug("fst found: %p\n", fst);
+    if(!fst) return -ENOENT;
+
+    if(!_isfs_fst_is_file(fst)) return -EISDIR;
+
+    //parent might be unaligned
+    memcpy(parent, &fst->sib, sizeof(fst->sib)); //remove from directory
+
+    u16* fat = _isfs_get_fat(ctx);
+    u16 cluster = fst->sub;
+    while(cluster < 0xFFFB) {  
+        u16 next_cluster = fat[cluster];
+        fat[cluster] = 0xFFFE;
+        cluster = next_cluster;
+    }
+
+    memset(fst, 0, sizeof(isfs_fst));
+
+    int res = isfs_commit_super(ctx);
+    if(res)
+        return -EIO;
+    return 0;
 }
 
 int isfs_open(isfs_file* file, const char* path)
@@ -682,7 +702,7 @@ int isfs_open(isfs_file* file, const char* path)
     ISFS_debug("volume found: %p\n", ctx);
     if(!ctx)return -2;
 
-    isfs_fst* fst = _isfs_find_fst(ctx, NULL, path);
+    isfs_fst* fst = _isfs_find_fst(ctx, path, NULL);
     ISFS_debug("fst found: %p\n", fst);
     if(!fst) return -3;
 
@@ -789,7 +809,7 @@ int isfs_diropen(isfs_dir* dir, const char* path)
     path = _isfs_do_volume(path, &ctx);
     if(!ctx) return -2;
 
-    isfs_fst* fst = _isfs_find_fst(ctx, NULL, path);
+    isfs_fst* fst = _isfs_find_fst(ctx, path, NULL);
     if(!fst) return -3;
 
     if(!_isfs_fst_is_dir(fst)) return -4;
@@ -1044,6 +1064,15 @@ static int _isfsdev_dirclose_r(struct _reent* r, DIR_ITER* dirState)
     return 0;
 }
 
+static int _isfsdev_unlink_r(struct _reent* r, const char* path){
+    int res = isfs_unlink(path);
+    if(res) {
+        r->_errno = -res;
+        return -1;
+    }
+    return 0;
+}
+
 int _isfsdev_init(isfs_ctx* ctx)
 {
     devoptab_t* dotab = &ctx->devoptab;
@@ -1067,7 +1096,6 @@ int _isfsdev_init(isfs_ctx* ctx)
     dotab->rename_r = _isfsdev_stub_r;
     dotab->rmdir_r = _isfsdev_stub_r;
     dotab->statvfs_r = _isfsdev_stub_r;
-    dotab->unlink_r = _isfsdev_stub_r;
     dotab->write_r = _isfsdev_stub_r;
 
     dotab->close_r = _isfsdev_close_r;
@@ -1079,6 +1107,7 @@ int _isfsdev_init(isfs_ctx* ctx)
     dotab->diropen_r = _isfsdev_diropen_r;
     dotab->dirnext_r = _isfsdev_dirnext_r;
     dotab->dirreset_r = _isfsdev_dirreset_r;
+    dotab->unlink_r = _isfsdev_unlink_r;
 
     AddDevice(dotab);
 
