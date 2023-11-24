@@ -546,7 +546,7 @@ int sdcard_end_read(struct sdmmc_command* cmdbuf)
     if (cmdbuf->c_error) {
         printf("sdcard: MMC_READ_BLOCK_%s failed with %d\n", cmdbuf->c_opcode == MMC_READ_BLOCK_MULTIPLE ? "MULTIPLE" : "SINGLE", cmdbuf->c_error);
         return -1;
-    } else if(ISSET(cmdbuf->c_flags, SCF_RSP_R1) && (MMC_R1(cmdbuf->c_resp) & MMC_R1_ANY_ERROR)){
+    } else if(MMC_R1(cmdbuf->c_resp) & MMC_R1_ANY_ERROR){
         printf("sdcard: read reported error. status: %08lx\n", MMC_R1(cmdbuf->c_resp));
         return -2;
     }
@@ -627,10 +627,13 @@ retry_single:
             goto retry_single;
         }
         return -1;
-    } else if(ISSET(cmd.c_flags, SCF_RSP_R1) && (MMC_R1(cmd.c_resp) & MMC_R1_ANY_ERROR)){
+    } 
+#ifndef MINUTE_BOOT1 //on boot1 we get somehow ILLEGAL COMMAND (bit 22)
+    else if(MMC_R1(cmd.c_resp) & MMC_R1_ANY_ERROR){
         printf("sdcard: read reported error. status: %08lx\n", MMC_R1(cmd.c_resp));
         return -2;
     }
+#endif
     if(blk_count > 1)
         DPRINTF(2, ("sdcard: MMC_READ_BLOCK_MULTIPLE done\n"));
     else
@@ -714,7 +717,7 @@ int sdcard_end_write(struct sdmmc_command* cmdbuf)
     if (cmdbuf->c_error) {
         printf("sdcard: MMC_WRITE_BLOCK_%s failed with %d\n", cmdbuf->c_opcode == MMC_WRITE_BLOCK_MULTIPLE ? "MULTIPLE" : "SINGLE", cmdbuf->c_error);
         return -1;
-    } else if(ISSET(cmdbuf->c_flags, SCF_RSP_R1) && (MMC_R1(cmdbuf->c_resp) & MMC_R1_ANY_ERROR)){
+    } else if(MMC_R1(cmdbuf->c_resp) & MMC_R1_ANY_ERROR){
         printf("sdcard: write reported error. status: %08lx\n", MMC_R1(cmdbuf->c_resp));
         return -2;
     }
@@ -796,7 +799,7 @@ retry_single:
             goto retry_single;
         }
         return -1;
-    } else if(ISSET(cmd.c_flags, SCF_RSP_R1) && (MMC_R1(cmd.c_resp) & MMC_R1_ANY_ERROR)){
+    } else if(MMC_R1(cmd.c_resp) & MMC_R1_ANY_ERROR){
         printf("sdcard: write reported error. status: %08lx\n", MMC_R1(cmd.c_resp));
         return -2;
     }
