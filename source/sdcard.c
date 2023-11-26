@@ -596,7 +596,6 @@ retry_single:
     }
 
     while(blk_count){
-
         u32 cmd_blk_count = min(blk_count, SDHC_BLOCK_COUNT_MAX);
         memset(&cmd, 0, sizeof(cmd));
 
@@ -638,14 +637,15 @@ retry_single:
         }
     #endif
 
+        if(blk_count > 1)
+            DPRINTF(2, ("sdcard: MMC_READ_BLOCK_MULTIPLE done\n"));
+        else
+            DPRINTF(2, ("sdcard: MMC_READ_BLOCK_SINGLE done\n"));
+
         blk_count -= cmd_blk_count;
         blk_start += cmd_blk_count;
         data += cmd.c_datalen;
     }
-    if(blk_count > 1)
-        DPRINTF(2, ("sdcard: MMC_READ_BLOCK_MULTIPLE done\n"));
-    else
-        DPRINTF(2, ("sdcard: MMC_READ_BLOCK_SINGLE done\n"));
 
     return 0;
 }
@@ -775,46 +775,53 @@ retry_single:
         return -1;
     }
 
-    memset(&cmd, 0, sizeof(cmd));
+    while(blk_count){
+        u32 cmd_blk_count = min(blk_count, SDHC_BLOCK_COUNT_MAX);
+        memset(&cmd, 0, sizeof(cmd));
 
-    if(blk_count > 1) {
-        DPRINTF(2, ("sdcard: MMC_WRITE_BLOCK_MULTIPLE\n"));
-        cmd.c_opcode = MMC_WRITE_BLOCK_MULTIPLE;
-    } else {
-        DPRINTF(2, ("sdcard: MMC_WRITE_BLOCK_SINGLE\n"));
-        cmd.c_opcode = MMC_WRITE_BLOCK_SINGLE;
-    }
-    if (card.sdhc_blockmode)
-        cmd.c_arg = blk_start;
-    else
-        cmd.c_arg = blk_start * SDMMC_DEFAULT_BLOCKLEN;
-    cmd.c_data = data;
-    cmd.c_datalen = blk_count * SDMMC_DEFAULT_BLOCKLEN;
-    cmd.c_blklen = SDMMC_DEFAULT_BLOCKLEN;
-    cmd.c_flags = SCF_RSP_R1;
-    sdhc_exec_command(card.handle, &cmd);
+        if(blk_count > 1) {
+            DPRINTF(2, ("sdcard: MMC_WRITE_BLOCK_MULTIPLE\n"));
+            cmd.c_opcode = MMC_WRITE_BLOCK_MULTIPLE;
+        } else {
+            DPRINTF(2, ("sdcard: MMC_WRITE_BLOCK_SINGLE\n"));
+            cmd.c_opcode = MMC_WRITE_BLOCK_SINGLE;
+        }
+        if (card.sdhc_blockmode)
+            cmd.c_arg = blk_start;
+        else
+            cmd.c_arg = blk_start * SDMMC_DEFAULT_BLOCKLEN;
+        cmd.c_data = data;
+        cmd.c_datalen = cmd_blk_count * SDMMC_DEFAULT_BLOCKLEN;
+        cmd.c_blklen = SDMMC_DEFAULT_BLOCKLEN;
+        cmd.c_flags = SCF_RSP_R1;
+        sdhc_exec_command(card.handle, &cmd);
 
-    if (cmd.c_error) {
-        printf("sdcard: MMC_WRITE_BLOCK_%s failed with %d\n", blk_count > 1 ? "MULTIPLE" : "SINGLE", cmd.c_error);
-        if (blk_count > 1 && !card.multiple_fallback) {
-            printf("sdcard: trying only single blocks?\n");
-            card.multiple_fallback = 1;
-            goto retry_single; 
-        }
-        else if (blk_count <= 1 && !sdcard_host.no_dma) {
-            printf("sdcard: trying without DMA?\n");
-            sdcard_host.no_dma = 1;
-            goto retry_single;
-        }
-        return -1;
-    } else if(MMC_R1(cmd.c_resp) & MMC_R1_ANY_ERROR){
-        printf("sdcard: write reported error. status: %08lx\n", MMC_R1(cmd.c_resp));
-        return -2;
+        if (cmd.c_error) {
+            printf("sdcard: MMC_WRITE_BLOCK_%s failed with %d\n", blk_count > 1 ? "MULTIPLE" : "SINGLE", cmd.c_error);
+            if (blk_count > 1 && !card.multiple_fallback) {
+                printf("sdcard: trying only single blocks?\n");
+                card.multiple_fallback = 1;
+                goto retry_single; 
+            }
+            else if (blk_count <= 1 && !sdcard_host.no_dma) {
+                printf("sdcard: trying without DMA?\n");
+                sdcard_host.no_dma = 1;
+                goto retry_single;
+            }
+            return -1;
+        } else if(MMC_R1(cmd.c_resp) & MMC_R1_ANY_ERROR){
+            printf("sdcard: write reported error. status: %08lx\n", MMC_R1(cmd.c_resp));
+            return -2;
+        } 
+        if(blk_count > 1)
+            DPRINTF(2, ("sdcard: MMC_WRITE_BLOCK_MULTIPLE done\n"));
+        else
+            DPRINTF(2, ("sdcard: MMC_WRITE_BLOCK_SINGLE done\n"));
+
+        blk_count -= cmd_blk_count;
+        blk_start += cmd_blk_count;
+        data += cmd.c_datalen;
     }
-    if(blk_count > 1)
-        DPRINTF(2, ("sdcard: MMC_WRITE_BLOCK_MULTIPLE done\n"));
-    else
-        DPRINTF(2, ("sdcard: MMC_WRITE_BLOCK_SINGLE done\n"));
 
     return 0;
 }
