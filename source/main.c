@@ -331,9 +331,9 @@ u32 _main(void *base)
     serial_send_u32(0x50525348); // PRSH
 
     // Set up PRSH here
-    prsh_decrypt();
-    prsh_reset();
-    prsh_init();
+    // prsh_decrypt();
+    // prsh_reset();
+    // prsh_init();
 
     // PON_SMC_TIMER and an unknown power flag are set
     if (pflags_val & (PON_SMC_TIMER | PFLAG_ENTER_BG_NORMAL_MODE))
@@ -572,8 +572,8 @@ u32 _main(void *base)
     irq_initialize();
     printf("Interrupts initialized\n");
 
-    prsh_reset();
-    prsh_init();
+    // prsh_reset();
+    // prsh_init();
 
     srand(read32(LT_TIMER));
     crypto_initialize();
@@ -657,6 +657,13 @@ u32 _main(void *base)
 
     // Hopefully we have proper keys by this point
     crypto_decrypt_seeprom();
+
+
+    prsh_decrypt();
+
+    
+    prsh_reset();
+    prsh_init();
 
     minini_init();
 

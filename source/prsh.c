@@ -244,6 +244,8 @@ void prsh_init(void)
 
         // TODO: we could pass in a ram-only OTP here, maybe?
         printf("prsh: No header found, made a new one.\n");
+        prsh_set_bootinfo();
+        prsh_recompute_checksum();
     }
     else {
         header = buffer - sizeof(u32);
@@ -253,11 +255,6 @@ void prsh_init(void)
     }
 
     initialized = true;
-
-#ifdef MINUTE_BOOT1
-    prsh_set_bootinfo();
-    prsh_recompute_checksum();
-#endif
 
 #ifndef MINUTE_BOOT1
     printf("prsh: Header at %08x, PRST at %08x, %u entries (%u capacity):\n", header, prst, header->entries, header->total_entries);
