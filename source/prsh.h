@@ -95,6 +95,9 @@ void prsh_recompute_checksum();
 void prsh_decrypt();
 void prsh_encrypt();
 
+void print_bootinfo(boot_info_t * boot_info);
+void prsh_set_bootinfo();
+
 void prsh_menu();
 
 #endif
