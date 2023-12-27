@@ -556,8 +556,22 @@ u32 _main(void *base)
     serial_send_u32(0x55AA55AA);
     serial_send_u32(0xF00FCAFE);
 
-    gpu_display_init();
-    gfx_init();
+        //prsh_decrypt();
+    prsh_reset();
+    prsh_init();
+
+    //prsh_set_bootinfo();
+    boot_info_t *boot_info;
+    size_t *boot_info_size;
+    res = prsh_get_entry("boot_info", &boot_info, &boot_info_size );
+    if(!res){
+        print_bootinfo(boot_info);
+    }
+
+    if(res || !(boot_info->boot_state & PON_SMC_TIMER)){
+        gpu_display_init();
+        gfx_init();
+    }
     printf("minute loading\n");
 
     if (main_loaded_from_boot1) {
@@ -657,13 +671,6 @@ u32 _main(void *base)
 
     // Hopefully we have proper keys by this point
     crypto_decrypt_seeprom();
-
-
-    prsh_decrypt();
-
-    
-    prsh_reset();
-    prsh_init();
 
     minini_init();
 
