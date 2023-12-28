@@ -244,7 +244,29 @@ u32 _main(void *base)
     if (rtc_ctrl1 & CTRL1_SLEEP_EN)
         pflags_val |= PFLAG_DDR_SREFRESH; // Set DDR_SREFRESH power flag
 
+#endif //NOT ISFSHAX_STAGE2
+
     u32 mem_mode = 0;
+
+    serial_send_u32(0x50525348); // PRSH
+
+    // Set up PRSH here
+    // prsh_decrypt();
+    prsh_reset();
+    prsh_init();
+
+    boot_info_t *boot_info;
+    size_t *boot_info_size;
+    res = prsh_get_entry("boot_info", &boot_info, &boot_info_size);
+    if(!res && boot_info_size >= sizeof(boot_info_t)){
+#ifdef ISFSHAX_STAGE2
+        // on ISFShax the flags were already extracted by boot1
+        pflags_val = boot_info->boot_state;
+#else
+        boot_info->boot_state = pflags_val;
+#endif
+    }
+
 
     // DDR_SREFRESH power flag is set
     if (pflags_val & PFLAG_DDR_SREFRESH)
@@ -272,6 +294,7 @@ u32 _main(void *base)
     serial_send_u32(latte_get_hw_version());
     serial_send_u32(0x4D454D32); // MEM2
 
+#ifndef ISFSHAX_STAGE2
     // Init DRAM
     init_mem2(mem_mode);
     udelay(500000);
@@ -319,25 +342,6 @@ u32 _main(void *base)
 
     // Clear all MEM0
     memset((void*)0x08000000, 0, 0x002E0000);
-
-    serial_send_u32(0x50525348); // PRSH
-
-    // Set up PRSH here
-    // prsh_decrypt();
-    prsh_reset();
-    prsh_init();
-
-    boot_info_t *boot_info;
-    size_t *boot_info_size;
-    res = prsh_get_entry("boot_info", &boot_info, &boot_info_size);
-    if(!res && boot_info_size >= sizeof(boot_info_t)){
-#ifdef ISFSHAX_STAGE2
-        // on ISFShax the flags were already extracted by boot1
-        pflags_val = boot_info->boot_state;
-#else
-        boot_info->boot_state = pflags_val;
-#endif
-    }
 
     // Standby Mode boot doesn't need to upclock
     if (!(pflags_val & PON_SMC_TIMER))
