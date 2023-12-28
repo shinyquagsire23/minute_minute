@@ -333,7 +333,7 @@ int prsh_set_entry(const char* name, void* data, size_t size)
         }
     }
 
-    return -2;
+    return prsh_add_entry(name, data, size, NULL);
 }
 
 int prsh_add_entry(const char* name, void* data, size_t size, prsh_entry** p_out)
