@@ -87,6 +87,7 @@ typedef struct {
 #define PRSH_FLAG_00800000          (0x00800000) // unk, has set/clear fn in MCP
 
 void prsh_reset(void);
+void prsh_print(void);
 void prsh_init(void);
 int prsh_get_entry(const char* name, void** data, size_t* size);
 int prsh_set_entry(const char* name, void* data, size_t size);

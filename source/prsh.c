@@ -164,6 +164,14 @@ void prsh_set_bootinfo()
     boot_info->boot0_decrypt = 0x0000027A;
 }
 
+void prsh_print(void){
+    printf("prsh: Header at %08x, PRST at %08x, %u entries (%u capacity):\n", header, prst, header->entries, header->total_entries);
+    for (int i = 0; i < header->entries; i++) {
+        printf("    %u: %s %p %x\n", i, header->entry[i].name, header->entry[i].size, header->entry[i].data);
+        //prsh_dump_entry(header->entry[i].name);
+    }
+}
+
 void prsh_init(void)
 {
     // corrupt
@@ -257,11 +265,7 @@ void prsh_init(void)
     initialized = true;
 
 #ifndef MINUTE_BOOT1
-    printf("prsh: Header at %08x, PRST at %08x, %u entries (%u capacity):\n", header, prst, header->entries, header->total_entries);
-    for (int i = 0; i < header->entries; i++) {
-        printf("    %u: %s %p %x\n", i, header->entry[i].name, header->entry[i].size, header->entry[i].data);
-        //prsh_dump_entry(header->entry[i].name);
-    }
+    prsh_print();
 
 #if 0
     void* data = header;
@@ -325,6 +329,7 @@ int prsh_set_entry(const char* name, void* data, size_t size)
         prsh_entry* entry = &header->entry[i];
 
         if(!strncmp(name, entry->name, sizeof(entry->name))) {
+            printf("Found existing entry: %s, data: %08lx, size: %08lx, is_set: %08lx\n", entry->name, entry->data, entry->size, entry->is_set);
             entry->data = data;
             entry->size = size;
             entry->is_set = 0x80000000;
@@ -417,7 +422,7 @@ void prsh_recompute_checksum()
     u32 word_counter = 0;
     
     void* checksum_start = (void*)(&header->magic);
-    while (word_counter < ((header->entries * sizeof(prsh_entry))>>2))
+    while (word_counter < ((header->total_entries * sizeof(prsh_entry)) / 0x04))
     {
         checksum ^= *(u32 *)(checksum_start + word_counter * 0x04);
         word_counter++;
