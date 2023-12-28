@@ -169,13 +169,15 @@ u32 _main(void *base)
         udelay(10000);
     }
 
+    u32 pflags_val = 0;
+
+#ifndef ISFSHAX_STAGE2
     // 0x00020721 on extra cold booting (fresh from power plug)
     // 0x02020321 on warm cold booting (or 0x02000221?)
     u32 rtc_ctrl0 = rtc_get_ctrl0();
     serial_send_u32(rtc_ctrl0);
 
     u32 syscfg1_val = read32(LT_SYSCFG1);
-    u32 pflags_val = 0;
 
     // Check if the CMPT_RETSTAT0 flag is raised
     if (syscfg1_val & 0x04)
@@ -270,7 +272,6 @@ u32 _main(void *base)
     serial_send_u32(latte_get_hw_version());
     serial_send_u32(0x4D454D32); // MEM2
 
-#ifndef ISFSHAX_STAGE2
     // Init DRAM
     init_mem2(mem_mode);
     udelay(500000);
@@ -319,6 +320,25 @@ u32 _main(void *base)
     // Clear all MEM0
     memset((void*)0x08000000, 0, 0x002E0000);
 
+    serial_send_u32(0x50525348); // PRSH
+
+    // Set up PRSH here
+    // prsh_decrypt();
+    prsh_reset();
+    prsh_init();
+
+    boot_info_t *boot_info;
+    size_t *boot_info_size;
+    res = prsh_get_entry("boot_info", &boot_info, &boot_info_size);
+    if(!res && boot_info_size >= sizeof(boot_info_t)){
+#ifdef ISFSHAX_STAGE2
+        // on ISFShax the flags were already extracted by boot1
+        pflags_val = boot_info->boot_state;
+#else
+        boot_info->boot_state = pflags_val;
+#endif
+    }
+
     // Standby Mode boot doesn't need to upclock
     if (!(pflags_val & PON_SMC_TIMER))
     {
@@ -328,12 +348,6 @@ u32 _main(void *base)
             latte_set_iop_clock_mult(3);
         }
     }
-    serial_send_u32(0x50525348); // PRSH
-
-    // Set up PRSH here
-    // prsh_decrypt();
-    // prsh_reset();
-    // prsh_init();
 
     // PON_SMC_TIMER and an unknown power flag are set
     if (pflags_val & (PON_SMC_TIMER | PFLAG_ENTER_BG_NORMAL_MODE))
@@ -556,7 +570,7 @@ u32 _main(void *base)
     serial_send_u32(0x55AA55AA);
     serial_send_u32(0xF00FCAFE);
 
-        //prsh_decrypt();
+    //prsh_decrypt();
     prsh_reset();
     prsh_init();
 
@@ -568,10 +582,19 @@ u32 _main(void *base)
         print_bootinfo(boot_info);
     }
 
-    if(res || !(boot_info->boot_state & PON_SMC_TIMER)){
+    if(res || !(boot_info->boot_state & PON_SMC_TIMER) || (boot_info_size < sizeof(boot_info_t))){
         gpu_display_init();
         gfx_init();
     }
+
+    void *minute_on_slc;
+    size_t *minute_on_slc_size;
+    res = prsh_get_entry("minute_on_slc", &minute_on_slc, &minute_on_slc_size );
+    if(!res){
+        minute_on_slc = true;
+        minute_on_sd = false;
+    }
+
     printf("minute loading\n");
 
     if (main_loaded_from_boot1) {
