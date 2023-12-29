@@ -103,6 +103,21 @@ static bool read_ancast(const char *path){
     return *(u32*)ALL_PURPOSE_TMP_BUF == ANCAST_MAGIC; 
 }
 
+boot_info_t *init_prsh_get_bootinfo(void){
+    serial_send_u32(0x50525348); // PRSH
+    // Set up PRSH here
+    // prsh_decrypt();
+    prsh_reset();
+    prsh_init();
+    boot_info_t *boot_info;
+    size_t boot_info_size;
+    int res = prsh_get_entry("boot_info", (void**) &boot_info, &boot_info_size);
+    if(!res && boot_info_size >= sizeof(boot_info_t)){
+        return boot_info;
+    }
+    return NULL;
+}
+
 u32 _main(void *base)
 {
     (void)base;
@@ -244,29 +259,15 @@ u32 _main(void *base)
     if (rtc_ctrl1 & CTRL1_SLEEP_EN)
         pflags_val |= PFLAG_DDR_SREFRESH; // Set DDR_SREFRESH power flag
 
-#endif //NOT ISFSHAX_STAGE2
+#else 
+    // ISFSHAX_STAGE2
+    // on ISFShax the flags were already extracted by boot1
+    boot_info_t *bootinfo = init_prsh_get_bootinfo();
+    if(bootinfo)
+        pflags_val = bootinfo->boot_state;
+#endif
 
     u32 mem_mode = 0;
-
-    serial_send_u32(0x50525348); // PRSH
-
-    // Set up PRSH here
-    // prsh_decrypt();
-    prsh_reset();
-    prsh_init();
-
-    boot_info_t *boot_info;
-    size_t *boot_info_size;
-    res = prsh_get_entry("boot_info", &boot_info, &boot_info_size);
-    if(!res && boot_info_size >= sizeof(boot_info_t)){
-#ifdef ISFSHAX_STAGE2
-        // on ISFShax the flags were already extracted by boot1
-        pflags_val = boot_info->boot_state;
-#else
-        boot_info->boot_state = pflags_val;
-#endif
-    }
-
 
     // DDR_SREFRESH power flag is set
     if (pflags_val & PFLAG_DDR_SREFRESH)
@@ -352,6 +353,12 @@ u32 _main(void *base)
             latte_set_iop_clock_mult(3);
         }
     }
+
+#ifndef ISFSHAX_STAGE2
+    boot_info_t *bootinfo = init_prsh_get_bootinfo();
+    if(bootinfo)
+        bootinfo->boot_state = pflags_val;
+#endif
 
     // PON_SMC_TIMER and an unknown power flag are set
     if (pflags_val & (PON_SMC_TIMER | PFLAG_ENTER_BG_NORMAL_MODE))
