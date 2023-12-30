@@ -80,7 +80,6 @@ menu menu_dump = {
             {"Dump sys crash logs from redslc", &dump_logs_redslc},
             {"Format redNAND", &dump_format_rednand},
             {"Restore SLC.RAW", &dump_restore_slc_raw},
-            {"Restore SLC.IMG", &dump_restore_slc_img},
             {"Restore SLCCMPT.RAW", &dump_restore_slccmpt_raw},
             {"Restore BOOT1_SLC.RAW", &dump_restore_boot1_raw},
             {"Restore BOOT1_SLCCMPT.RAW", &dump_restore_boot1_vwii_raw},
@@ -97,7 +96,7 @@ menu menu_dump = {
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Return to Main Menu", &menu_close},
     },
-    27, // number of options
+    26, // number of options
     0,
     0
 };
@@ -1224,7 +1223,7 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
     #undef FILE_BUF_SIZE
     #undef PAGE_STRIDE
 }
-
+// does not work for whole SLC, as the HMACs would be wrong
 int _dump_restore_slc_img(u32 bank, int boot1_only)
 {
     int ret = 0;
@@ -1656,7 +1655,7 @@ void dump_restore_test_slc_raw(void)
 slc_exit:
     console_power_to_exit();
 }
-
+// does not work, as the HMACs would be wrong
 void dump_restore_slc_img(void)
 {
     int res = 0;
