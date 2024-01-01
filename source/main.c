@@ -282,7 +282,7 @@ u32 _main(void *base)
         mem_mode |= DRAM_MODE_CCBOOT;
 
         // Set FanSpeed state
-        gpio_fanspeed_set(false);
+        gpio_fanspeed_set(FANSPEED_SLOW);
     }
     else
     {

@@ -76,6 +76,9 @@ enum {
 #define GP_ARM_DEFAULT_ON (GP_DEFAULT_ON & GP_OWNER_ARM)
 #define GP_PPC_DEFAULT_ON (GP_DEFAULT_ON & GP_OWNER_PPC)
 
+#define FANSPEED_FAST true
+#define FANSPEED_SLOW false
+
 #ifdef MINUTE_BOOT1
 #define SERIAL_DELAY (10)
 #else
