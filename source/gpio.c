@@ -83,13 +83,15 @@ void gpio_dcdc_pwrcnt_set(u8 val)
 
 void gpio_fan_set(u8 val)
 {
-    gpio2_set_dir(GP2_FANSPEED, GPIO_DIR_OUT);
-    gpio2_set(GP2_FANSPEED, val);
-    gpio2_enable(GP2_FANSPEED, 1);
-
     gpio_set_dir(GP_FAN, GPIO_DIR_OUT);
     gpio_set(GP_FAN, val);
     gpio_enable(GP_FAN, 1);
+}
+
+void gpio_fanspeed_set(bool slow){
+    gpio2_set_dir(GP2_FANSPEED, GPIO_DIR_OUT);
+    gpio2_set(GP2_FANSPEED, slow);
+    gpio2_enable(GP2_FANSPEED, 1);
 }
 
 void gpio_smc_i2c_init()
