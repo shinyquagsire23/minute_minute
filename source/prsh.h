@@ -59,11 +59,11 @@ typedef struct {
 
     u32 field_20;
     u32 field_24;
-    u32 field_28;
+    u32 os_id;      // os in dram (standy mode)
     u32 field_2C;
 
-    u32 field_30;
-    u32 field_34;
+    u32 os_size;    // os in dram (standy mode)
+    u32 os_address; // os in dram (standy mode)
     u32 boot1_main;
     u32 boot1_read;
 

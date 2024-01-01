@@ -147,10 +147,10 @@ void prsh_set_bootinfo()
     boot_info->field_1C = 0xFFFFFFFF;
     boot_info->field_20 = 0xFFFFFFFF;
     boot_info->field_24 = 0xFFFFFFFF;
-    boot_info->field_28 = 0xFFFFFFFF;
+    boot_info->os_id    = 0xFFFFFFFF;
     boot_info->field_2C = 0xFFFFFFFF;
-    boot_info->field_30 = 0;
-    boot_info->field_34 = 0;
+    boot_info->os_address = 0;
+    boot_info->os_size  = 0;
 
     // Dummy values
     // TODO just get the real ones
@@ -484,6 +484,6 @@ void prsh_encrypt()
 }
 
 void print_bootinfo(boot_info_t * boot_info){
-    printf("bootinfo:\n is_coldboot: %08lx\n boot_flags: %08lx\n boot_state: %08lx\n boot_count: %08lx\n field_10: %08lx\n field_14: %08lx\n field_18: %08lx\n field_1C: %08lx\n field_20: %08lx\n field_24: %08lx\n field_28: %08lx\n field_2C: %08lx\n field_30: %08lx\n field_34: %08lx\n boot1_main: %08lx\n boot1_read: %08lx\n boot1_verify: %08lx\n boot1_decrypt: %08lx\n boot0_main: %08lx\n boot0_read: %08lx\n boot0_verify: %08lx\n boot0_decrypt: %08lx\n",
-           boot_info->is_coldboot, boot_info->boot_flags, boot_info->boot_state, boot_info->boot_count, boot_info->field_10, boot_info->field_14, boot_info->field_18, boot_info->field_1C, boot_info->field_20, boot_info->field_24, boot_info->field_28, boot_info->field_2C, boot_info->field_30, boot_info->field_34, boot_info->boot1_main, boot_info->boot1_read, boot_info->boot1_verify, boot_info->boot1_decrypt, boot_info->boot0_main, boot_info->boot0_read, boot_info->boot0_verify, boot_info->boot0_decrypt);
+    printf("bootinfo:\n is_coldboot: %08lx\n boot_flags: %08lx\n boot_state: %08lx\n boot_count: %08lx\n field_10: %08lx\n field_14: %08lx\n field_18: %08lx\n field_1C: %08lx\n field_20: %08lx\n field_24: %08lx\n os_id: %08lx\n field_2C: %08lx\n os_size: %08lx\n os_address: %08lx\n boot1_main: %08lx\n boot1_read: %08lx\n boot1_verify: %08lx\n boot1_decrypt: %08lx\n boot0_main: %08lx\n boot0_read: %08lx\n boot0_verify: %08lx\n boot0_decrypt: %08lx\n",
+           boot_info->is_coldboot, boot_info->boot_flags, boot_info->boot_state, boot_info->boot_count, boot_info->field_10, boot_info->field_14, boot_info->field_18, boot_info->field_1C, boot_info->field_20, boot_info->field_24, boot_info->os_id, boot_info->field_2C, boot_info->os_size, boot_info->os_address, boot_info->boot1_main, boot_info->boot1_read, boot_info->boot1_verify, boot_info->boot1_decrypt, boot_info->boot0_main, boot_info->boot0_read, boot_info->boot0_verify, boot_info->boot0_decrypt);
 }
