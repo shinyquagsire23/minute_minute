@@ -88,9 +88,9 @@ void gpio_fan_set(u8 val)
     gpio_enable(GP_FAN, 1);
 }
 
-void gpio_fanspeed_set(bool slow){
+void gpio_fanspeed_set(bool fullspeed){
     gpio2_set_dir(GP2_FANSPEED, GPIO_DIR_OUT);
-    gpio2_set(GP2_FANSPEED, slow);
+    gpio2_set(GP2_FANSPEED, fullspeed);
     gpio2_enable(GP2_FANSPEED, 1);
 }
 
