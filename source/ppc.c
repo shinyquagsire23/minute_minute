@@ -476,13 +476,15 @@ void ppc_do_glitch(int reset_attempt)
     u32 val = read32(LT_RESETS_COMPAT) | RSTB_CPU;
     u32 val_reset = val & ~RSTB_CPU;
     /*clear32(LT_RESETS_COMPAT, RSTB_CPU);
+    
+    set32(LT_RESETS_COMPAT, RSTB_CPU);*/
+
+    write32(LT_RESETS_COMPAT, val_reset);
     for(int i = 0; i < reset_attempt; i++)
     {
         __asm volatile ("\n");
     }
-    set32(LT_RESETS_COMPAT, RSTB_CPU);*/
-    //write32(LT_RESETS_COMPAT, val_reset);
-    //write32(LT_RESETS_COMPAT, val);
+    write32(LT_RESETS_COMPAT, val);
 }
 
 void* ppc_race(void)
@@ -719,7 +721,7 @@ void ppc_jump(u32 entry)
     ready = false;
 }
 
-int _ppc_test(u32 val, int spacing)
+int _ppc_test(u32 val, int spacing, int delay)
 {
     u32 cookie;
     u32 safety_exit = 0;
@@ -731,6 +733,12 @@ int _ppc_test(u32 val, int spacing)
     uintptr_t wait_stub_addr = 0x4000;
 
     ppc_hold_resets();
+
+    set32(LT_COMPAT, LT_COMPAT_BOOT_CODE);
+    set32(LT_AHBPROT, 0xFFFFFFFF);
+
+    ppc_prepare_config(val);
+    ppc_prime_defuse();
 
     // Copy the wait stub to MEM1. This waits for us to load further code.
     ppc_dump_stub(wait_stub_addr, entry);
@@ -756,13 +764,6 @@ int _ppc_test(u32 val, int spacing)
     dc_flushrange(rom_state, 0x20);
 
     //{
-        
-
-        set32(LT_COMPAT, LT_COMPAT_BOOT_CODE);
-        set32(LT_AHBPROT, 0xFFFFFFFF);
-
-        ppc_prepare_config(val);
-        ppc_prime_defuse();
 
         u32* body = (u32*)0x08000100;
         //memcpy((void*)0x08000000, (void*)0x01330000, 0x11e100);
@@ -777,64 +778,21 @@ int _ppc_test(u32 val, int spacing)
         //ppc_do_defuse(spacing);
         //ppc_release_reset();
 
-#if 0
-        safety_exit = 0;
-        exit_code = 0x00;
-        do 
-        {
-            dc_invalidaterange(body, sizeof(u32));
-            dc_invalidaterange(rom_state, 0x20);
-            exit_code = rom_state[7] >> 24;
-            safety_exit += 1;
-            if (safety_exit > 0x10000) {
-                break;
-            }
-        } while(old == *body && (exit_code == 0xFF || exit_code == 0x00));
-
-        if((exit_code != 0x00 && exit_code != 0xFF) || old == *body) {
-            irq_restore(cookie);
-
-            dc_invalidaterange((void*)(entry+0x00000004), sizeof(u32)*4);
-            dc_invalidaterange(rom_state, 0x20);
-            printf("PPC: ROM failure: timer=%08lX err=0x%08lX 0x%08lX 0x%08lX spr=%08lX fuse=%08lX, magic=%08lX, test=%08lX.\n", rom_state[4], rom_state[7], old, *body, *(u32*)(entry+0x00000004), *(u32*)(entry+0x00000008), *(u32*)(entry+0x0000000C), *(u32*)(entry+0x00000010));
-            return 0;
-        }
-#endif
         //
 
         start = body;
     //}
 
-#if 0
-    if(start == 0) {
-        irq_restore(cookie);
-        printf("Failed to race PPC, abort\n");
-        return 0;
-    }
-
-    // Copy the wait stub to MEM1. This waits for us to load further code.
-    //ppc_wait_stub(wait_stub_addr, entry);
-    // Copy the jump stub to the start of the ancast body. This jumps to the wait stub.
-    //ppc_jump_stub(start, wait_stub_addr);
-    ppc_jump_stub(0x100, wait_stub_addr);
-#endif
-
-    //ppc_do_glitch(spacing);
-    for(int i = 0; i < spacing; i++)
+    for(int i = 0; i < delay; i++)
     {
         __asm volatile ("\n");
     }
-    //udelay(spacing);
-    //ppc_do_sreset();
+
     dc_invalidaterange(0x100, sizeof(u32));
     u32 tmp = read32(0x100);
 
-    write32(0x100, 0x48003f00); // b 0x4000
-    dc_flushrange(0x100, sizeof(u32));
-    clear32(LT_RESETS_COMPAT, SRSTB_CPU);
-    //ppc_jump_stub(0x100, wait_stub_addr);
-    write32(0x100, 0x48003f00); // b 0x4000
-    dc_flushrange(0x100, sizeof(u32));
+    //ppc_do_glitch(spacing);
+    ppc_do_sreset();
 
     dc_invalidaterange((void*)(entry+0x00000004), sizeof(u32)*4);
     dc_invalidaterange(rom_state, 0x20);
@@ -842,9 +800,6 @@ int _ppc_test(u32 val, int spacing)
     dc_invalidaterange(0x100, sizeof(u32));
 
     printf("PPC: checking, timer=%08lX err=0x%08lX 0x%08lX 0x%08lX spr=%08lX fuse=%08lX, magic=%08lX, test=%08lX %08lX %08lX.\n", rom_state[4], rom_state[7], old, *body, *(u32*)(entry+0x00000004), *(u32*)(entry+0x00000008), *(u32*)(entry+0x0000000C), *(u32*)(entry+0x00000010), *(u32*)0x100, tmp);
-
-    udelay(100);
-    set32(LT_RESETS_COMPAT, SRSTB_CPU);
 
     udelay(1000);
 
@@ -911,10 +866,10 @@ void ppc_test(u32 val)
     // 0x1743d0 end limbo, execute payload w/ SRESET, spr=0x80600000
 
 
-    for (int i = 0x22fd0; i < 0x22fe0+0x100; i += 0x1)
+    for (int i = 0; i < 0x100; i += 0x1)
     {
         printf("iteration: %02x\n", i);
-        if (_ppc_test(val, i)) break;
+        if (_ppc_test(val, i, 0x22fd0)) break;
     }
     
 }
