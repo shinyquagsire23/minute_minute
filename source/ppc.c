@@ -540,6 +540,51 @@ void ppc_jump_stub(u32 location, u32 entry)
 void ppc_wait_stub(u32 location, u32 entry)
 {
     size_t i = 0;
+    
+    // lis r3, entry@h
+    write32(location + i, 0x3C600000 | entry >> 16); i += sizeof(u32);
+    // ori r3, r3, entry@l
+    write32(location + i, 0x60630000 | (entry & 0xFFFF)); i += sizeof(u32);
+
+
+    // li r4, 0
+    write32(location + i, 0x38800000); i += sizeof(u32);
+    // stw r4, 0(r3)
+    write32(location + i, 0x90830000); i += sizeof(u32);
+    
+
+    // dcbf r0, r3
+    write32(location + i, 0x7C0018AC); i += sizeof(u32);
+    // sync
+    write32(location + i, 0x7C0004AC); i += sizeof(u32);
+
+// _wait:
+    // dcbi r0, r3
+    write32(location + i, 0x7C001BAC); i += sizeof(u32);
+    // sync
+    write32(location + i, 0x7C0004AC); i += sizeof(u32);
+    // lwz r4, 0(r3)
+    write32(location + i, 0x80830000); i += sizeof(u32);
+    // cmpwi cr7, r4, 0
+    write32(location + i, 0x2F840000); i += sizeof(u32);
+    // beq cr7, _wait
+    write32(location + i, 0x419EFFF0); i += sizeof(u32);
+
+    // mtsrr0 r4
+    write32(location + i, 0x7C9A03A6); i += sizeof(u32);
+    // li r4, 0
+    write32(location + i, 0x38800000); i += sizeof(u32);
+    // mtsrr1 r4
+    write32(location + i, 0x7C9B03A6); i += sizeof(u32);
+    // rfi
+    write32(location + i, 0x4C000064); i += sizeof(u32);
+
+    dc_flushrange((void*)location, i);
+}
+
+void ppc_dump_stub(u32 location, u32 entry)
+{
+    size_t i = 0;
 
     u32 efuse_to_read = 0x0C32003C;
 
@@ -610,43 +655,19 @@ void ppc_wait_stub(u32 location, u32 entry)
     // b .
     //write32(location + i, 0x48000000); i += sizeof(u32);
 
-    // sync
-    write32(location + i, 0x7C0004AC); i += sizeof(u32);
-    // busy: nop
-    write32(location + i, 0x60000000); i += sizeof(u32);
-    // mov r0 0
-    write32(location + i, 0x38600000); i += sizeof(u32);
-    // nop
-    write32(location + i, 0x60000000); i += sizeof(u32);
-    // b busy
-    write32(location + i, 0x4BFFFFF4); i += sizeof(u32);
-    
-
     // dcbf r0, r3
     write32(location + i, 0x7C0018AC); i += sizeof(u32);
     // sync
     write32(location + i, 0x7C0004AC); i += sizeof(u32);
 
-// _wait:
-    // dcbi r0, r3
-    write32(location + i, 0x7C001BAC); i += sizeof(u32);
-    // sync
-    write32(location + i, 0x7C0004AC); i += sizeof(u32);
-    // lwz r4, 0(r3)
-    write32(location + i, 0x80830000); i += sizeof(u32);
-    // cmpwi cr7, r4, 0
-    write32(location + i, 0x2F840000); i += sizeof(u32);
-    // beq cr7, _wait
-    write32(location + i, 0x419EFFF0); i += sizeof(u32);
-
-    // mtsrr0 r4
-    write32(location + i, 0x7C9A03A6); i += sizeof(u32);
-    // li r4, 0
-    write32(location + i, 0x38800000); i += sizeof(u32);
-    // mtsrr1 r4
-    write32(location + i, 0x7C9B03A6); i += sizeof(u32);
-    // rfi
-    write32(location + i, 0x4C000064); i += sizeof(u32);
+    // busy: nop
+    write32(location + i, 0x60000000); i += sizeof(u32);
+    // mov r3 0
+    write32(location + i, 0x38600000); i += sizeof(u32);
+    // nop
+    write32(location + i, 0x60000000); i += sizeof(u32);
+    // b busy
+    write32(location + i, 0x4BFFFFF4); i += sizeof(u32);
 
     dc_flushrange((void*)location, i);
 }
@@ -712,7 +733,7 @@ int _ppc_test(u32 val, int spacing)
     ppc_hold_resets();
 
     // Copy the wait stub to MEM1. This waits for us to load further code.
-    ppc_wait_stub(wait_stub_addr, entry);
+    ppc_dump_stub(wait_stub_addr, entry);
     ppc_jump_stub(0x100, wait_stub_addr);
     write32(0x100, 0x48003f00); // b 0x4000
     dc_flushrange(0x100, sizeof(u32));
