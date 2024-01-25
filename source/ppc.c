@@ -607,6 +607,21 @@ void ppc_wait_stub(u32 location, u32 entry)
     // stw r4, 0(r3)
     write32(location + i, 0x90830000); i += sizeof(u32);
 
+    // b .
+    //write32(location + i, 0x48000000); i += sizeof(u32);
+
+    // sync
+    write32(location + i, 0x7C0004AC); i += sizeof(u32);
+    // busy: nop
+    write32(location + i, 0x60000000); i += sizeof(u32);
+    // mov r0 0
+    write32(location + i, 0x38600000); i += sizeof(u32);
+    // nop
+    write32(location + i, 0x60000000); i += sizeof(u32);
+    // b busy
+    write32(location + i, 0x4BFFFFF4); i += sizeof(u32);
+    
+
     // dcbf r0, r3
     write32(location + i, 0x7C0018AC); i += sizeof(u32);
     // sync
@@ -623,9 +638,6 @@ void ppc_wait_stub(u32 location, u32 entry)
     write32(location + i, 0x2F840000); i += sizeof(u32);
     // beq cr7, _wait
     write32(location + i, 0x419EFFF0); i += sizeof(u32);
-
-    // b .
-    write32(location + i, 0x48000000); i += sizeof(u32);
 
     // mtsrr0 r4
     write32(location + i, 0x7C9A03A6); i += sizeof(u32);
@@ -696,7 +708,15 @@ int _ppc_test(u32 val, int spacing)
     u32 start = 0;
     uintptr_t entry = 0x08200000;
     uintptr_t wait_stub_addr = 0x4000;
-    
+
+    ppc_hold_resets();
+
+    // Copy the wait stub to MEM1. This waits for us to load further code.
+    ppc_wait_stub(wait_stub_addr, entry);
+    ppc_jump_stub(0x100, wait_stub_addr);
+    write32(0x100, 0x48003f00); // b 0x4000
+    dc_flushrange(0x100, sizeof(u32));
+
     // The wait stub clears this to zero before entering the wait loop.
     // Set a different value first, so we know when it enters the loop.
     write32(entry, 0xFFFFFFFF);
@@ -710,14 +730,12 @@ int _ppc_test(u32 val, int spacing)
     write32(entry+0x00000010, 0xFFFFFFFF);
     dc_flushrange((void*)(entry+0x00000004), sizeof(u32)*4);
 
-    // Copy the wait stub to MEM1. This waits for us to load further code.
-    ppc_wait_stub(wait_stub_addr, entry);
-    // Copy the jump stub to the start of the ancast body. This jumps to the wait stub.
-    ppc_jump_stub(0x08000100, wait_stub_addr);
-    ppc_jump_stub(0x100, wait_stub_addr);
+    u32* rom_state = (u32*) 0x016FFFE0;
+    memset(rom_state, 0xFF, 0x20);
+    dc_flushrange(rom_state, 0x20);
 
     //{
-        ppc_hold_resets();
+        
 
         set32(LT_COMPAT, LT_COMPAT_BOOT_CODE);
         set32(LT_AHBPROT, 0xFFFFFFFF);
@@ -725,28 +743,9 @@ int _ppc_test(u32 val, int spacing)
         ppc_prepare_config(val);
         ppc_prime_defuse();
 
-        /*u32* body = (void*) ancast_ppc_load("slc:/sys/title/00050010/1000400a/code/kernel.img");
-        if(!body) {
-            printf("PPC: failed to load signed image.\n");
-            return NULL;
-        }*/
-        //u32* body = (u32*)0x01330000;
         u32* body = (u32*)0x08000100;
-        memcpy((void*)0x08000000, (void*)0x01330000, 0x11e100);
-        dc_flushrange((void*)0x08000000, 0x11e100);
-        
-        //memset(0x01330000, 0, 0x200);
-        //memset(0x08000000, 0, 0x100);
-        //memset(0x01330000, 0, 0x100);
-        //dc_flushrange(0x08000000, 0x100);
-        //dc_flushrange(0x01330000, 0x100);
-
-        //ppc_wait_stub(body, 0x00000000);
-        //dc_flushrange(body, 0x200);
-
-        u32* rom_state = (u32*) 0x016FFFE0;
-        memset(rom_state, 0xFF, 0x20);
-        dc_flushrange(rom_state, 0x20);
+        //memcpy((void*)0x08000000, (void*)0x01330000, 0x11e100);
+        //dc_flushrange((void*)0x08000000, 0x11e100);
 
         //printf("Doing reset...\n");
 
@@ -806,8 +805,23 @@ int _ppc_test(u32 val, int spacing)
     }
     //udelay(spacing);
     //ppc_do_sreset();
+    dc_invalidaterange(0x100, sizeof(u32));
+    u32 tmp = read32(0x100);
+
+    write32(0x100, 0x48003f00); // b 0x4000
+    dc_flushrange(0x100, sizeof(u32));
     clear32(LT_RESETS_COMPAT, SRSTB_CPU);
-    ppc_jump_stub(0x100, wait_stub_addr);
+    //ppc_jump_stub(0x100, wait_stub_addr);
+    write32(0x100, 0x48003f00); // b 0x4000
+    dc_flushrange(0x100, sizeof(u32));
+
+    dc_invalidaterange((void*)(entry+0x00000004), sizeof(u32)*4);
+    dc_invalidaterange(rom_state, 0x20);
+    dc_invalidaterange(body, sizeof(u32));
+    dc_invalidaterange(0x100, sizeof(u32));
+
+    printf("PPC: checking, timer=%08lX err=0x%08lX 0x%08lX 0x%08lX spr=%08lX fuse=%08lX, magic=%08lX, test=%08lX %08lX %08lX.\n", rom_state[4], rom_state[7], old, *body, *(u32*)(entry+0x00000004), *(u32*)(entry+0x00000008), *(u32*)(entry+0x0000000C), *(u32*)(entry+0x00000010), *(u32*)0x100, tmp);
+
     udelay(100);
     set32(LT_RESETS_COMPAT, SRSTB_CPU);
 
@@ -821,7 +835,7 @@ int _ppc_test(u32 val, int spacing)
 
         dc_invalidaterange(rom_state, 0x20);
         exit_code = rom_state[7] >> 24;
-        if (exit_code != 0 && exit_code != 0x80) break;
+        if (exit_code != 0 && exit_code != 0x80 && exit_code != 0xFF) break;
 
         safety_exit++;
         if (safety_exit > 0x8000) {
@@ -852,8 +866,8 @@ int _ppc_test(u32 val, int spacing)
 
 void ppc_test(u32 val)
 {
-    ancast_ppc_load("slc:/sys/title/00050010/1000400a/code/kernel.img");
-    memcpy((void*)0x01330000, (void*)0x08000000, 0x11e100);
+    //ancast_ppc_load("slc:/sys/title/00050010/1000400a/code/kernel.img");
+    //memcpy((void*)0x01330000, (void*)0x08000000, 0x11e100);
 
     //for (int i = 0x170680; i < 0x170700; i += 0x1)
 
@@ -864,7 +878,8 @@ void ppc_test(u32 val)
     // 0x18700us - done verifying
 
     // just SRESET, no watcher
-    // 0x216d0 loops - bss wiped
+    // 0x216e0+?? loops - bss wiped
+    // 0x22fe0 - winner
     // 0x5b9c00 loops - limbo
     // 0x5bd6c6 loops - OTP winner
     // 0x5bff00 loops - decrypted, verified, timer written
@@ -875,7 +890,7 @@ void ppc_test(u32 val)
     // 0x1743d0 end limbo, execute payload w/ SRESET, spr=0x80600000
 
 
-    for (int i = 0x5bd600; i < 0x5d0000; i += 0x1)
+    for (int i = 0x22fd0; i < 0x22fe0+0x100; i += 0x1)
     {
         printf("iteration: %02x\n", i);
         if (_ppc_test(val, i)) break;
