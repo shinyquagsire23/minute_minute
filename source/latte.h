@@ -455,6 +455,8 @@
 #define CRSTB           (1<<1)
 #define RSTBINB         (1<<0)
 
+#define     LT_COMPAT_BOOT_CODE   0x100000
+
 #ifndef __ASSEMBLER__
 int latte_get_wood_hw_version(u32 *pOut);
 int latte_get_latte_hw_version(u32 *pOut);

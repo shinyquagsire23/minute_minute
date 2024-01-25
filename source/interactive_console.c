@@ -25,6 +25,7 @@
 #include "utils.h"
 #include "sha.h"
 #include "asic.h"
+#include "ppc.h"
 
 #define INTCON_HISTORY_DEPTH (64)
 #define INTCON_COMMAND_MAX_LEN (256)
@@ -704,6 +705,14 @@ void intcon_handle_cmd(const char* pCmd)
              || !strcmp(cmd, "peek16") || !strcmp(cmd, "poke16") || !strcmp(cmd, "set16") || !strcmp(cmd, "clear16")
              || !strcmp(cmd, "abifr") || !strcmp(cmd, "abifw")) {
         intcon_memory_cmd(argc, argv);
+    }
+    else if (!strcmp(cmd, "ppctest")) {
+        if (argc < 2) {
+            printf("Usage: ppctest <mask>\n");
+        }
+        else {
+            ppc_test(strtoll(argv[1], NULL, 0));
+        }
     }
     else if (!strcmp(cmd, "help") || !strcmp(cmd, "?")) {
         intcon_show_help();

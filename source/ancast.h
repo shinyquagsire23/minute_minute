@@ -55,6 +55,9 @@ extern uintptr_t ancast_plugins_base;
 #define ANCAST_TARGET_IOP (0x02)
 #define ANCAST_TARGET_PPC (0x01)
 
+#define ANCAST_PPC_WIIU (0x01)
+#define ANCAST_PPC_VWII (0x03)
+
 #define ANCAST_CONSOLE_TYPE_PROD (0x2)
 #define ANCAST_CONSOLE_TYPE_DEV  (0x1)
 
