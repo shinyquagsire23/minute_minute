@@ -42,8 +42,9 @@ void dump_restore_boot1_vwii_img(void);
 void dump_slc(void);
 void dump_format_rednand(void);
 void dump_restore_rednand(void);
-void dump_seeprom_otp();
-void dump_factory_log();
+void dump_seeprom_otp(void);
+void dump_espresso(void);
+void dump_factory_log(void);
 void dump_logs_slc(void);
 void dump_logs_redslc(void);
 

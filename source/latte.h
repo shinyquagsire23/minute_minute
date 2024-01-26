@@ -324,6 +324,8 @@
 #define EXI2_CR             (EXI2_REG_BASE + 0x00C)
 #define EXI2_DATA           (EXI2_REG_BASE + 0x010)
 
+#define EXI_UNK_PPC_PVR     (EXI_REG_BASE + )
+
 /*
  * Memory Controller registers.
  * http://wiiubrew.org/wiki/Hardware/Memory_Controller
@@ -420,6 +422,14 @@
 #define BSP_HARDWARE_VERSION_LATTE_A5X (0x25100000)
 #define BSP_HARDWARE_VERSION_LATTE_B1X (0x26100000)
 
+#define BSP_HARDWARE_VERSION_GROUP(x) ((x>>24) & 0xFF)
+#define BSP_HARDWARE_VERSION_GROUP_LATTE_A1X (0x21)
+#define BSP_HARDWARE_VERSION_GROUP_LATTE_A2X (0x22)
+#define BSP_HARDWARE_VERSION_GROUP_LATTE_A3X (0x23)
+#define BSP_HARDWARE_VERSION_GROUP_LATTE_A4X (0x24)
+#define BSP_HARDWARE_VERSION_GROUP_LATTE_A5X (0x25)
+#define BSP_HARDWARE_VERSION_GROUP_LATTE_B1X (0x26)
+
 #define BSP_HARDWARE_VERSION_EV   (0x10)
 #define BSP_HARDWARE_VERSION_EV_Y (0x11)
 #define BSP_HARDWARE_VERSION_CAT  (0x20)
@@ -454,6 +464,8 @@
 #define RSTB_MEMRSTB    (1<<2)
 #define CRSTB           (1<<1)
 #define RSTBINB         (1<<0)
+
+#define     LT_COMPAT_BOOT_CODE   0x100000
 
 #ifndef __ASSEMBLER__
 int latte_get_wood_hw_version(u32 *pOut);

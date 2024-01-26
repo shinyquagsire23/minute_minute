@@ -32,6 +32,7 @@
 #include "crc32.h"
 #include "mbr.h"
 #include "rednand.h"
+#include "ppc.h"
 
 #include "ff.h"
 
@@ -70,6 +71,7 @@ menu menu_dump = {
     1, // number of subtitles
     {
             {"Dump SEEPROM & OTP", &dump_seeprom_otp},
+            {"Dump Espresso OTP & bootrom", &dump_espresso},
             {"Dump OTP via PRSHhax", &dump_otp_via_prshhax},
             {"Dump SLC.RAW", &dump_slc_raw},
             {"Dump SLCCMPT.RAW", &dump_slccmpt_raw},
@@ -96,7 +98,7 @@ menu menu_dump = {
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Return to Main Menu", &menu_close},
     },
-    26, // number of options
+    27, // number of options
     0,
     0
 };
@@ -309,6 +311,16 @@ void dump_seeprom_otp(void)
     }
 
     printf("\nDone!\n");
+ret:
+    console_power_or_eject_to_return();
+}
+
+void dump_espresso(void)
+{
+    gfx_clear(GFX_ALL, BLACK);
+
+    ppc_dump_bootrom_otp();
+
 ret:
     console_power_or_eject_to_return();
 }
