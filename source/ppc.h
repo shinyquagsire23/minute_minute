@@ -15,6 +15,7 @@ void ppc_hang(void);
 void ppc_prepare(void);
 void ppc_jump(u32 entry);
 void ppc_test(u32 val);
+void ppc_dump_bootrom_otp(void);
 
 #endif
 
