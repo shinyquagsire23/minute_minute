@@ -143,6 +143,7 @@ u32 _main(void *base)
     set32(LT_RESETS_COMPAT, RSTB_IOMEM | RSTB_IOPI);
     set32(LT_EXICTRL, 1);
     gpio_fan_set(1);
+    gpio_fanspeed_set(FANSPEED_FAST);
     gpio_smc_i2c_init();
 
     // boot0 SDcard regpokes
