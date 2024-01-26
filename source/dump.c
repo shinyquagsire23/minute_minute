@@ -15,6 +15,8 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <dirent.h>
 
 #include "sdmmc.h"
 #include "sdhc.h"
@@ -74,6 +76,8 @@ menu menu_dump = {
             {"Dump BOOT1_SLC.RAW", &dump_boot1_raw},
             {"Dump BOOT1_SLCCMPT.RAW", &dump_boot1_vwii_raw},
             {"Dump factory log", &dump_factory_log},
+            {"Dump sys crash logs", &dump_logs_slc},
+            {"Dump sys crash logs from redslc", &dump_logs_redslc},
             {"Format redNAND", &dump_format_rednand},
             {"Restore SLC.RAW", &dump_restore_slc_raw},
             {"Restore SLC.IMG", &dump_restore_slc_img},
@@ -93,7 +97,7 @@ menu menu_dump = {
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
             {"Return to Main Menu", &menu_close},
     },
-    25, // number of options
+    27, // number of options
     0,
     0
 };
@@ -2063,6 +2067,126 @@ static void _dump_delete_scfm_rednand(void){
 
     isfs_init(); // mount redslc
     _dump_delete("redslc:/scfm.img");
+}
+
+int copy_file(const char* from, const char* to){
+    int fd_to, fd_from;
+    char buf[4096];
+    ssize_t nread;
+    int saved_errno;
+
+    fd_from = open(from, O_RDONLY);
+    if (fd_from < 0)
+        return -1;
+
+    fd_to = open(to, O_WRONLY | O_CREAT | O_EXCL, 0666);
+    if (fd_to < 0)
+        goto out_error;
+
+    while (nread = read(fd_from, buf, sizeof buf), nread > 0)
+    {
+        char *out_ptr = buf;
+        ssize_t nwritten;
+
+        do {
+            nwritten = write(fd_to, out_ptr, nread);
+
+            if (nwritten >= 0)
+            {
+                nread -= nwritten;
+                out_ptr += nwritten;
+            }
+            else if (errno != EINTR)
+            {
+                goto out_error;
+            }
+        } while (nread > 0);
+    }
+
+    if (nread == 0)
+    {
+        if (close(fd_to) < 0)
+        {
+            fd_to = -1;
+            goto out_error;
+        }
+        close(fd_from);
+
+        /* Success! */
+        return 0;
+    }
+
+  out_error:
+    saved_errno = errno;
+
+    close(fd_from);
+    if (fd_to >= 0)
+        close(fd_to);
+
+    errno = saved_errno;
+    return -1;
+}
+
+static void _copy_dir(const char* dir, const char* dest){
+    printf("Dumping %s\n", dir);
+
+    int res = mkdir(dest, 777);
+    if(res){
+        if(errno != EEXIST) {
+            printf("ERROR creating %s: %i\n", dest, errno);
+            console_power_to_continue();
+            return;
+        }
+        printf("Warning: '%s' directory already exists\n", dest);
+        if (console_abort_confirmation_power_no_eject_yes()) 
+            return;
+    }
+    DIR *dfd = opendir(dir);
+    if(!dfd){
+        printf("ERROR opening %s: %i\n", dir, errno);
+        console_power_to_continue();
+        return;
+    }
+    struct dirent *dp;
+    while(dp = readdir(dfd)){
+        char src_pathbuf[255];
+        snprintf(src_pathbuf, 254, "%s/%s", dir, dp->d_name);
+        char dst_pathbuf[255];
+        snprintf(dst_pathbuf, 254, "%s/%s", dest, dp->d_name);
+
+        printf("Dumping %s\n", src_pathbuf);
+        int res = copy_file(src_pathbuf, dst_pathbuf);
+        if(res){
+            printf("Error copying %s\n", src_pathbuf);
+        }
+    } 
+
+    closedir(dfd);
+
+}
+
+void dump_logs_slc(void){
+    gfx_clear(GFX_ALL, BLACK);
+    _copy_dir("slc:/sys/logs", "sdmc:/logs");
+    console_power_or_eject_to_return();
+}
+
+void dump_logs_redslc(void){
+    gfx_clear(GFX_ALL, BLACK);
+    int error = init_rednand();
+    if(error<0){
+        console_power_to_continue();
+        return;
+    }
+    if(!rednand.slc.lba_length){
+        printf("redslc not configured\n");
+        console_power_to_continue();
+        return;
+    }
+
+    isfs_init(); // mount redslc
+    _copy_dir("redslc:/sys/logs", "sdmc:/redlogs");
+    console_power_or_eject_to_return();
 }
 
 #endif // MINUTE_BOOT1
