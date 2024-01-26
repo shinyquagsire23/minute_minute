@@ -40,6 +40,7 @@
 #define PFLAG_PON_SMC_DISC          (0x00000200)
 #define PFLAG_PON_SYNC_BTN          (0x00000400)
 #define PFLAG_PON_RESTART           (0x00001000)
+#define PFLAG_PON_RELOAD            (0x00002000)
 #define PFLAG_PON_COLDBOOT          (0x00010000)
 #define PON_SMC_TIMER               (0x00020000)
 #define PFLAG_40000                 (0x00040000)

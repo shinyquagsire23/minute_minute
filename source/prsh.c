@@ -147,10 +147,10 @@ void prsh_set_bootinfo()
     boot_info->field_1C = 0xFFFFFFFF;
     boot_info->field_20 = 0xFFFFFFFF;
     boot_info->field_24 = 0xFFFFFFFF;
-    boot_info->field_28 = 0xFFFFFFFF;
+    boot_info->os_id    = 0xFFFFFFFF;
     boot_info->field_2C = 0xFFFFFFFF;
-    boot_info->field_30 = 0;
-    boot_info->field_34 = 0;
+    boot_info->os_address = 0;
+    boot_info->os_size  = 0;
 
     // Dummy values
     // TODO just get the real ones
@@ -162,6 +162,14 @@ void prsh_set_bootinfo()
     boot_info->boot0_read = 0x000029D2;
     boot_info->boot0_verify = 0x0000D281;
     boot_info->boot0_decrypt = 0x0000027A;
+}
+
+void prsh_print(void){
+    printf("prsh: Header at %08x, PRST at %08x, %u entries (%u capacity):\n", header, prst, header->entries, header->total_entries);
+    for (int i = 0; i < header->entries; i++) {
+        printf("    %u: %s %p %x\n", i, header->entry[i].name, header->entry[i].size, header->entry[i].data);
+        //prsh_dump_entry(header->entry[i].name);
+    }
 }
 
 void prsh_init(void)
@@ -244,6 +252,8 @@ void prsh_init(void)
 
         // TODO: we could pass in a ram-only OTP here, maybe?
         printf("prsh: No header found, made a new one.\n");
+        prsh_set_bootinfo();
+        prsh_recompute_checksum();
     }
     else {
         header = buffer - sizeof(u32);
@@ -254,17 +264,8 @@ void prsh_init(void)
 
     initialized = true;
 
-#ifdef MINUTE_BOOT1
-    prsh_set_bootinfo();
-    prsh_recompute_checksum();
-#endif
-
 #ifndef MINUTE_BOOT1
-    printf("prsh: Header at %08x, PRST at %08x, %u entries (%u capacity):\n", header, prst, header->entries, header->total_entries);
-    for (int i = 0; i < header->entries; i++) {
-        printf("    %u: %s %p %x\n", i, header->entry[i].name, header->entry[i].size, header->entry[i].data);
-        //prsh_dump_entry(header->entry[i].name);
-    }
+    prsh_print();
 
 #if 0
     void* data = header;
@@ -328,6 +329,7 @@ int prsh_set_entry(const char* name, void* data, size_t size)
         prsh_entry* entry = &header->entry[i];
 
         if(!strncmp(name, entry->name, sizeof(entry->name))) {
+            printf("Found existing entry: %s, data: %08lx, size: %08lx, is_set: %08lx\n", entry->name, entry->data, entry->size, entry->is_set);
             entry->data = data;
             entry->size = size;
             entry->is_set = 0x80000000;
@@ -336,7 +338,7 @@ int prsh_set_entry(const char* name, void* data, size_t size)
         }
     }
 
-    return -2;
+    return prsh_add_entry(name, data, size, NULL);
 }
 
 int prsh_add_entry(const char* name, void* data, size_t size, prsh_entry** p_out)
@@ -420,7 +422,7 @@ void prsh_recompute_checksum()
     u32 word_counter = 0;
     
     void* checksum_start = (void*)(&header->magic);
-    while (word_counter < ((header->entries * sizeof(prsh_entry))>>2))
+    while (word_counter < ((header->total_entries * sizeof(prsh_entry)) / 0x04))
     {
         checksum ^= *(u32 *)(checksum_start + word_counter * 0x04);
         word_counter++;
@@ -479,4 +481,9 @@ void prsh_encrypt()
     aes_encrypt((void*)0x10000400, (void*)0x10000400, 0x7C00 / 0x10, 0);
 
     dc_flushrange((void*)0x10000400, 0x7C00);
+}
+
+void print_bootinfo(boot_info_t * boot_info){
+    printf("bootinfo:\n is_coldboot: %08lx\n boot_flags: %08lx\n boot_state: %08lx\n boot_count: %08lx\n field_10: %08lx\n field_14: %08lx\n field_18: %08lx\n field_1C: %08lx\n field_20: %08lx\n field_24: %08lx\n os_id: %08lx\n field_2C: %08lx\n os_size: %08lx\n os_address: %08lx\n boot1_main: %08lx\n boot1_read: %08lx\n boot1_verify: %08lx\n boot1_decrypt: %08lx\n boot0_main: %08lx\n boot0_read: %08lx\n boot0_verify: %08lx\n boot0_decrypt: %08lx\n",
+           boot_info->is_coldboot, boot_info->boot_flags, boot_info->boot_state, boot_info->boot_count, boot_info->field_10, boot_info->field_14, boot_info->field_18, boot_info->field_1C, boot_info->field_20, boot_info->field_24, boot_info->os_id, boot_info->field_2C, boot_info->os_size, boot_info->os_address, boot_info->boot1_main, boot_info->boot1_read, boot_info->boot1_verify, boot_info->boot1_decrypt, boot_info->boot0_main, boot_info->boot0_read, boot_info->boot0_verify, boot_info->boot0_decrypt);
 }

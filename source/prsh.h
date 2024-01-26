@@ -59,11 +59,11 @@ typedef struct {
 
     u32 field_20;
     u32 field_24;
-    u32 field_28;
+    u32 os_id;      // os in dram (standy mode)
     u32 field_2C;
 
-    u32 field_30;
-    u32 field_34;
+    u32 os_size;    // os in dram (standy mode)
+    u32 os_address; // os in dram (standy mode)
     u32 boot1_main;
     u32 boot1_read;
 
@@ -87,6 +87,7 @@ typedef struct {
 #define PRSH_FLAG_00800000          (0x00800000) // unk, has set/clear fn in MCP
 
 void prsh_reset(void);
+void prsh_print(void);
 void prsh_init(void);
 int prsh_get_entry(const char* name, void** data, size_t* size);
 int prsh_set_entry(const char* name, void* data, size_t size);
@@ -94,6 +95,9 @@ int prsh_add_entry(const char* name, void* data, size_t size, prsh_entry** p_out
 void prsh_recompute_checksum();
 void prsh_decrypt();
 void prsh_encrypt();
+
+void print_bootinfo(boot_info_t * boot_info);
+void prsh_set_bootinfo();
 
 void prsh_menu();
 

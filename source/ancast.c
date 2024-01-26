@@ -886,7 +886,7 @@ static u32 ancast_load_red_partitions(uintptr_t plugin_base){
         return plugin_base;
 
     uintptr_t plugin_next = ancast_plugin_data_copy(plugin_base, (uint8_t*)&rednand, sizeof(rednand));
-    prsh_add_entry("rednand", (void*)(plugin_base+IPX_DATA_START), sizeof(rednand_config), NULL);
+    prsh_set_entry("rednand", (void*)(plugin_base+IPX_DATA_START), sizeof(rednand_config));
 
     return plugin_next;
 }
@@ -926,12 +926,12 @@ u32 ancast_plugins_load(const char* plugins_fpath)
         config_plugin_base = ancast_plugin_next;
         ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, default_config, strlen(default_config)+1);
     }
-    prsh_add_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1, NULL);
+    prsh_set_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1);
     ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
     ancast_plugin_next = ancast_load_red_partitions(ancast_plugin_next);
 
     if(minute_on_slc || (!minute_on_sd && sdcard_check_card() == SDMMC_NO_CARD))
-        prsh_add_entry("minute_on_slc", NULL, 0, NULL);
+        prsh_set_entry("minute_on_slc", NULL, 0);
 
     return 0;
 }
