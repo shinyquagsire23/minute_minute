@@ -983,7 +983,7 @@ static int mlc_do_erase(u32 start, u32 end){
 #else
     struct sdmmc_command cmd = { 0 };
 
-    cmd.c_opcode = MMC_ERASE_GROUP_START;
+    cmd.c_opcode = card.is_sd ? SD_ERASE_WR_BLK_START:MMC_ERASE_GROUP_START;
     cmd.c_arg = start;
     cmd.c_flags = SCF_RSP_R1;
     sdhc_exec_command(card.handle, &cmd);
@@ -992,7 +992,7 @@ static int mlc_do_erase(u32 start, u32 end){
         return -1;
     }
 
-    cmd.c_opcode = MMC_ERASE_GROUP_END;
+    cmd.c_opcode = card.is_sd ? SD_ERASE_WR_BLK_END : MMC_ERASE_GROUP_END;
     cmd.c_arg = end;
     cmd.c_flags = SCF_RSP_R1;
     sdhc_exec_command(card.handle, &cmd);
