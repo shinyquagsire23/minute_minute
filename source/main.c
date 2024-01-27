@@ -103,7 +103,7 @@ static bool read_ancast(const char *path){
     return *(u32*)ALL_PURPOSE_TMP_BUF == ANCAST_MAGIC; 
 }
 
-boot_info_t *init_prsh_get_bootinfo(void){
+boot_info_t *init_prsh_get_bootinfo(void) {
     serial_send_u32(0x50525348); // PRSH
     // Set up PRSH here
     // prsh_decrypt();
@@ -124,6 +124,7 @@ u32 _main(void *base)
     int res = 0; (void)res;
 
     gfx_init();
+    exi_init();
     printf("minute loading\n");
 
     serial_force_terminate();
@@ -149,7 +150,6 @@ u32 _main(void *base)
     // boot0 SDcard regpokes
     {
         gpio_enable(30, 1);
-        
     }
 
     printf("Initializing exceptions...\n");
@@ -166,24 +166,6 @@ u32 _main(void *base)
     // Read OTP and SEEPROM
     crypto_initialize();
     printf("crypto support initialized\n");
-
-
-    // Show a little flourish to indicate we have code exec
-    for (int i = 0; i < 5; i++)
-    {
-        smc_set_notification_led(LEDRAW_RED);
-        udelay(10000);
-        smc_set_notification_led(LEDRAW_ORANGE);
-        udelay(10000);
-        smc_set_notification_led(LEDRAW_YELLOW);
-        udelay(10000);
-        smc_set_notification_led(LEDRAW_NOTGREEN);
-        udelay(10000);
-        smc_set_notification_led(LEDRAW_BLUE);
-        udelay(10000);
-        smc_set_notification_led(LEDRAW_PURPLE);
-        udelay(10000);
-    }
 
     u32 pflags_val = 0;
 
@@ -260,6 +242,10 @@ u32 _main(void *base)
     if (rtc_ctrl1 & CTRL1_SLEEP_EN)
         pflags_val |= PFLAG_DDR_SREFRESH; // Set DDR_SREFRESH power flag
 
+    serial_send_u32(0x464C4147);
+    serial_send_u32(pflags_val);
+    serial_send_u32(0x464C4147);
+
 #else 
     // ISFSHAX_STAGE2
     // on ISFShax the flags were already extracted by boot1
@@ -267,6 +253,37 @@ u32 _main(void *base)
     if(bootinfo)
         pflags_val = bootinfo->boot_state;
 #endif
+
+    // Show a little flourish to indicate we have code exec
+    if (pflags_val & PON_SMC_TIMER)
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            smc_set_notification_led(LEDRAW_ORANGE);
+            udelay(10000);
+            smc_set_notification_led(LEDRAW_YELLOW);
+            udelay(10000);
+            smc_set_notification_led(LEDRAW_ORANGE);
+            udelay(10000);
+        }
+    }
+    else
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            smc_set_notification_led(LEDRAW_ORANGE);
+            udelay(10000);
+            smc_set_notification_led(LEDRAW_YELLOW);
+            udelay(10000);
+            smc_set_notification_led(LEDRAW_NOTGREEN);
+            udelay(10000);
+            smc_set_notification_led(LEDRAW_BLUE);
+            udelay(10000);
+            smc_set_notification_led(LEDRAW_PURPLE);
+            udelay(10000);
+        }
+    }
+    
 
     u32 mem_mode = 0;
 
@@ -355,12 +372,6 @@ u32 _main(void *base)
         }
     }
 
-#ifndef ISFSHAX_STAGE2
-    boot_info_t *bootinfo = init_prsh_get_bootinfo();
-    if(bootinfo)
-        bootinfo->boot_state = pflags_val;
-#endif
-
     // PON_SMC_TIMER and an unknown power flag are set
     if (pflags_val & (PON_SMC_TIMER | PFLAG_ENTER_BG_NORMAL_MODE))
     {
@@ -380,8 +391,6 @@ u32 _main(void *base)
         //smc_set_on_indicator(LED_ON);
         smc_set_notification_led(LEDRAW_PURPLE);
     }
-
-    serial_send_u32(pflags_val);
 
 #ifdef ISFSHAX_STAGE2
     //Skip ISFS boot by pressing power
@@ -508,11 +517,31 @@ boot:
     }
     serial_send_u32(0x6D6D0005);
     // Let minute know that we're launched from boot1
-    memcpy((char*)ALL_PURPOSE_TMP_BUF, PASSALONG_MAGIC_BOOT1, 8);
+    memcpy(BOOT1_PASSALONG->magic, PASSALONG_MAGIC_BOOT1, 8);
     if(minute_on_slc)
-        memcpy((char*)ALL_PURPOSE_TMP_BUF+8, PASSALONG_MAGIC_DEVICE_SLC, 8);
+        memcpy(BOOT1_PASSALONG->magic_device, PASSALONG_MAGIC_DEVICE_SLC, 8);
     else
-        memcpy((char*)ALL_PURPOSE_TMP_BUF+8, PASSALONG_MAGIC_DEVICE_SD, 8);
+        memcpy(BOOT1_PASSALONG->magic_device, PASSALONG_MAGIC_DEVICE_SD, 8);
+
+#ifdef ISFSHAX_STAGE2
+    memcpy(BOOT1_PASSALONG->magic_prsh, PASSALONG_MAGIC_PRSH_DECRYPTED, 8);
+
+    boot_info_t *bootinfo = init_prsh_get_bootinfo();
+    if(bootinfo) {
+        memcpy(&BOOT1_PASSALONG->boot_info, bootinfo, sizeof(boot_info_t));
+    }
+    else {
+        // TODO: fill in the rest of boot_info correctly
+        prsh_copy_default_bootinfo(&BOOT1_PASSALONG->boot_info);
+    }
+#else
+    memcpy(BOOT1_PASSALONG->magic_prsh, PASSALONG_MAGIC_PRSH_ENCRYPTED, 8);
+
+    // TODO: fill in the rest of boot_info correctly
+    prsh_copy_default_bootinfo(&BOOT1_PASSALONG->boot_info);
+#endif
+
+    BOOT1_PASSALONG->boot_info.boot_state = pflags_val;
 
     serial_send_u32(0x6D6D00FF);
     return boot.vector;
@@ -557,60 +586,113 @@ u32 _main(void *base)
     (void)base;
     int res = 0; (void)res;
     int has_no_otp_bin = 0;
-
-    if (!memcmp((char*)ALL_PURPOSE_TMP_BUF, PASSALONG_MAGIC_BOOT1, 8)) {
-        main_loaded_from_boot1 = 1;
-        memset((char*)ALL_PURPOSE_TMP_BUF, 0, 8);
-
-        if (!memcmp((char*)ALL_PURPOSE_TMP_BUF+8, PASSALONG_MAGIC_DEVICE_SLC, 8)) {
-            minute_on_slc = true;
-            memset((char*)ALL_PURPOSE_TMP_BUF+8, 0, 8);
-        } else if (!memcmp((char*)ALL_PURPOSE_TMP_BUF+8, PASSALONG_MAGIC_DEVICE_SD, 8)) {
-            minute_on_sd = true;
-            memset((char*)ALL_PURPOSE_TMP_BUF+8, 0, 8);
-        }
-    }
-    if (read32(MAGIC_PLUG_ADDR) == MAGIC_PLUG)
-    {
-        write32(MAGIC_PLUG_ADDR, 0xBADBADBA);
-    }
+    int prsh_is_encrypted = 0;
+    int boot_info_source = 0;
+    void *minute_on_slc_tmp;
+    size_t minute_on_slc_size;
+    boot_info_t *boot_info;
+    size_t boot_info_size;
+    boot_info_t boot_info_copy;
+    int is_eco_mode = 0;
 
     write32(LT_SRNPROT, 0x7BF);
+    exi_init();
 
     // Signal normal printing
     serial_send_u32(0x55AA55AA);
     serial_send_u32(0x55AA55AA);
     serial_send_u32(0xF00FCAFE);
 
-    //prsh_decrypt();
-    prsh_reset();
-    prsh_init();
+    prsh_copy_default_bootinfo(&boot_info_copy);
 
-    //prsh_set_bootinfo();
-    boot_info_t *boot_info;
-    size_t *boot_info_size;
-    res = prsh_get_entry("boot_info", &boot_info, &boot_info_size );
-    if(!res){
-        print_bootinfo(boot_info);
+    // Grab boot_info and anything else important from minute_boot1, if we detect it was run
+    if (!memcmp(BOOT1_PASSALONG->magic, PASSALONG_MAGIC_BOOT1, 8)) {
+        main_loaded_from_boot1 = 1;
+        memset(BOOT1_PASSALONG->magic, 0, 8);
+
+        if (!memcmp(BOOT1_PASSALONG->magic_device, PASSALONG_MAGIC_DEVICE_SLC, 8)) {
+            minute_on_slc = true;
+            memset(BOOT1_PASSALONG->magic_device, 0, 8);
+        } else if (!memcmp(BOOT1_PASSALONG->magic_device, PASSALONG_MAGIC_DEVICE_SD, 8)) {
+            minute_on_sd = true;
+            memset(BOOT1_PASSALONG->magic_device, 0, 8);
+        }
+
+        if (!memcmp(BOOT1_PASSALONG->magic_prsh, PASSALONG_MAGIC_PRSH_ENCRYPTED, 8))
+        {
+            prsh_is_encrypted = 1;
+        }
+
+        if (!memcmp(BOOT1_PASSALONG->magic_prsh, PASSALONG_MAGIC_PRSH_ENCRYPTED, 8) || !memcmp(BOOT1_PASSALONG->magic_prsh, PASSALONG_MAGIC_PRSH_DECRYPTED, 8)) {
+            memcpy(&boot_info_copy, &BOOT1_PASSALONG->boot_info, sizeof(boot_info_copy));
+            boot_info_source = 1;
+
+            memset(BOOT1_PASSALONG->magic_prsh, 0, sizeof(u32));
+            memset(&BOOT1_PASSALONG->boot_info, 0, sizeof(boot_info_t));
+        }
+        else if (prsh_exists_decrypted()) {
+            prsh_is_encrypted = 0;
+
+            prsh_reset();
+            prsh_init();
+
+            res = prsh_get_entry("boot_info", (void**)&boot_info, &boot_info_size );
+            if(!res){
+                memcpy(&boot_info_copy, boot_info, sizeof(boot_info_copy));
+                boot_info_source = 2;
+            }
+        }
+    }
+    else {
+        if (prsh_exists_decrypted()) {
+            prsh_is_encrypted = 0;
+
+            prsh_reset();
+            prsh_init();
+
+            res = prsh_get_entry("boot_info", (void**)&boot_info, &boot_info_size );
+            if(!res){
+                memcpy(&boot_info_copy, boot_info, sizeof(boot_info_copy));
+                boot_info_source = 3;
+            }
+        }
+        else {
+            prsh_is_encrypted = 1;
+        }
     }
 
-    if(res || !(boot_info->boot_state & PON_SMC_TIMER) || (boot_info_size < sizeof(boot_info_t))){
+    if (read32(MAGIC_PLUG_ADDR) == MAGIC_PLUG)
+    {
+        write32(MAGIC_PLUG_ADDR, 0xBADBADBA);
+    }
+
+    // TODO: technically if we're coming from IOS, we should probably read boot_info instead of defaults.
+    if(!(boot_info_copy.boot_state & PON_SMC_TIMER)) {
         gpu_display_init();
         gfx_init();
     }
-
-    void *minute_on_slc;
-    size_t *minute_on_slc_size;
-    res = prsh_get_entry("minute_on_slc", &minute_on_slc, &minute_on_slc_size );
-    if(!res){
-        minute_on_slc = true;
-        minute_on_sd = false;
+    else {
+        is_eco_mode = 1;
     }
 
     printf("minute loading\n");
 
     if (main_loaded_from_boot1) {
         printf("minute was loaded from boot1 context!\n");
+    }
+
+    // Useful debug info
+    if (boot_info_source == 0) {
+        printf("boot_info source: default values\n");
+    }
+    else if (boot_info_source == 1) {
+        printf("boot_info source: set by minute_boot1\n");
+    }
+    else if (boot_info_source == 2) {
+        printf("boot_info source: pre-decrypted PRSH from boot1\n");
+    }
+    else if (boot_info_source == 3) {
+        printf("boot_info source: pre-decrypted PRSH not from boot1\n");
     }
 
     printf("Initializing exceptions...\n");
@@ -621,18 +703,10 @@ u32 _main(void *base)
     irq_initialize();
     printf("Interrupts initialized\n");
 
-    // prsh_reset();
-    // prsh_init();
-
     srand(read32(LT_TIMER));
     crypto_initialize();
     printf("crypto support initialized\n");
     latte_print_hardware_info();
-
-    //printf("Mounting SLC...\n");
-    //isfs_init();
-    //main_quickboot_patch_slc();
-    //goto skip_menu;
 
     printf("Initializing SD card...\n");
     sdcard_init();
@@ -707,6 +781,42 @@ u32 _main(void *base)
     // Hopefully we have proper keys by this point
     crypto_decrypt_seeprom();
 
+    if (prsh_is_encrypted)
+    {
+        printf("prsh: decrypting.\n");
+        prsh_decrypt();
+    }
+
+    prsh_reset();
+    prsh_init();
+
+    // If we're coming from boot1 and PRSH is encrypted, the new boot_info is what we should use.
+    // Otherwise, if we're not coming from boot1, copy to boot_info_copy
+    if (prsh_is_encrypted && main_loaded_from_boot1)
+    {
+        res = prsh_get_entry("boot_info", (void**)&boot_info, &boot_info_size );
+        if(!res) {
+            printf("Setting boot_info to boot1 passalong.\n");
+            memcpy(boot_info, &boot_info_copy, sizeof(boot_info_copy));
+            print_bootinfo(boot_info);
+        }
+    }
+    else {
+
+        res = prsh_get_entry("boot_info", (void**)&boot_info, &boot_info_size );
+        if(!res) {
+            printf("boot_info exists, making copy.\n");
+            memcpy(&boot_info_copy, boot_info, sizeof(boot_info_copy));
+            print_bootinfo(boot_info);
+        }
+    }
+
+    res = prsh_get_entry("minute_on_slc", (void**)&minute_on_slc_tmp, &minute_on_slc_size );
+    if(!res){
+        minute_on_slc = true;
+        minute_on_sd = false;
+    }
+
     minini_init();
 
     // idk?
@@ -729,7 +839,7 @@ u32 _main(void *base)
     isfs_init();
 
     if(sdcard_check_card() == SDMMC_NO_CARD){
-        int dir = opendir(slc_plugin_dir);
+        DIR* dir = opendir(slc_plugin_dir);
         if (dir) {
             closedir(dir);
             printf("No SD Card found, autobooting SLC\n");
@@ -767,6 +877,9 @@ u32 _main(void *base)
             printf("Press the POWER button or EJECT button to skip autoboot.\n");
             for(u32 i = 0; i < 1000000; i += 100000)
             {
+                // Don't wait in ECO mode.
+                if (is_eco_mode) break;
+
                 // Get input at .1s intervals.
                 u8 input = smc_get_events();
                 udelay(100000);
@@ -792,6 +905,13 @@ u32 _main(void *base)
                 (seeprom.bc.sata_device != SATA_TYPE_GEN2HDD && 
                  seeprom.bc.sata_device != SATA_TYPE_GEN1HDD))
             smc_set_odd_power(false);
+
+        // Shut down if in ECO mode w/o a valid autoboot.
+        if (is_eco_mode) {
+            boot.mode = 1;
+            smc_set_notification_led(LEDRAW_RED);
+            goto skip_menu;
+        }
 
         menu_init(&menu_main);
 

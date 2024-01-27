@@ -324,7 +324,7 @@
 #define EXI2_CR             (EXI2_REG_BASE + 0x00C)
 #define EXI2_DATA           (EXI2_REG_BASE + 0x010)
 
-#define EXI_UNK_PPC_PVR     (EXI_REG_BASE + )
+//#define EXI_UNK_PPC_PVR     (EXI_REG_BASE + )
 
 /*
  * Memory Controller registers.

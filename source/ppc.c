@@ -16,6 +16,8 @@
 #include "gfx.h"
 #include "irq.h"
 #include "crypto.h"
+#include "rtc.h"
+#include "exi.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -636,6 +638,10 @@ dump:
 
 void ppc_test(u32 val)
 {
+    for (int i = 0; i < 0x1000; i++)
+    {
+        printf("%08x %08x %08x\n", exi0_read32(0x21000400), rtc_get_ctrl0(), rtc_get_ctrl1());
+    }
     //ancast_ppc_load("slc:/sys/title/00050010/1000400a/code/kernel.img");
     //memcpy((void*)0x01330000, (void*)0x08000000, 0x11e100);
 

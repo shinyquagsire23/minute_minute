@@ -53,7 +53,7 @@ void prsh_menu()
 void prsh_set_dev_mode()
 {
     boot_info_t* boot_info = NULL;
-    prsh_get_entry("boot_info", &boot_info, NULL);
+    prsh_get_entry("boot_info", (void**)&boot_info, NULL);
     if (!boot_info) {
         boot_info = (boot_info_t*)0x10008000;
     }
@@ -66,7 +66,7 @@ void prsh_set_dev_mode()
 void prsh_mcp_recovery()
 {
     boot_info_t* boot_info = NULL;
-    prsh_get_entry("boot_info", &boot_info, NULL);
+    prsh_get_entry("boot_info", (void**)&boot_info, NULL);
     if (!boot_info) {
         boot_info = (boot_info_t*)0x10008000;
     }
@@ -80,7 +80,7 @@ void prsh_mcp_recovery()
 void prsh_mcp_recovery_alt()
 {
     boot_info_t* boot_info = NULL;
-    prsh_get_entry("boot_info", &boot_info, NULL);
+    prsh_get_entry("boot_info", (void**)&boot_info, NULL);
     if (!boot_info) {
         boot_info = (boot_info_t*)0x10008000;
     }
@@ -119,26 +119,10 @@ void prsh_reset(void)
     initialized = false;
 }
 
-void prsh_set_bootinfo()
+void prsh_copy_default_bootinfo(boot_info_t* boot_info)
 {
-    if (!header) return;
-
-    /*if (!header->entries) {
-        header->entries++;
-    }*/
-
-    header->entries = 1;
-
-    // create boot_info
-    prsh_entry* boot_info_ent = &header->entry[0];
-    strncpy(boot_info_ent->name, "boot_info", 0x100);
-    boot_info_ent->data = (void *)0x10008000;
-    boot_info_ent->size = 0x58;
-    boot_info_ent->is_set = 0x80000000;
-
-    boot_info_t* boot_info = (boot_info_t*)0x10008000;
     boot_info->is_coldboot = 1;
-    boot_info->boot_flags = PRSH_FLAG_ISSET | PRSH_FLAG_TITLES_ON_MLC | PRSH_FLAG_HAS_BOOT_TIMES | PRSH_FLAG_RETAIL | 0x80;//; // 0xA6000000;//
+    boot_info->boot_flags = PRSH_FLAG_ISSET | PRSH_FLAG_TITLES_ON_MLC | PRSH_FLAG_HAS_BOOT_TIMES | PRSH_FLAG_RETAIL | 0x80; // 0xA6000000;
     boot_info->boot_state = 0;
     boot_info->boot_count = 1;
     boot_info->field_10 = 0; // 1?
@@ -161,7 +145,23 @@ void prsh_set_bootinfo()
     boot_info->boot0_main = 0x00012030;
     boot_info->boot0_read = 0x000029D2;
     boot_info->boot0_verify = 0x0000D281;
-    boot_info->boot0_decrypt = 0x0000027A;
+}
+
+void prsh_set_bootinfo()
+{
+    if (!header) return;
+
+    header->entries = 1;
+
+    // create boot_info
+    prsh_entry* boot_info_ent = &header->entry[0];
+    strncpy(boot_info_ent->name, "boot_info", 0x100);
+    boot_info_ent->data = (void *)0x10008000;
+    boot_info_ent->size = 0x58;
+    boot_info_ent->is_set = 0x80000000;
+
+    boot_info_t* boot_info = (boot_info_t*)0x10008000;
+    prsh_copy_default_bootinfo(boot_info);
 }
 
 void prsh_print(void){
@@ -170,6 +170,39 @@ void prsh_print(void){
         printf("    %u: %s %p %x\n", i, header->entry[i].name, header->entry[i].size, header->entry[i].data);
         //prsh_dump_entry(header->entry[i].name);
     }
+}
+
+int prsh_exists_decrypted(void)
+{
+    prsh_header* tmp = NULL;
+
+    void* buffer = (void*)0x10000400;
+    size_t size = 0x7C00;
+    while(size) {
+        if(!memcmp(buffer, "PRSH", sizeof(u32))) break;
+        buffer += sizeof(u32);
+        size -= sizeof(u32);
+    }
+
+    if (size) {
+        tmp = (prsh_header*)((intptr_t)buffer - sizeof(u32));
+        
+        // corrupt
+        if (tmp->total_entries > 0x100) {
+            //printf("prsh: corrupt\n");
+            return 0;
+        }
+
+        if (prsh_is_checksum_valid(tmp)) {
+            return 1;
+        }
+        //printf("prsh: checksum failed. %zx\n", size);
+    }
+    else {
+        //printf("prsh: couldn't find\n");
+    }
+
+    return 0;
 }
 
 void prsh_init(void)
@@ -193,6 +226,7 @@ void prsh_init(void)
     }
 
     if (!size) {
+recreate_prsh:
         // clear bad PRSH data
         memset((u8 *)0x10000400, 0,0x7C00);
 
@@ -200,7 +234,7 @@ void prsh_init(void)
 
         /* create PRSH */
         header = (prsh_header*)0x10005A54;
-        header->magic = 0x50525348; // "PRSH"
+        header->magic = PRSH_HEADER_MAGIC; // "PRSH"
         header->version = 1;
         header->is_boot1 = 1;
         header->total_entries = total_entries;
@@ -213,7 +247,7 @@ void prsh_init(void)
         prst = (prst_entry*)&header->entry[total_entries];
         prst->size = header->size;
         prst->is_set = 1;
-        prst->magic= 0x50525354; // "PRST"
+        prst->magic= PRST_MAGIC; // "PRST"
 
 #if 0
         // create mcp_crash_region
@@ -252,14 +286,20 @@ void prsh_init(void)
 
         // TODO: we could pass in a ram-only OTP here, maybe?
         printf("prsh: No header found, made a new one.\n");
+        initialized = true;
+
         prsh_set_bootinfo();
         prsh_recompute_checksum();
     }
     else {
-        header = buffer - sizeof(u32);
+        header = (prsh_header*)((intptr_t)buffer - sizeof(u32));
         prst = (prst_entry*)&header->entry[header->total_entries];
 
         //header->entries = 0x4;
+        if (!prsh_is_checksum_valid(header)) {
+            printf("prsh: Header checksums are invalid! Recreating PRSH.");
+            goto recreate_prsh;
+        }
     }
 
     initialized = true;
@@ -428,7 +468,7 @@ void prsh_recompute_checksum()
         word_counter++;
     }
     
-    printf("%08x %08x\n", header->checksum, checksum);
+    printf("prsh: checksum header: old=%08x new=%08x\n", header->checksum, checksum);
     
     header->checksum = checksum;
 
@@ -443,9 +483,51 @@ void prsh_recompute_checksum()
         word_counter++;
     }
     
-    printf("%08x %08x\n", prst->checksum, checksum);
+    printf("prsh: checksum prst: old=%08x new=%08x\n", prst->checksum, checksum);
     
     prst->checksum = checksum;
+}
+
+int prsh_is_checksum_valid(prsh_header* header_in)
+{
+    // Calculate PRSH checksum
+    u32 checksum = 0;
+    u32 word_counter = 0;
+    
+    if (!header_in || header_in->total_entries > 0x100) return 0;
+    if (header_in->magic != PRSH_HEADER_MAGIC) return 0;
+    // TODO: other checks, check what boot1 checks.
+
+    void* checksum_start = (void*)(&header_in->magic);
+    while (word_counter < ((header_in->total_entries * sizeof(prsh_entry)) / 0x04))
+    {
+        checksum ^= *(u32 *)(checksum_start + word_counter * 0x04);
+        word_counter++;
+    }
+
+    if (header_in->checksum != checksum) {
+        return 0;
+    }
+
+    prst_entry* prst_in = (prst_entry*)&header_in->entry[header_in->total_entries];
+    if (prst_in->magic != PRST_MAGIC) return 0;
+
+    checksum = 0;
+    word_counter = 0;
+    void* prst_checksum_start = (void*)(&prst_in->size);
+    while (word_counter < (sizeof(prst_entry)/sizeof(u32)-1))
+    {
+        u32 val = *(u32 *)(prst_checksum_start + word_counter * 0x04);
+        //printf("%08x\n", val);
+        checksum ^= val;
+        word_counter++;
+    }
+
+    if (prst_in->checksum != checksum) {
+        return 0;
+    }
+
+    return 1;
 }
 
 void prsh_decrypt()

@@ -13,6 +13,9 @@
 
 #include "types.h"
 
+#define PRSH_HEADER_MAGIC (0x50525348) // PRSH
+#define PRST_MAGIC (0x50525354) // PRST
+
 #define PRSHHAX_PAYLOAD_DST (0x00000048)
 #define PRSHHAX_OTPDUMP_PTR (0x10009000)
 
@@ -88,15 +91,18 @@ typedef struct {
 
 void prsh_reset(void);
 void prsh_print(void);
+int prsh_exists_decrypted(void);
 void prsh_init(void);
 int prsh_get_entry(const char* name, void** data, size_t* size);
 int prsh_set_entry(const char* name, void* data, size_t size);
 int prsh_add_entry(const char* name, void* data, size_t size, prsh_entry** p_out);
 void prsh_recompute_checksum();
+int prsh_is_checksum_valid(prsh_header* header_in);
 void prsh_decrypt();
 void prsh_encrypt();
 
 void print_bootinfo(boot_info_t * boot_info);
+void prsh_copy_default_bootinfo(boot_info_t* boot_info);
 void prsh_set_bootinfo();
 
 void prsh_menu();
