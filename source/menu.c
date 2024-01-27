@@ -121,14 +121,16 @@ void menu_draw()
     for(int i = 0; i < __menu->entries; i++)
     {
         char selected_char = ' ';
+        char selected_char2 = ' ';
         //if (gfx_is_currently_headless()) 
         {
             if (i == __menu->selected) {
                 selected_char = '>';
+                selected_char2 = '<';
             }
         }
 
-        sprintf(item_buffer, "%c %s", selected_char, __menu->option[i].text);
+        sprintf(item_buffer, "%c %s %c", selected_char, __menu->option[i].text, selected_char2);
         console_add_text(item_buffer);
     }
 }
