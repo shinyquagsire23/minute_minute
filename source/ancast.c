@@ -198,11 +198,11 @@ int ancast_load(ancast_ctx* ctx)
     switch(target) {
         case ANCAST_TARGET_PPC:
             switch(type) {
-                case 0x01:
+                case ANCAST_PPC_WIIU:
                     ctx->load = (void*)0x08000000;
                     break;
 
-                case 0x03:
+                case ANCAST_PPC_VWII:
                     ctx->load = (void*)0x01330000;
                     break;
             }

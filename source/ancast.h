@@ -14,6 +14,7 @@
 #include "types.h"
 
 #include "sha.h"
+#include "prsh.h"
 
 typedef struct {
     u16 unk1;
@@ -26,6 +27,13 @@ typedef struct {
     u32 version;
     u8 padding[0x38];
 } ancast_header;
+
+typedef struct {
+    u8 magic[8];
+    u8 magic_device[8];
+    u8 magic_prsh[8];
+    boot_info_t boot_info;
+} boot1_passalong_info;
 
 u32 ancast_iop_load(const char* path);
 u32 ancast_ppc_load(const char* path);
@@ -40,6 +48,7 @@ extern uintptr_t ancast_plugins_base;
 
 // Used for patches on IOS boot, and the passalong magic otherwise.
 #define ALL_PURPOSE_TMP_BUF (0x00800000)
+#define BOOT1_PASSALONG ((boot1_passalong_info*)ALL_PURPOSE_TMP_BUF)
 
 // TODO: determine this based on plugins
 #define CARVEOUT_SZ (0x400000)
@@ -50,12 +59,17 @@ extern uintptr_t ancast_plugins_base;
 #define MAGIC_PLUG_ADDR (RAMDISK_END_ADDR-8)
 
 #define PASSALONG_MAGIC_BOOT1 ("MINTBT01")
+#define PASSALONG_MAGIC_PRSH_ENCRYPTED ("MIECPRSH")
+#define PASSALONG_MAGIC_PRSH_DECRYPTED ("MIDEPRSH")
 #define PASSALONG_MAGIC_DEVICE_SLC ("MIDEVSLC")
 #define PASSALONG_MAGIC_DEVICE_SD ("MIDEVESD")
 
 #define ANCAST_MAGIC (0xEFA282D9l)
 #define ANCAST_TARGET_IOP (0x02)
 #define ANCAST_TARGET_PPC (0x01)
+
+#define ANCAST_PPC_WIIU (0x01)
+#define ANCAST_PPC_VWII (0x03)
 
 #define ANCAST_CONSOLE_TYPE_PROD (0x2)
 #define ANCAST_CONSOLE_TYPE_DEV  (0x1)

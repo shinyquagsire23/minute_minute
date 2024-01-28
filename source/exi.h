@@ -13,6 +13,15 @@
 
 #include "types.h"
 
+#define EXI_START_TRANSFER (1)
+
+#define EXI_TRANSFER_TYPE_R (0x0)
+#define EXI_TRANSFER_TYPE_W (0x4)
+
+#define EXI_TRANSFER_LENGTH(n) ((n-1)<<4)
+
+void exi_init(void);
+
 void exi0_write32(u32 addr, u32 val);
 u32 exi0_read32(u32 addr);
 void exi1_write32(u32 addr, u32 val);
