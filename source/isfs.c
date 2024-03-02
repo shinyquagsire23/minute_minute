@@ -609,6 +609,7 @@ static int _isfs_load_super(isfs_ctx* ctx){
         if(read32((u32)ctx->super + ISFSHAX_INFO_OFFSET) == ISFSHAX_MAGIC){
             // Iisfshax was found, only look for non isfshax generations to mount
             max_generation = ISFSHAX_GENERATION_FIRST;
+            ctx->isfshax = true;
             printf("ISFShax detected\n");
         }
     }
@@ -867,6 +868,10 @@ int isfs_dirclose(isfs_dir* dir)
     return 0;
 }
 
+bool isfs_slc_has_isfshax_installed(void){
+    return isfs[ISFSVOL_SLC].isfshax;
+}
+
 int isfs_init(void)
 {
     for(int i = 0; i < _isfs_num_volumes(); i++)
@@ -906,6 +911,7 @@ int isfs_fini(void)
 
         RemoveDevice(ctx->name);
         ctx->mounted = false;
+        ctx->isfshax = false;
     }
 
     initialized = false;
