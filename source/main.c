@@ -1011,6 +1011,8 @@ skip_menu:
     void (*boot_vector)(void) = (void*)boot.vector;
     boot_vector();
 
+    printf("Jumping to IOS... GO GO GO\n");
+
     return boot.vector;
 }
 
@@ -1308,6 +1310,8 @@ void main_credits(void)
     console_add_text("minute (not minute) - a Wii U port of mini\n");
 
     console_add_text("The SALT team: Dazzozo, WulfyStylez, shinyquagsire23 and Relys (in spirit)\n");
+
+    console_add_text("Other Contributers: Jan\n");
 
     console_add_text("Special thanks to fail0verflow (formerly Team Twiizers) for the original \"mini\", and for the vast\nmajority of Wii research and early Wii U research!\n");
 

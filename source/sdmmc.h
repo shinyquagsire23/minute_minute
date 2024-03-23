@@ -185,6 +185,9 @@ struct sdmmc_function {
 #define SD_SEND_RELATIVE_ADDR       3   /* R6 */
 #define SD_SWITCH_FUNC          6   /* R1 */
 #define SD_SEND_IF_COND         8   /* R7 */
+#define SD_ERASE_WR_BLK_START  32   /* R1 */
+#define SD_ERASE_WR_BLK_END    33   /* R1 */
+#define SD_ERASE               38   /* R1 */ 
 
 /* SD application commands */           /* response type */
 #define SD_APP_SET_BUS_WIDTH        6   /* R1 */

@@ -137,10 +137,13 @@ static void _discover_emmc(void){
 
     printf("CID: %08lX%08lX%08lX%08lX\n", resp32[0], resp32[1], resp32[2], resp32[3]);
 
-    DPRINTF(2, ("mlc: SD_SEND_RELATIVE_ADDRESS\n"));
+    card.rca = 0;
+
+    //on eMMC this sets the RCA, on SD it gets the RCA
+    DPRINTF(2, ("mlc: MMC_SET_RELATIVE_ADDRESS\n"));
     memset(&cmd, 0, sizeof(cmd));
     cmd.c_opcode = SD_SEND_RELATIVE_ADDR;
-    cmd.c_arg = 0;
+    cmd.c_arg = ((u32)card.rca)<<16;
     cmd.c_flags = SCF_RSP_R6;
     sdhc_exec_command(card.handle, &cmd);
     if (cmd.c_error) {
@@ -148,7 +151,6 @@ static void _discover_emmc(void){
         goto out_clock;
     }
 
-    card.rca = MMC_R1(cmd.c_resp)>>16;
     DPRINTF(2, ("mlc: rca: %08x\n", card.rca));
 
     card.selected = 0;
@@ -983,7 +985,7 @@ static int mlc_do_erase(u32 start, u32 end){
 #else
     struct sdmmc_command cmd = { 0 };
 
-    cmd.c_opcode = MMC_ERASE_GROUP_START;
+    cmd.c_opcode = card.is_sd ? SD_ERASE_WR_BLK_START:MMC_ERASE_GROUP_START;
     cmd.c_arg = start;
     cmd.c_flags = SCF_RSP_R1;
     sdhc_exec_command(card.handle, &cmd);
@@ -992,7 +994,7 @@ static int mlc_do_erase(u32 start, u32 end){
         return -1;
     }
 
-    cmd.c_opcode = MMC_ERASE_GROUP_END;
+    cmd.c_opcode = card.is_sd ? SD_ERASE_WR_BLK_END : MMC_ERASE_GROUP_END;
     cmd.c_arg = end;
     cmd.c_flags = SCF_RSP_R1;
     sdhc_exec_command(card.handle, &cmd);
@@ -1010,7 +1012,7 @@ static int mlc_do_erase(u32 start, u32 end){
         printf("mlc: MMC_ERASE failed with %d\n", cmd.c_error);
         return -1;
     }
-    if(MMC_R1(cmd.c_resp)!=0x800)
+    if(MMC_R1(cmd.c_resp)&~0x900)
         printf("ERASE: resp=%x\n", MMC_R1(cmd.c_resp));
 
     do {

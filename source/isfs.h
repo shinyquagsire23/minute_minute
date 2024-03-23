@@ -52,6 +52,7 @@ typedef struct {
     u32 generation;
     u32 version;
     bool mounted;
+    bool isfshax;
     u32 aes[0x10/sizeof(u32)];
     u8 hmac[0x14];
     devoptab_t devoptab;
@@ -131,6 +132,8 @@ int isfs_write_super(isfs_ctx *ctx, void *super, int index);
 #endif
 
 u16* _isfs_get_fat(isfs_ctx* ctx);
+
+bool isfs_slc_has_isfshax_installed(void);
 
 void isfs_test(void);
 

@@ -1827,6 +1827,11 @@ void dump_erase_mlc(void){
     gfx_clear(GFX_ALL, BLACK);
     printf("Erase MLC\n");
 
+    if(!isfs_slc_has_isfshax_installed() && !crypto_otp_is_de_Fused){
+        printf("MLC Erase not allowed!\nNeither ISFShax nor defuse is detected\nMLC erase would brick the consolse.");
+        goto erase_exit;
+    }
+
     if (console_abort_confirmation_power_no_eject_yes()) 
         goto erase_exit;
 
@@ -2055,6 +2060,19 @@ static void _dump_delete(const char* path){
 
 static void _dump_delete_scfm(void){
     gfx_clear(GFX_ALL, BLACK);
+
+    if(!isfs_slc_has_isfshax_installed() && !crypto_otp_is_de_Fused){
+        printf("STOP!!! Neither ISFShax nor defuse is detected\nContinuing will likely brick the consolse. You are probably doing something wrong.\nOnly continue if you really know what you are doing!");
+        if (console_abort_confirmation_power_no_eject_yes()) 
+            return;
+        printf("REALLY?\n");
+        if (console_abort_confirmation_power_no_eject_yes()) 
+            return;
+        printf("Are you really sure?\n");
+        if (console_abort_confirmation_power_no_eject_yes()) 
+            return;
+    }
+
     _dump_delete("slc:/scfm.img");
 }
 
