@@ -1011,6 +1011,8 @@ skip_menu:
     void (*boot_vector)(void) = (void*)boot.vector;
     boot_vector();
 
+    printf("Jumping to IOS... GO GO GO\n");
+
     return boot.vector;
 }
 
