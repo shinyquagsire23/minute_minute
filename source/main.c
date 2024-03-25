@@ -958,55 +958,6 @@ skip_menu:
         case 3: smc_reset_no_defuse(); break;
     }
 
-    if (boot.needs_otp)
-    {
-        if (boot.is_patched)
-        {
-            printf("Searching for OTP store in patch...\n");
-            u32* search = (u32*)0x20;
-            for (int i = 0; i < 0x800000; i += 4) {
-                if (search[0] == 0x4F545053) {
-                    if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
-                        printf("OTP store at: %08x\n", (u32)search);
-                        memcpy((void*)search, &otp, sizeof(otp));
-                        break;
-                    }
-                }
-                search++;
-            }
-        }
-        else {
-            printf("Searching for OTP store in IOS...\n");
-            u32* search = (u32*)0x01000200;
-            for (int i = 0; i < 0x1000000; i += 4) {
-                if (search[0] == 0x4F545053) {
-                    if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
-                        printf("OTP store at: %08x\n", (u32)search);
-                        memcpy((void*)search, &otp, sizeof(otp));
-                        break;
-                    }
-                }
-                search++;
-            }
-        }
-
-        if (read32(MAGIC_PLUG_ADDR) == MAGIC_PLUG && ancast_plugins_base)
-        {
-            printf("Searching for OTP store in plugins...\n");
-            u32* search = (u32*)ancast_plugins_base;
-            for (int i = 0; i < CARVEOUT_SZ; i += 4) {
-                if (search[0] == 0x4F545053) {
-                    if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
-                        printf("OTP store at: %08x\n", (u32)search);
-                        memcpy((void*)search, &otp, sizeof(otp));
-                        break;
-                    }
-                }
-                search++;
-            }
-        }
-    }
-
     // WiiU-Firmware-Emulator JIT bug
     void (*boot_vector)(void) = (void*)boot.vector;
     boot_vector();
