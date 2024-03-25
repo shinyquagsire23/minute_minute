@@ -933,6 +933,12 @@ u32 ancast_plugins_load(const char* plugins_fpath)
     if(minute_on_slc || (!minute_on_sd && sdcard_check_card() == SDMMC_NO_CARD))
         prsh_set_entry("minute_on_slc", NULL, 0);
 
+    if(crypto_otp_is_de_Fused){
+        config_plugin_base = ancast_plugin_next;
+        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, (uint8_t*)&otp, sizeof(otp));
+        prsh_set_entry("otp", (void*)(config_plugin_base+IPX_DATA_START), sizeof(otp));
+    }
+
     return 0;
 }
 #endif
