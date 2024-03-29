@@ -230,6 +230,14 @@ static int apply_ini_config(void){
         ret |= 4;
     }
 
+    if(!(rednand.slc.lba_length && rednand.slccmpt.lba_length && rednand.mlc.lba_length)){
+        // if the slc or slccmpt gets mounted with the wrong key, it can be corrupted
+        // TODO: add option to use key and IV from system OTP
+        // TODO: add override option
+        printf("redOTP requires all partitions to be redirected to prevent corruption!\n");
+        return -1;
+    }
+
     printf("Rednand Config:\n slccmpt: %i\n slc: %i\n mlc: %i\n disable scfm: %i\n", rednand.slccmpt.lba_length, rednand.slc.lba_length, rednand.mlc.lba_length, rednand.disable_scfm);
 
     return ret;
@@ -271,6 +279,11 @@ void clear_rednand(void){
 int init_rednand(void){
     clear_rednand();
 
+    int redotp_error = rednand_load_opt();
+    if(redotp_error < 0){
+        return -4;
+    }
+
     int ini_error = rednand_load_ini();
     if(ini_error < 0)
         return -1;
@@ -282,11 +295,6 @@ int init_rednand(void){
     int apply_error = apply_ini_config();
     if(apply_error < 0)
         return -3;
-
-    int redotp_error = rednand_load_opt();
-    if(redotp_error < 0){
-        return -4;
-    }
 
     rednand.initilized = true;
     return mbr_error | ini_error | apply_error;
