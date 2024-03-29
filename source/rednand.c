@@ -3,11 +3,13 @@
 #include "nand.h"
 #include "sdmmc.h"
 #include "sdcard.h"
+#include "crypto.h"
 
 #include "ff.h"
 #include "ini.h"
 
 #include <string.h>
+#include <malloc.h>
 
 #define REDSLC_MMC_BLOCKS ((NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN)
 
@@ -15,7 +17,12 @@ static const char rednand_ini_file[] = "sdmc:/minute/rednand.ini";
 
 static const char ini_error[] = "ERROR in rednand.ini: ";
 
+char *redotp_path = "sdmc:/redotp.bin";
+
+
 rednand_config rednand = { 0 };
+
+otp_t *redotp = NULL;
 
 static struct {
     bool slc;
@@ -228,6 +235,32 @@ static int apply_ini_config(void){
     return ret;
 }
 
+static int rednand_load_opt(void){
+    if(redotp)
+        free(redotp);
+    printf("Trying to load %s... ", redotp_path);
+    FILE* otp_file = fopen(redotp_path, "rb");
+    if (!otp_file){
+        printf("NOT FOUND!\n");
+        return 0;
+    }
+    printf("FOUND!\n");
+    redotp = memalign(32, sizeof(*redotp));
+    if(!redotp){
+        printf("Error allocating memory for red_otp\n");
+        return -1;
+    }
+    int read = fread(redotp, sizeof(*redotp), 1, otp_file);
+    fclose(otp_file);
+    if(read != 1){
+        printf("Error loading %s\n", redotp_path);
+        free(redotp);
+        redotp = NULL;
+        return -2;
+    }
+    return 1;
+}
+
 void clear_rednand(void){
     memset(&rednand, 0, sizeof(rednand));
 }
@@ -246,6 +279,11 @@ int init_rednand(void){
     int apply_error = apply_ini_config();
     if(apply_error < 0)
         return -3;
+
+    int redotp_error = rednand_load_opt;
+    if(redotp_error < 0){
+        return -4;
+    }
 
     rednand.initilized = true;
     return mbr_error | ini_error | apply_error;

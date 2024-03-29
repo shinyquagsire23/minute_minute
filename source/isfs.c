@@ -397,14 +397,20 @@ static isfs_fst* _isfs_get_fst(isfs_ctx* ctx)
 
 int isfs_load_keys(isfs_ctx* ctx)
 {
+    otp_t *o = &otp;
+    if(ctx->bank & 0x80000000 && redotp){
+        printf("ISFS: using redotp\n");
+        o = redotp;
+    }
+
     switch(ctx->version) {
         case 0:
-            memcpy(ctx->aes, otp.wii_nand_key, sizeof(ctx->aes));
-            memcpy(ctx->hmac, otp.wii_nand_hmac, sizeof(ctx->hmac));
+            memcpy(ctx->aes, o->wii_nand_key, sizeof(ctx->aes));
+            memcpy(ctx->hmac, o->wii_nand_hmac, sizeof(ctx->hmac));
             break;
         case 1:
-            memcpy(ctx->aes, otp.nand_key, sizeof(ctx->aes));
-            memcpy(ctx->hmac, otp.nand_hmac, sizeof(ctx->hmac));
+            memcpy(ctx->aes, o->nand_key, sizeof(ctx->aes));
+            memcpy(ctx->hmac, o->nand_hmac, sizeof(ctx->hmac));
             break;
         default:
             printf("ISFS: Unknown super block version %u!\n", ctx->version);
