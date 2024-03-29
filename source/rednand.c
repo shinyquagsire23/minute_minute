@@ -258,6 +258,7 @@ static int rednand_load_opt(void){
         redotp = NULL;
         return -2;
     }
+    memcopy(redotp->seeprom_key, otp.seeprom_key, sizeof(otp.seeprom_key));
     return 1;
 }
 
