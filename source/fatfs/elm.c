@@ -140,7 +140,7 @@ static TCHAR* _ELM_mbstoucs2(const char* src, size_t* len)
     int bytes;
     TCHAR* dst = CvtBuf;
 
-    while (src != '\0')
+    while (*src != '\0')
     {
         bytes = mbrtowc(&tempChar, src, MB_CUR_MAX, &ps);
 
