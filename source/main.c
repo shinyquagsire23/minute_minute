@@ -593,7 +593,7 @@ u32 _main(void *base)
     boot_info_t *boot_info;
     size_t boot_info_size;
     boot_info_t boot_info_copy;
-    int is_eco_mode = 0;
+    bool no_gpu = false;
 
     write32(LT_SRNPROT, 0x7BF);
     exi_init();
@@ -667,12 +667,21 @@ u32 _main(void *base)
     }
 
     // TODO: technically if we're coming from IOS, we should probably read boot_info instead of defaults.
-    if(!(boot_info_copy.boot_state & PON_SMC_TIMER)) {
+    bool is_eco_mode = boot_info_copy.boot_state & PON_SMC_TIMER;
+    if(is_eco_mode)
+        no_gpu = true;
+
+    if(prsh_exists_decrypted()){
+        res = prsh_get_entry("minute_boot", (void**)&autoboot, NULL );
+        if(!res && autoboot){
+            // IOSU reload, gpu is already inited by IOSU
+            no_gpu = true;
+        }
+    }
+
+    if(!no_gpu) {
         gpu_display_init();
         gfx_init();
-    }
-    else {
-        is_eco_mode = 1;
     }
 
     printf("minute loading\n");
@@ -877,8 +886,8 @@ u32 _main(void *base)
             printf("Press the POWER button or EJECT button to skip autoboot.\n");
             for(u32 i = 0; i < 1000000; i += 100000)
             {
-                // Don't wait in ECO mode.
-                if (is_eco_mode) break;
+                // Don't wait in ECO mode or IOSU reload.
+                if (no_gpu) break;
 
                 // Get input at .1s intervals.
                 u8 input = smc_get_events();
@@ -907,7 +916,7 @@ u32 _main(void *base)
             smc_set_odd_power(false);
 
         // Shut down if in ECO mode w/o a valid autoboot.
-        if (is_eco_mode) {
+        if (no_gpu) {
             boot.mode = 1;
             smc_set_notification_led(LEDRAW_RED);
             goto skip_menu;
@@ -920,7 +929,10 @@ u32 _main(void *base)
     }
 
 skip_menu:
-    gpu_cleanup();
+    prsh_set_entry("minute_boot", (void*)menu_main.selected + 1, 0);
+
+    if(!no_gpu)
+        gpu_cleanup();
 
     printf("Unmounting SLC...\n");
     isfs_fini();
@@ -958,26 +970,27 @@ skip_menu:
         case 3: smc_reset_no_defuse(); break;
     }
 
+    printf("Jumping to IOS... GO GO GO\n");
+
     // WiiU-Firmware-Emulator JIT bug
     void (*boot_vector)(void) = (void*)boot.vector;
     boot_vector();
-
-    printf("Jumping to IOS... GO GO GO\n");
 
     return boot.vector;
 }
 
 int boot_ini(const char* key, const char* value)
 {
-    if(!strcmp(key, "autoboot"))
-        autoboot = (u32)minini_get_uint(value, 0);
-    if(!strcmp(key, "autoboot_file"))
+    if(!strcmp(key, "autoboot") && !autoboot){
+        if(!autoboot) // don't overwrite if already set by prsh
+            autoboot = (u32)minini_get_uint(value, 0);
+    } else if(!strcmp(key, "autoboot_file"))
         strncpy(autoboot_file, value, sizeof(autoboot_file));
-    if(!strcmp(key, "autoboot_timeout"))
+    else if(!strcmp(key, "autoboot_timeout"))
         autoboot_timeout_s = (u32)minini_get_uint(value, 3);
-    if(!strcmp(key, "force_pause"))
+    else if(!strcmp(key, "force_pause"))
         main_force_pause = minini_get_bool(value, 0);
-    if(!strcmp(key, "allow_legacy_patches"))
+    else if(!strcmp(key, "allow_legacy_patches"))
         main_allow_legacy_patches = minini_get_bool(value, 0);
 
     return 0;
@@ -989,7 +1002,8 @@ int main_autoboot(void)
         printf("Invalid autoboot option: %i\n", autoboot);
         return -1;
     }
-    menu_item entry = menu_main.option[autoboot-1];
+    menu_main.selected = autoboot-1;
+    menu_item entry = menu_main.option[menu_main.selected];
     printf("Autobooting %i: %s\n", autoboot, entry.text);
     entry.callback();
     return 0;
