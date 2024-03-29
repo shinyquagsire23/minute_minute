@@ -263,6 +263,8 @@ static int rednand_load_opt(void){
 
 void clear_rednand(void){
     memset(&rednand, 0, sizeof(rednand));
+    if(redotp)
+        free(redotp);
 }
 
 int init_rednand(void){
