@@ -33,7 +33,7 @@ CFLAGS			:=	-g -std=c11 -Os \
 					-fomit-frame-pointer -fdata-sections -ffunction-sections \
 					$(ARCH) -nostartfiles
 
-CFLAGS			+=	$(INCLUDE) -D_GNU_SOURCE -DMINUTE_BOOT1 -DISFSHAX_STAGE2 -DMINUTE_HEADLESS -DNAND_WRITE_ENABLED -fno-builtin-printf -Wno-nonnull -Werror=implicit
+CFLAGS			+=	$(INCLUDE) -D_GNU_SOURCE -DMINUTE_BOOT1 -DISFSHAX_STAGE2 -DMINUTE_HEADLESS -DCAN_HAZ_IRQ -DNAND_WRITE_ENABLED -fno-builtin-printf -Wno-nonnull -Werror=implicit
 
 CXXFLAGS		:=	$(CFLAGS) -fno-rtti -fno-exceptions
 
