@@ -526,7 +526,6 @@ boot:
 #ifdef ISFSHAX_STAGE2
     memcpy(BOOT1_PASSALONG->magic_prsh, PASSALONG_MAGIC_PRSH_DECRYPTED, 8);
 
-    boot_info_t *bootinfo = init_prsh_get_bootinfo();
     if(bootinfo) {
         memcpy(&BOOT1_PASSALONG->boot_info, bootinfo, sizeof(boot_info_t));
     }
