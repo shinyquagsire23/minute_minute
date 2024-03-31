@@ -40,6 +40,7 @@
 #include "crypto.h"
 
 #ifndef MINUTE_BOOT1
+#ifndef FASTBOOT
 
 // TODO: how many sectors is 8gb MLC WFS?
 #define TOTAL_SECTORS (0x3A20000)
@@ -1233,9 +1234,6 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
 
     _dump_sync_seeprom_boot1_versions();
 
-    printf("Mounting ISFSs\n");
-    isfs_init();
-
     return ret;
 
     #undef FILE_BUF_SIZE
@@ -2246,4 +2244,5 @@ void dump_logs_redslc(void){
     console_power_or_eject_to_return();
 }
 
+#endif // FASTBOOT
 #endif // MINUTE_BOOT1

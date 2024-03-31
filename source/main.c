@@ -552,6 +552,7 @@ boot:
 
 void main_swapboot_patch(void);
 
+#ifndef FASTBOOT
 menu menu_main = {
     "minute", // title
     {
@@ -582,6 +583,7 @@ menu menu_main = {
     0,
     0
 };
+#endif // !FASTBOOT
 
 u32 _main(void *base)
 {
@@ -595,8 +597,12 @@ u32 _main(void *base)
     boot_info_t *boot_info;
     size_t boot_info_size;
     boot_info_t boot_info_copy;
+#ifdef FASTBOOT
+    bool no_gpu = true;
+    printf("FASTBOOT MODE!\n");
+#else
     bool no_gpu = false;
-
+#endif
     u32 minute_start_time = read32(LT_TIMER);
     u32 boot1_start_time = BOOT1_PASSALONG->start_time;
 
@@ -725,7 +731,10 @@ u32 _main(void *base)
     latte_print_hardware_info();
 
     printf("Initializing SD card...\n");
+    
     u32 sd_start = read32(LT_TIMER);
+    u32 sd_end = sd_start;
+#ifndef FASTBOOT
     sdcard_init();
     printf("sdcard_init finished\n");
 
@@ -734,7 +743,7 @@ u32 _main(void *base)
     if(res) {
         printf("Error while mounting SD card (%d).\n", res);
     }
-    u32 sd_end = read32(LT_TIMER);
+    sd_end = read32(LT_TIMER);
 
     crypto_check_de_Fused();
 
@@ -796,6 +805,7 @@ u32 _main(void *base)
             console_power_to_continue();
         }
     }
+#endif // FASTBOOT
 
     // Hopefully we have proper keys by this point
     crypto_decrypt_seeprom();
@@ -837,7 +847,9 @@ u32 _main(void *base)
     }
 
     u32 ini_start = read32(LT_TIMER);
+#ifndef FASTBOOT
     minini_init();
+#endif
     u32 ini_end = read32(LT_TIMER);
 
     // idk?
@@ -877,6 +889,9 @@ u32 _main(void *base)
 
     u32 init_end = read32(LT_TIMER);
 
+#ifdef FASTBOOT
+    main_quickboot_patch_slc();
+#else
     // Prompt user to skip autoboot, time = 0 will skip this.
     if(autoboot)
     {
@@ -927,10 +942,15 @@ u32 _main(void *base)
         smc_get_events();
         smc_set_odd_power(true);
     }
+#endif // !FASTBOOT
 
 skip_menu:
     u32 deinit_start = read32(LT_TIMER);
+#ifdef FASTBOOT
+    prsh_set_entry("minute_boot", 1, 0);
+#else
     prsh_set_entry("minute_boot", (void*)menu_main.selected + 1, 0);
+#endif
 
     if(!no_gpu)
         gpu_cleanup();
