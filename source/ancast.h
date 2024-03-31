@@ -33,6 +33,7 @@ typedef struct {
     u8 magic_device[8];
     u8 magic_prsh[8];
     boot_info_t boot_info;
+    u32 start_time;
 } boot1_passalong_info;
 
 u32 ancast_iop_load(const char* path);

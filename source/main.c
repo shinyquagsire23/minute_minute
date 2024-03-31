@@ -123,6 +123,8 @@ u32 _main(void *base)
     (void)base;
     int res = 0; (void)res;
 
+    int start_time = read32(LT_TIMER);
+
     gfx_init();
     exi_init();
     printf("minute loading\n");
@@ -541,6 +543,7 @@ boot:
 #endif
 
     BOOT1_PASSALONG->boot_info.boot_state = pflags_val;
+    BOOT1_PASSALONG->start_time = start_time;
 
     serial_send_u32(0x6D6D00FF);
     return boot.vector;
@@ -593,6 +596,9 @@ u32 _main(void *base)
     size_t boot_info_size;
     boot_info_t boot_info_copy;
     bool no_gpu = false;
+
+    u32 minute_start_time = read32(LT_TIMER);
+    u32 boot1_start_time = BOOT1_PASSALONG->start_time;
 
     write32(LT_SRNPROT, 0x7BF);
     exi_init();
@@ -678,10 +684,12 @@ u32 _main(void *base)
         }
     }
 
+    u32 graphic_start = read32(LT_TIMER);
     if(!no_gpu) {
         gpu_display_init();
         gfx_init();
     }
+    u32 graphic_end = read32(LT_TIMER);
 
     printf("minute loading\n");
 
@@ -717,6 +725,7 @@ u32 _main(void *base)
     latte_print_hardware_info();
 
     printf("Initializing SD card...\n");
+    u32 sd_start = read32(LT_TIMER);
     sdcard_init();
     printf("sdcard_init finished\n");
 
@@ -725,8 +734,10 @@ u32 _main(void *base)
     if(res) {
         printf("Error while mounting SD card (%d).\n", res);
     }
+    u32 sd_end = read32(LT_TIMER);
 
     crypto_check_de_Fused();
+
 
     // Write out our dumped OTP, if valid
     if (read32(PRSHHAX_OTPDUMP_PTR) == PRSHHAX_OTP_MAGIC) {
@@ -825,7 +836,9 @@ u32 _main(void *base)
         minute_on_sd = false;
     }
 
+    u32 ini_start = read32(LT_TIMER);
     minini_init();
+    u32 ini_end = read32(LT_TIMER);
 
     // idk?
     if (main_loaded_from_boot1) {
@@ -833,6 +846,7 @@ u32 _main(void *base)
     }
 
     printf("Initializing MLC...\n");
+    u32 mlc_start = read32(LT_TIMER);
     mlc_init();
 
     silly_tests();
@@ -842,9 +856,11 @@ u32 _main(void *base)
         //panic(0);
     }
     mlc_ack_card();
+    u32 mlc_end = read32(LT_TIMER);
 
     printf("Mounting SLC...\n");
     isfs_init();
+    u32 isfs_end = read32(LT_TIMER);
 
     if(sdcard_check_card() == SDMMC_NO_CARD){
         DIR* dir = opendir(slc_plugin_dir);
@@ -875,6 +891,8 @@ u32 _main(void *base)
         printf("Power button spam, showing menu...\n");
         autoboot = false;
     }
+
+    u32 init_end = read32(LT_TIMER);
 
     // Prompt user to skip autoboot, time = 0 will skip this.
     if(autoboot)
@@ -928,6 +946,7 @@ u32 _main(void *base)
     }
 
 skip_menu:
+    u32 deinit_start = read32(LT_TIMER);
     prsh_set_entry("minute_boot", (void*)menu_main.selected + 1, 0);
 
     if(!no_gpu)
@@ -968,6 +987,29 @@ skip_menu:
         case 2: smc_reset(); break;
         case 3: smc_reset_no_defuse(); break;
     }
+
+    u32 end = read32(LT_TIMER);
+    printf("total:         %u\n"
+            "boot1->minute: %u\n"
+            "minute:        %u\n"
+            " init:         %u\n"
+            "  pre graphic  %u\n"
+            "  graphic      %u\n"
+            "  graph-> sd   %u\n"
+            "  sd           %u\n"
+            "  sd -> ini    %u\n"
+            "  ini          %u\n"
+            "  ini -> mlc   %u\n"
+            "  mlc          %u\n"
+            "  isfs         %u\n"
+            "  isfs -> end  %u\n"
+            " loading:      %u\n"
+            " deinit        %u\n",
+            end-boot1_start_time, minute_start_time-boot1_start_time, end-minute_start_time,
+            init_end-minute_start_time, graphic_start-minute_start_time, graphic_end-graphic_start, 
+            sd_start-graphic_end, sd_end-sd_start, ini_start-sd_end, ini_end-ini_start, mlc_start-ini_end, 
+            mlc_end-mlc_start, isfs_end-mlc_end, init_end-isfs_end,
+            deinit_start-init_end, end-deinit_start);
 
     printf("Jumping to IOS... GO GO GO\n");
 
