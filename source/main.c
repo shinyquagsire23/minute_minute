@@ -845,12 +845,6 @@ u32 _main(void *base)
         write32(0xC, 0x20008000);
     }
 
-    u32 isfs_start = read32(LT_TIMER);
-
-    printf("Mounting SLC...\n");
-    isfs_init();
-    u32 isfs_end = read32(LT_TIMER);
-
     if(sdcard_check_card() == SDMMC_NO_CARD){
         DIR* dir = opendir(slc_plugin_dir);
         if (dir) {
@@ -988,15 +982,12 @@ skip_menu:
             "  sd           %u\n"
             "  sd -> ini    %u\n"
             "  ini          %u\n"
-            "  ini -> isfs  %u\n"
-            "  isfs         %u\n"
-            "  isfs -> end  %u\n"
+            "  ini -> end   %u\n"
             " loading:      %u\n"
             " deinit        %u\n",
             end-boot1_start_time, minute_start_time-boot1_start_time, end-minute_start_time,
             init_end-minute_start_time, graphic_start-minute_start_time, graphic_end-graphic_start, 
-            sd_start-graphic_end, sd_end-sd_start, ini_start-sd_end, ini_end-ini_start, isfs_start-ini_end,
-            isfs_end-isfs_start, init_end-isfs_end,
+            sd_start-graphic_end, sd_end-sd_start, ini_start-sd_end, ini_end-ini_start, init_end-ini_end,
             deinit_start-init_end, end-deinit_start);
 
     printf("Jumping to IOS... GO GO GO\n");
@@ -1103,6 +1094,10 @@ ppc_exit:
 void main_quickboot_patch_slc(void)
 {
     gfx_clear(GFX_ALL, BLACK);
+    if(isfs_init(ISFSVOL_SLC)<0){
+        console_power_to_continue();
+        return;
+    }
     boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", slc_plugin_dir); // ios_orig.img
     boot.is_patched = 1;
     boot.needs_otp = 1;
@@ -1120,6 +1115,10 @@ void main_quickboot_patch_slc(void)
 void main_quickboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
+    if(isfs_init(ISFSVOL_SLC)<0){
+        console_power_to_continue();
+        return;
+    }
     boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir); // ios_orig.img
     boot.is_patched = 1;
     boot.needs_otp = 1;
@@ -1165,7 +1164,10 @@ void main_quickboot_patch_rednand(void)
         }
     }
     if(rednand.slc.lba_length){
-        isfs_init(); // mount redslc
+        if(isfs_init(ISFSVOL_REDSLC)<0){
+            console_power_to_continue();
+            return;
+        }
         boot.vector = ancast_patch_load("redslc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir);
     } else
         boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir); // ios_orig.img

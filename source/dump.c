@@ -898,7 +898,7 @@ int _dump_restore_mlc(u32 base)
         return -3;
     }
     if(console_abort_confirmation_power_no_eject_yes()) 
-        return;
+        return -4;
     printf("MLC: Continuing restore...\n");
 
     // Do one less iteration than we need, due to having to special case the start and end.
@@ -2082,11 +2082,20 @@ static void _dump_delete_scfm(void){
             return;
     }
 
+    if(isfs_init(ISFSVOL_SLC)<0){
+            console_power_to_continue();
+            return;
+    }
+
     _dump_delete("slc:/scfm.img");
 }
 
 static void _dump_delete_scfm_slccmpt(void){
     gfx_clear(GFX_ALL, BLACK);
+    if(isfs_init(ISFSVOL_SLCCMPT)<0){
+        console_power_to_continue();
+        return;
+    }
     _dump_delete("slccmpt:/scfm.img");
 }
 
@@ -2103,7 +2112,10 @@ static void _dump_delete_scfm_rednand(void){
         return;
     }
 
-    isfs_init(); // mount redslc
+    if(isfs_init(ISFSVOL_REDSLC)<0){
+        console_power_to_continue();
+        return;
+    }
     _dump_delete("redslc:/scfm.img");
 }
 
@@ -2205,6 +2217,10 @@ static void _copy_dir(const char* dir, const char* dest){
 
 void dump_logs_slc(void){
     gfx_clear(GFX_ALL, BLACK);
+    if(isfs_init(ISFSVOL_SLC)<0){
+        console_power_to_continue();
+        return;
+    }
     _copy_dir("slc:/sys/logs", "sdmc:/logs");
     console_power_or_eject_to_return();
 }
@@ -2222,7 +2238,10 @@ void dump_logs_redslc(void){
         return;
     }
 
-    isfs_init(); // mount redslc
+    if(isfs_init(ISFSVOL_REDSLC)<0){
+        console_power_to_continue();
+        return;
+    }
     _copy_dir("redslc:/sys/logs", "sdmc:/redlogs");
     console_power_or_eject_to_return();
 }

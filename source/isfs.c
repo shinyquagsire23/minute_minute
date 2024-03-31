@@ -878,24 +878,27 @@ bool isfs_slc_has_isfshax_installed(void){
     return isfs[ISFSVOL_SLC].isfshax;
 }
 
-int isfs_init(void)
+int isfs_init(unsigned int volume)
 {
-    for(int i = 0; i < _isfs_num_volumes(); i++)
-    {
-        isfs_ctx* ctx = &isfs[i];
-        if(ctx->mounted)
-            continue;
-        if(!ctx->super) ctx->super = memalign(NAND_DATA_ALIGN, 0x80 * PAGE_SIZE);
-        if(!ctx->super) return -1;
+    if(volume>_isfs_num_volumes())
+        return -3;
+    isfs_ctx* ctx = &isfs[volume];
+    if(ctx->mounted)
+        return 1;
+    printf("Mounting %s...\n", ctx->name);
+    if(!ctx->super) ctx->super = memalign(NAND_DATA_ALIGN, 0x80 * PAGE_SIZE);
+    if(!ctx->super) return -2;
 
-        int res = _isfs_load_super(ctx);
-        printf("Mount %s: %d\n", ctx->name, res);
-        if(res) continue;
-        ctx->mounted = true;
-
-        int _isfsdev_init(isfs_ctx* ctx);
-        _isfsdev_init(ctx);
+    int res = _isfs_load_super(ctx);
+    if(res){
+        free(ctx->super);
+        printf("Failed to mount %s! Wrong OTP?\n", ctx->name);
+        return -1;
     }
+    ctx->mounted = true;
+
+    int _isfsdev_init(isfs_ctx* ctx);
+    _isfsdev_init(ctx);
 
     initialized = true;
 
