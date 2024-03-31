@@ -16,7 +16,7 @@
 #include "bsdtypes.h"
 #include "sdmmc.h"
 
-void mlc_init(void);
+int mlc_init(void);
 void mlc_exit(void);
 void mlc_irq(void);
 

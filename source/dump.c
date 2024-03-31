@@ -773,6 +773,9 @@ int _dump_mlc(u32 base)
         return -1;
     }
 
+    if(mlc_init())
+        return -1;
+
     int res = 0, mres = 0, sres = 0;
     if(base == 0) return -2;
 
@@ -850,6 +853,9 @@ int _dump_restore_mlc(u32 base)
         printf("SD card is not initialized.\n");
         return -1;
     }
+
+    if(mlc_init())
+        return -2;
 
     int res = 0, mres = 0, sres = 0;
     if(base == 0) return -2;
@@ -1833,6 +1839,9 @@ void dump_erase_mlc(void){
     }
 
     if (console_abort_confirmation_power_no_eject_yes()) 
+        goto erase_exit;
+
+    if(mlc_init())
         goto erase_exit;
 
     printf("Erasing...\n");

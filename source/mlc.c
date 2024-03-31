@@ -35,6 +35,7 @@ static int mlcdebug = 3;
 #endif
 
 static struct sdhc_host mlc_host;
+static bool initialized = false;
 
 struct mlc_ctx {
     sdmmc_chipset_handle_t handle;
@@ -1067,8 +1068,7 @@ int mlc_erase(void){
 #endif
 }
 
-void mlc_init(void)
-{
+static void _mlc_do_init(void){
     struct sdhc_host_params params = {
         .attach = &mlc_attach,
         .abort = &mlc_abort,
@@ -1082,10 +1082,29 @@ void mlc_init(void)
     sdhc_host_found(&mlc_host, &params, 0, SD2_REG_BASE, 1);
 }
 
+int mlc_init(void)
+{
+    if(!initialized){
+        printf("Initializing MLC...\n");
+        _mlc_do_init();
+    }
+
+    initialized = true;
+
+    if(mlc_check_card() == SDMMC_NO_CARD) {
+        printf("Error while initializing MLC.\n");
+        return -1;
+    }
+    return 0;
+}
+
 void mlc_exit(void)
 {
+    if(!initialized)
+        return;
 #ifdef CAN_HAZ_IRQ
     irql_disable(IRQL_SD2);
 #endif
     sdhc_shutdown(&mlc_host);
+    initialized = false;
 }
