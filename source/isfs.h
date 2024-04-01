@@ -110,6 +110,7 @@ typedef struct isfs_hdr {
 _Static_assert(sizeof(isfs_hdr) == 0xC, "isfs_hdr size must be 0xC!");
 
 int isfs_init(unsigned int volume);
+int isfs_unmount(int volume);
 int isfs_fini(void);
 int isfs_load_keys(isfs_ctx* ctx);
 

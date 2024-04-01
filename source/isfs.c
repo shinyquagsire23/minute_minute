@@ -905,22 +905,34 @@ int isfs_init(unsigned int volume)
     return 0;
 }
 
+int isfs_unmount(int volume){
+    if(volume>_isfs_num_volumes())
+        return -3;
+
+    isfs_ctx* ctx = &isfs[i];
+
+    if(!ctx->mounted)
+        return 1;
+
+    if(ctx->super) {
+        free(ctx->super);
+        ctx->super = NULL;
+    }
+
+    RemoveDevice(ctx->name);
+    ctx->mounted = false;
+    ctx->isfshax = false;
+
+    return 0;
+}
+
 int isfs_fini(void)
 {
     if(!initialized) return 0;
 
     for(int i = 0; i < _isfs_num_volumes(); i++)
     {
-        isfs_ctx* ctx = &isfs[i];
-
-        if(ctx->super) {
-            free(ctx->super);
-            ctx->super = NULL;
-        }
-
-        RemoveDevice(ctx->name);
-        ctx->mounted = false;
-        ctx->isfshax = false;
+        isfs_unmount(i);
     }
 
     initialized = false;

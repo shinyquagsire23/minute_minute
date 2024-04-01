@@ -4,6 +4,7 @@
 #include "sdmmc.h"
 #include "sdcard.h"
 #include "crypto.h"
+#include "isfs.h"
 
 #include "ff.h"
 #include "ini.h"
@@ -271,6 +272,8 @@ static int rednand_load_opt(void){
 }
 
 void clear_rednand(void){
+    isfs_unmount(ISFSVOL_REDSLC);
+    isfs_unmount(ISFSVOL_REDSLCCMPT);
     memset(&rednand, 0, sizeof(rednand));
     if(redotp)
         free(redotp);
