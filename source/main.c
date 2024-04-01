@@ -1121,7 +1121,7 @@ void main_quickboot_patch_slc(void)
         console_power_to_continue();
         return;
     }
-    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", slc_plugin_dir); // ios_orig.img
+    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", slc_plugin_dir, false); // ios_orig.img
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
@@ -1142,7 +1142,7 @@ void main_quickboot_patch(void)
         console_power_to_continue();
         return;
     }
-    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir); // ios_orig.img
+    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir, false); // ios_orig.img
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
@@ -1158,7 +1158,7 @@ void main_quickboot_patch(void)
 void main_swapboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir);
+    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir, false);
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
@@ -1191,9 +1191,9 @@ void main_quickboot_patch_rednand(void)
             console_power_to_continue();
             return;
         }
-        boot.vector = ancast_patch_load("redslc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir);
+        boot.vector = ancast_patch_load("redslc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir, true);
     } else
-        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir); // ios_orig.img
+        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir, true);
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
@@ -1221,7 +1221,7 @@ void main_swapboot_patch_rednand(void)
         }
     }
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir);
+    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir, true);
     boot.is_patched = 1;
     boot.needs_otp = 1;
 

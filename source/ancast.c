@@ -542,7 +542,7 @@ u32 ancast_iop_load_from_memory(void* ancast_mem)
 }
 
 extern int main_allow_legacy_patches;
-u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plugins_fpath)
+u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plugins_fpath, bool rednand)
 {
     u32* patch_base = (u32*)0x100;
 
@@ -624,7 +624,9 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plug
     // copy code out
     memcpy((void*)ALL_PURPOSE_TMP_BUF, elfldr_patch, elfldr_patch_len);
 
-    ancast_plugins_load(plugins_fpath);
+    if(ancast_plugins_load(plugins_fpath, rednand) < 0){
+        return 0;
+    }
     
     return vector;
 }
@@ -875,8 +877,9 @@ u32 ancast_plugin_data_load(uintptr_t base, const char* fn_data, uint32_t* p_dat
 }
 
 static u32 ancast_load_red_partitions(uintptr_t plugin_base){
-    if(!rednand.initilized)
-        return plugin_base;
+    if(!rednand.initilized){
+        return 0;
+    }
 
     uintptr_t plugin_next = ancast_plugin_data_copy(plugin_base, (uint8_t*)&rednand, sizeof(rednand));
     prsh_set_entry("rednand", (void*)(plugin_base+IPX_DATA_START), sizeof(rednand_config));
@@ -884,7 +887,7 @@ static u32 ancast_load_red_partitions(uintptr_t plugin_base){
     return plugin_next;
 }
 
-u32 ancast_plugins_load(const char* plugins_fpath)
+u32 ancast_plugins_load(const char* plugins_fpath, bool rednand)
 {
     u32 tmp = 0;
     ancast_plugins_search(plugins_fpath);
@@ -910,12 +913,17 @@ u32 ancast_plugins_load(const char* plugins_fpath)
     }
 
     // Load DATA segments
-    ancast_plugin_next = ancast_load_red_partitions(ancast_plugin_next);
+    if(rednand){
+        u32 res = ancast_load_red_partitions(ancast_plugin_next);
+        if(!res)
+            return -1;
+        ancast_plugin_next = res;
+    }
 
     if(minute_on_slc || (!minute_on_sd && sdcard_check_card() == SDMMC_NO_CARD))
         prsh_set_entry("minute_on_slc", NULL, 0);
 
-    if(crypto_otp_is_de_Fused || redotp){
+    if(crypto_otp_is_de_Fused || (rednand && redotp)){
         config_plugin_base = ancast_plugin_next;
         otp_t *o = redotp?redotp:&otp;
         ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, (u8*)o, sizeof(*o));

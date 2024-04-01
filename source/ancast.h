@@ -41,9 +41,9 @@ u32 ancast_ppc_load(const char* path);
 
 u32 ancast_iop_load_from_raw_sector(int sector_idx);
 u32 ancast_iop_load_from_memory(void* ancast_mem);
-u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plugins_fpath);
+u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plugins_fpath, bool rednand);
 
-u32 ancast_plugins_load();
+u32 ancast_plugins_load(const char* plugins_fpath, bool rednand);
 
 extern uintptr_t ancast_plugins_base;
 
