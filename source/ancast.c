@@ -884,9 +884,6 @@ static u32 ancast_load_red_partitions(uintptr_t plugin_base){
     return plugin_next;
 }
 
-const uint8_t test_data[0x10] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
-const char* default_config = "; Test config file\n[test]\ntest=1\n";
-
 u32 ancast_plugins_load(const char* plugins_fpath)
 {
     u32 tmp = 0;
@@ -913,14 +910,6 @@ u32 ancast_plugins_load(const char* plugins_fpath)
     }
 
     // Load DATA segments
-    config_plugin_base = ancast_plugin_next;
-    ancast_plugin_next = ancast_plugin_data_load(ancast_plugin_next, "config.ini", &tmp);
-    if (!tmp) {
-        config_plugin_base = ancast_plugin_next;
-        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, default_config, strlen(default_config)+1);
-    }
-    prsh_set_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1);
-    ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
     ancast_plugin_next = ancast_load_red_partitions(ancast_plugin_next);
 
     if(minute_on_slc || (!minute_on_sd && sdcard_check_card() == SDMMC_NO_CARD))
@@ -929,7 +918,7 @@ u32 ancast_plugins_load(const char* plugins_fpath)
     if(crypto_otp_is_de_Fused || redotp){
         config_plugin_base = ancast_plugin_next;
         otp_t *o = redotp?redotp:&otp;
-        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, o, sizeof(*o));
+        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, (u8*)o, sizeof(*o));
         prsh_set_entry("otp", (void*)(config_plugin_base+IPX_DATA_START), sizeof(*o));
     }
 

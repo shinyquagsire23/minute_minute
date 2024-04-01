@@ -370,7 +370,7 @@ struct sdmmc_function {
 /* Might be slow, but it should work on big and little endian systems. */
 #define MMC_RSP_BITS(resp, start, len)  __bitfield((resp), (start)-8, (len))
 static __inline int
-__bitfield(u_int32_t *src, int start, int len)
+__bitfield(void *src, int start, int len)
 {
     u_int8_t *sp;
     u_int32_t dst, mask;
@@ -384,7 +384,7 @@ __bitfield(u_int32_t *src, int start, int len)
     shift = 0;
 
     while (len > 0) {
-        sp = (u_int8_t *)src + start / 8;
+        sp = src + start / 8;
         bs = start % 8;
         bc = 8 - bs;
         if (bc > len)

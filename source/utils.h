@@ -30,7 +30,7 @@ static inline u16 _byteswap_ushort(u16 val)
     return (val_lo << 8) | val_hi;
 }
 
-static inline u32 read32_unaligned(u8* pData)
+static inline u32 read32_unaligned(const u8* pData)
 {
     u8 val_3 = pData[3];
     u8 val_2 = pData[2];
@@ -164,7 +164,7 @@ static inline u8 read8(u32 addr)
     return data;
 }
 
-static inline void write8(u32 addr, u8 data)
+static inline void write8(u8 *addr, u8 data)
 {
     __asm__ volatile ("strb\t%0, [%1]" : : "l" (data), "l" (addr));
 }
