@@ -248,13 +248,6 @@ int ancast_load(ancast_ctx* ctx)
             if (i % 0x100000 == 0)
             {
                 printf("ancast: ...%08x -> %08x\n", i, (u32)ctx->load + i);
-                if (led_alternate) {
-                    smc_set_notification_led(LEDRAW_BLUE);
-                }
-                else {
-                    smc_set_notification_led(LEDRAW_PURPLE);
-                }
-                led_alternate = !led_alternate;
             }
 
             u32 to_read = 0x100000;
