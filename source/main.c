@@ -400,7 +400,7 @@ u32 _main(void *base)
         serial_send_u32(0x5D4D0001);
         printf("Mounting SLC...\n");
         irq_initialize();
-        isfs_init();
+        isfs_init(ISFSVOL_SLC);
         serial_send_u32(0x5D4D0003);
         isfshax_refresh();
         serial_send_u32(0x5D4D0004);
