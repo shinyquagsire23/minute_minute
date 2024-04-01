@@ -571,6 +571,7 @@ void mlc_needs_discover(void)
     cmd.c_datalen = sizeof(mode_status);
     cmd.c_blklen = sizeof(mode_status);
     cmd.c_flags = SCF_RSP_R1 | SCF_CMD_ADTC | SCF_CMD_READ;
+    sdhc_exec_command(card.handle, &cmd);
     if(mode_status[16] != 1){
         printf("mlc: switch to SDR25 failed, staying at SDR12\n");
         return;
