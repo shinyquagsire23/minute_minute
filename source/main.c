@@ -947,9 +947,9 @@ u32 _main(void *base)
 skip_menu:
     u32 deinit_start = read32(LT_TIMER);
 #ifdef FASTBOOT
-    prsh_set_entry("minute_boot", 1, 0);
+    prsh_set_entry("minute_boot", (void*)1, 0);
 #else
-    prsh_set_entry("minute_boot", (void*)menu_main.selected + 1, 0);
+    prsh_set_entry("minute_boot", (void*)(menu_main.selected + 1), 0);
 #endif
 
     if(!no_gpu)
