@@ -805,10 +805,11 @@ u32 _main(void *base)
             console_power_to_continue();
         }
     }
-#endif // FASTBOOT
 
     // Hopefully we have proper keys by this point
     crypto_decrypt_seeprom();
+
+#endif // FASTBOOT
 
     if (prsh_is_encrypted)
     {
@@ -958,12 +959,14 @@ skip_menu:
     printf("Unmounting SLC...\n");
     isfs_fini();
 
+#ifndef FASTBOOT
     printf("Shutting down MLC...\n");
     mlc_exit();
     
     printf("Shutting down SD card...\n");
     ELM_Unmount();
     sdcard_exit();
+#endif //!FASTBOOT
 
     printf("Shutting down interrupts...\n");
     irq_shutdown();
