@@ -909,7 +909,7 @@ int isfs_unmount(int volume){
     if(volume>_isfs_num_volumes())
         return -3;
 
-    isfs_ctx* ctx = &isfs[i];
+    isfs_ctx* ctx = &isfs[volume];
 
     if(!ctx->mounted)
         return 1;
