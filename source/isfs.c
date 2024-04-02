@@ -875,6 +875,7 @@ int isfs_dirclose(isfs_dir* dir)
 }
 
 bool isfs_slc_has_isfshax_installed(void){
+    isfs_init(ISFSVOL_SLC);
     return isfs[ISFSVOL_SLC].isfshax;
 }
 
