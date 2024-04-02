@@ -887,6 +887,11 @@ static u32 ancast_load_red_partitions(uintptr_t plugin_base){
     return plugin_next;
 }
 
+static u32 ancast_get_abi_version(uintptr_t base){
+    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)base;
+    return *(u32*)(base + ehdr->e_entry + 0x1C);
+}
+
 u32 ancast_plugins_load(const char* plugins_fpath, bool rednand)
 {
     u32 tmp = 0;
@@ -912,6 +917,12 @@ u32 ancast_plugins_load(const char* plugins_fpath, bool rednand)
         ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, ancast_plugins_list[i], plugins_fpath);
     }
 
+    u32 abi_version = ancast_get_abi_version(ancast_plugins_base)
+    if(abi_version != STROOPWAFEL_ABI_VERSION) {
+        printf("Incompatible stroopwafel ABI version. minute abi: %u, stroopwafel abi: %u\n", STROOPWAFEL_ABI_VERSION, abi_version);
+        return -2
+    }
+
     // Load DATA segments
     if(rednand){
         u32 res = ancast_load_red_partitions(ancast_plugin_next);
@@ -926,6 +937,10 @@ u32 ancast_plugins_load(const char* plugins_fpath, bool rednand)
     if(crypto_otp_is_de_Fused || (rednand && redotp)){
         config_plugin_base = ancast_plugin_next;
         otp_t *o = redotp?redotp:&otp;
+        if(!o->nand_hmac){
+            printf("Invalid OTP!!!\n");
+            return -3;
+        }
         ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, (u8*)o, sizeof(*o));
         prsh_set_entry("otp", (void*)(config_plugin_base+IPX_DATA_START), sizeof(*o));
     }
