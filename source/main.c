@@ -679,12 +679,15 @@ u32 _main(void *base)
 
     // TODO: technically if we're coming from IOS, we should probably read boot_info instead of defaults.
     bool is_eco_mode = boot_info_copy.boot_state & PON_SMC_TIMER;
-    if(is_eco_mode)
+    if(is_eco_mode) {
+        printf("ECO Mode!\n");
         no_gpu = true;
+    }
 
     if(prsh_exists_decrypted()){
         res = prsh_get_entry("minute_boot", (void**)&autoboot, NULL );
         if(!res && autoboot){
+            printf("IOSU Reload! autobooting %d...\n", autoboot);
             // IOSU reload, gpu is already inited by IOSU
             no_gpu = true;
         }
