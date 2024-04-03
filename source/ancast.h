@@ -16,7 +16,7 @@
 #include "sha.h"
 #include "prsh.h"
 
-#define STROOPWAFEL_ABI_VERSION 1
+#define STROOPWAFEL_ABI_VERSION 0x65667301
 
 typedef struct {
     u16 unk1;
