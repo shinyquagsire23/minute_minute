@@ -686,7 +686,8 @@ u32 _main(void *base)
         no_gpu = true;
     }
 
-    if(prsh_exists_decrypted()){
+    bool is_iosu_reload = boot_info_copy.boot_state & PFLAG_PON_RELOAD;
+    if(is_iosu_reload && prsh_exists_decrypted()){
         res = prsh_get_entry("minute_boot", (void**)&autoboot, NULL );
         if(!res && autoboot){
             printf("IOSU Reload! autobooting %d...\n", autoboot);
@@ -927,8 +928,6 @@ u32 _main(void *base)
     }
     else
     {
-        printf("Showing menu...\n");
-
         smc_get_events();
         //leave ODD Power on for HDDs
         if (has_no_otp_bin || 
@@ -943,6 +942,7 @@ u32 _main(void *base)
             goto skip_menu;
         }
 
+        printf("Showing menu...\n");
         menu_init(&menu_main);
 
         smc_get_events();
