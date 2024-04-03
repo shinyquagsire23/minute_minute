@@ -160,10 +160,11 @@ void dump_menu_show()
 
 void dump_factory_log()
 {
-    if(mlc_init())
-        return -1;
     FILE* f_log = NULL;
     int ret = 0;
+
+    if(mlc_init())
+        goto close_ret;
 
     gfx_clear(GFX_ALL, BLACK);
 

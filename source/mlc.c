@@ -1088,7 +1088,7 @@ int mlc_init(void)
     if(!initialized){
         printf("Initializing MLC...\n");
         _mlc_do_init();
-        int res = mlc_ack_card(void);
+        int res = mlc_ack_card();
         if(res)
             return res;
     }
