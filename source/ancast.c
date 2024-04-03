@@ -892,7 +892,7 @@ static u32 ancast_get_abi_version(uintptr_t base){
     return *(u32*)(base + ehdr->e_entry + 0x1C);
 }
 
-u32 ancast_plugins_load(const char* plugins_fpath, bool rednand)
+int ancast_plugins_load(const char* plugins_fpath, bool rednand)
 {
     u32 tmp = 0;
     ancast_plugins_search(plugins_fpath);
