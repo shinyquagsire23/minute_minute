@@ -677,6 +677,8 @@ u32 _main(void *base)
         write32(MAGIC_PLUG_ADDR, 0xBADBADBA);
     }
 
+    printf("boot_state: %X\n", boot_info_copy.boot_state);
+
     // TODO: technically if we're coming from IOS, we should probably read boot_info instead of defaults.
     bool is_eco_mode = boot_info_copy.boot_state & PON_SMC_TIMER;
     if(is_eco_mode) {
