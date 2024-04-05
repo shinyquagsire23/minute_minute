@@ -1201,8 +1201,13 @@ void main_quickboot_patch_rednand(void)
             return;
         }
         boot.vector = ancast_patch_load("redslc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir, true);
-    } else
+    } else {
+        if(isfs_init(ISFSVOL_SLC)<0){
+            console_power_to_continue();
+            return;
+        }
         boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir, true);
+    }
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
