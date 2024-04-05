@@ -231,7 +231,7 @@ static int apply_ini_config(void){
         ret |= 4;
     }
 
-    if(!(rednand.slc.lba_length && rednand.slccmpt.lba_length && rednand.mlc.lba_length)){
+    if(redotp && !(rednand.slc.lba_length && rednand.slccmpt.lba_length && rednand.mlc.lba_length)){
         // if the slc or slccmpt gets mounted with the wrong key, it can be corrupted
         // TODO: add option to use key and IV from system OTP
         // TODO: add override option
