@@ -616,6 +616,8 @@ static int _isfs_load_super(isfs_ctx* ctx){
             // Iisfshax was found, only look for non isfshax generations to mount
             max_generation = ISFSHAX_GENERATION_FIRST;
             ctx->isfshax = true;
+            isfshax_super *hax_super = (isfshax_super*)ctx->super;
+            memcpy(ctx->isfshax_slots, hax_super->isfshax.slots, ISFSHAX_REDUNDANCY);
             printf("ISFShax detected\n");
         }
     }
@@ -634,6 +636,17 @@ static int isfs_super_mark_bad_slot(isfs_ctx *ctx, u32 index)
     return 0;
 }
 
+bool is_isfshax_super(isfs_ctx* ctx, u8 index){
+    if(!ctx->isfshax)
+        return false;
+    for(int i = 0; i<ISFSHAX_REDUNDANCY; i++){
+        if(ctx->isfshax_slots[i] == index){
+            return true;
+        }
+    }
+    return false;
+}
+
 
 int isfs_commit_super(isfs_ctx* ctx)
 {
@@ -642,6 +655,10 @@ int isfs_commit_super(isfs_ctx* ctx)
     for(int i = 1; i <= ctx->super_count; i++)
     {
         u32 index = (ctx->index + i) % ctx->super_count;
+
+        // should also be protected by the badblock list.
+        if(is_isfshax_super(ctx, (u8)index))
+            continue;
 
         if (_isfs_super_check_slot(ctx, index) < 0)
             continue;

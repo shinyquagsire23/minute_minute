@@ -42,21 +42,6 @@
 #define FAT_CLUSTER_BAD         0xFFFD // bad block (marked at factory)
 #define FAT_CLUSTER_EMPTY       0xFFFE // empty (unused / available) space
 
-typedef struct {
-    int volume;
-    const char name[0x10];
-    const u32 bank;
-    const u32 super_count;
-    int index;
-    u8* super;
-    u32 generation;
-    u32 version;
-    bool mounted;
-    bool isfshax;
-    u32 aes[0x10/sizeof(u32)];
-    u8 hmac[0x14];
-    devoptab_t devoptab;
-} isfs_ctx;
 
 typedef struct {
     char name[12];
@@ -70,6 +55,25 @@ typedef struct {
     u16 gid;
     u32 x3;
 } PACKED isfs_fst;
+
+#include "isfshax.h"
+
+typedef struct {
+    int volume;
+    const char name[0x10];
+    const u32 bank;
+    const u32 super_count;
+    int index;
+    u8* super;
+    u32 generation;
+    u32 version;
+    bool mounted;
+    bool isfshax;
+    u8 isfshax_slots[ISFSHAX_REDUNDANCY];
+    u32 aes[0x10/sizeof(u32)];
+    u8 hmac[0x14];
+    devoptab_t devoptab;
+} isfs_ctx;
 
 typedef struct {
     int volume;
