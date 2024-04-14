@@ -13,6 +13,7 @@
 
 #include "types.h"
 #include "nand.h"
+#include "ff.h"
 #include <sys/iosupport.h>
 
 #define ISFSVOL_SLC             0
@@ -73,6 +74,7 @@ typedef struct {
     u32 aes[0x10/sizeof(u32)];
     u8 hmac[0x14];
     devoptab_t devoptab;
+    FIL* file;
 } isfs_ctx;
 
 typedef struct {
@@ -131,9 +133,13 @@ char* _isfs_do_volume(const char* path, isfs_ctx** ctx);
 isfs_ctx* isfs_get_volume(int volume);
 int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data);
 int isfs_read_super(isfs_ctx *ctx, void *super, int index);
+bool isfs_is_isfshax_super(isfs_ctx* ctx, u8 index);
+int isfs_load_super(isfs_ctx* ctx);
 #ifdef NAND_WRITE_ENABLED
 int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data);
 int isfs_write_super(isfs_ctx *ctx, void *super, int index);
+int isfs_commit_super(isfs_ctx* ctx);
+int isfs_super_mark_slot(isfs_ctx *ctx, u32 index, u16 marker);
 #endif
 
 u16* _isfs_get_fat(isfs_ctx* ctx);

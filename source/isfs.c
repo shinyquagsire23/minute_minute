@@ -137,6 +137,20 @@ static int _isfs_read_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_cou
     return 0;
 }
 
+static int _nand_read_page_rawfile(u32 pageno, void *data, void *ecc, FIL* file){
+    u32 off = pageno * (PAGE_SIZE + PAGE_SPARE_SIZE);
+    if(f_lseek(file, off) != FR_OK)
+        return -1;
+    UINT br;
+    if(f_read(file, data, PAGE_SIZE, &br) != FR_OK || br != PAGE_SIZE){
+        return -1;
+    }
+    if(f_read(file, data, PAGE_SPARE_SIZE, &br) != FR_OK || br != PAGE_SPARE_SIZE){
+        return -1;
+    }
+    return 0;
+}
+
 int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data)
 {
     if(ctx->bank & 0x80000000) {
@@ -148,7 +162,8 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
     u32 i, p;
 
     /* enable slc or slccmpt bank */
-    nand_initialize(ctx->bank);
+    if(!ctx->file)
+        nand_initialize(ctx->bank);
 
     /* read all requested clusters */
     for (i = 0; i < cluster_count; i++)
@@ -163,7 +178,11 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
             // make sure ECC fails, if read did nothing
             memset(ecc_buf, 0, ECC_BUFFER_ALLOC);
             /* attempt to read the page (and correct ecc errors) */
-            int nand_error = nand_read_page(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
+            int nand_error;
+            if(!ctx->file)
+                nand_error = nand_read_page(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
+            else
+                nand_error = _nand_read_page_rawfile(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf, ctx->file);
             if(nand_error){
                 ISFS_debug("NAND ERROR on read\n");
                 rc = ISFSVOL_ERROR_READ;
@@ -608,8 +627,9 @@ static int _isfs_load_super_range(isfs_ctx* ctx, u32 min_generation, u32 max_gen
     return (ctx->index >= 0) ? 0 : -1;
 }
 
-static int _isfs_load_super(isfs_ctx* ctx){
+int isfs_load_super(isfs_ctx* ctx){
     u32 max_generation = 0xffffffff;
+    ctx->isfshax = false;
     int res = _isfs_load_super_range(ctx, ISFSHAX_GENERATION_FIRST, 0xffffffff);
     if(res>=0){
         if(read32((u32)ctx->super + ISFSHAX_INFO_OFFSET) == ISFSHAX_MAGIC){
@@ -625,18 +645,18 @@ static int _isfs_load_super(isfs_ctx* ctx){
 }
 
 #ifdef NAND_WRITE_ENABLED
-static int isfs_super_mark_bad_slot(isfs_ctx *ctx, u32 index)
+int isfs_super_mark_slot(isfs_ctx *ctx, u32 index, u16 marker)
 {
     u32 offs, cluster = CLUSTER_COUNT - (ctx->super_count - index) * ISFSSUPER_CLUSTERS;
     u16* fat = _isfs_get_fat(ctx);
 
     for (offs = 0; offs < ISFSSUPER_CLUSTERS; offs++)
-        fat[cluster + offs] = FAT_CLUSTER_BAD;
+        fat[cluster + offs] = marker;
 
     return 0;
 }
 
-bool is_isfshax_super(isfs_ctx* ctx, u8 index){
+bool isfs_is_isfshax_super(isfs_ctx* ctx, u8 index){
     if(!ctx->isfshax)
         return false;
     for(int i = 0; i<ISFSHAX_REDUNDANCY; i++){
@@ -657,7 +677,7 @@ int isfs_commit_super(isfs_ctx* ctx)
         u32 index = (ctx->index + i) % ctx->super_count;
 
         // should also be protected by the badblock list.
-        if(is_isfshax_super(ctx, (u8)index))
+        if(isfs_is_isfshax_super(ctx, (u8)index))
             continue;
 
         if (_isfs_super_check_slot(ctx, index) < 0)
@@ -666,7 +686,7 @@ int isfs_commit_super(isfs_ctx* ctx)
         if (isfs_write_super(ctx, ctx->super, index) >= 0)
             return 0;
 
-        isfs_super_mark_bad_slot(ctx, index);
+        isfs_super_mark_slot(ctx, index, FAT_CLUSTER_BAD);
         _isfs_get_hdr(ctx)->generation++;
     }
 
@@ -907,7 +927,7 @@ int isfs_init(unsigned int volume)
     if(!ctx->super) ctx->super = memalign(NAND_DATA_ALIGN, 0x80 * PAGE_SIZE);
     if(!ctx->super) return -2;
 
-    int res = _isfs_load_super(ctx);
+    int res = isfs_load_super(ctx);
     if(res){
         free(ctx->super);
         printf("Failed to mount %s! Wrong OTP?\n", ctx->name);
