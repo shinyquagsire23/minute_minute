@@ -1954,6 +1954,11 @@ void dump_restore_rednand(void)
         goto restore_exit;
     }
 
+    if(!isfs_slc_has_isfshax_installed() && !crypto_otp_is_de_Fused){
+        printf("MLC restore not allowed!\nNeither ISFShax nor defuse is detected\nMLC restore would brick the consolse.");
+        goto restore_exit;
+    }
+
     smc_get_events(); // Eat all existing events
 
     printf("Restoring MLC...\n");
@@ -2157,15 +2162,9 @@ static void _dump_delete_scfm(void){
     gfx_clear(GFX_ALL, BLACK);
 
     if(!isfs_slc_has_isfshax_installed() && !crypto_otp_is_de_Fused){
-        printf("STOP!!! Neither ISFShax nor defuse is detected\nContinuing will likely brick the consolse. You are probably doing something wrong.\nOnly continue if you really know what you are doing!");
-        if (console_abort_confirmation_power_no_eject_yes()) 
-            return;
-        printf("REALLY?\n");
-        if (console_abort_confirmation_power_no_eject_yes()) 
-            return;
-        printf("Are you really sure?\n");
-        if (console_abort_confirmation_power_no_eject_yes()) 
-            return;
+        printf("SCFM delete not allowed!\nNeither ISFShax nor defuse is detected\nSCFM delete would brick the consolse.");
+        console_power_to_continue();
+        return;
     }
 
     if(isfs_init(ISFSVOL_SLC)<0){
