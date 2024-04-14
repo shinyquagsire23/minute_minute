@@ -29,7 +29,7 @@
 
 #include "isfshax.h"
 
-//#define ISFS_DEBUG
+#define ISFS_DEBUG
 
 #ifdef ISFS_DEBUG
 #   define  ISFS_debug(f, arg...) printf("ISFS: " f, ##arg);
@@ -138,14 +138,19 @@ static int _isfs_read_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_cou
 }
 
 static int _nand_read_page_rawfile(u32 pageno, void *data, void *ecc, FIL* file){
+    //ISFS_debug("ISFS: reading from file\n");
     u32 off = pageno * (PAGE_SIZE + PAGE_SPARE_SIZE);
-    if(f_lseek(file, off) != FR_OK)
-        return -1;
-    UINT br;
-    if(f_read(file, data, PAGE_SIZE, &br) != FR_OK || br != PAGE_SIZE){
+    if(f_lseek(file, off) != FR_OK){
+        ISFS_debug("ISFS: Error seeking file\n");
         return -1;
     }
-    if(f_read(file, data, PAGE_SPARE_SIZE, &br) != FR_OK || br != PAGE_SPARE_SIZE){
+    UINT br;
+    if(f_read(file, data, PAGE_SIZE, &br) != FR_OK || br != PAGE_SIZE){
+        ISFS_debug("ISFS: Error reading data from file\n");
+        return -1;
+    }
+    if(f_read(file, ecc, PAGE_SPARE_SIZE, &br) != FR_OK || br != PAGE_SPARE_SIZE){
+        ISFS_debug("ISFS: Error reading ecc from file\n");
         return -1;
     }
     return 0;
@@ -179,26 +184,27 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
             memset(ecc_buf, 0, ECC_BUFFER_ALLOC);
             /* attempt to read the page (and correct ecc errors) */
             int nand_error;
-            if(!ctx->file)
-                nand_error = nand_read_page(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
-            else
+            if(ctx->file){
                 nand_error = _nand_read_page_rawfile(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf, ctx->file);
+            } else {
+                nand_error = nand_read_page(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
+                int correct = nand_correct(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
+                /* uncorrectable ecc error or other issues */
+                if (correct < 0) {
+                    ISFS_debug("Uncorrectable ECC ERROR\n");
+                    rc = ISFSVOL_ERROR_READ;
+                }
+
+                /* ECC errors, a refresh might be needed */
+                if ((correct > 0) && !rc ){
+                    ISFS_debug("Corrected ECC ERROR\n");
+                    rc = ISFSVOL_ECC_CORRECTED;
+                }
+            }
+                
             if(nand_error){
                 ISFS_debug("NAND ERROR on read\n");
                 rc = ISFSVOL_ERROR_READ;
-            }
-
-            int correct = nand_correct(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
-            /* uncorrectable ecc error or other issues */
-            if (correct < 0) {
-                ISFS_debug("Uncorrectable ECC ERROR\n");
-                rc = ISFSVOL_ERROR_READ;
-            }
-
-            /* ECC errors, a refresh might be needed */
-            if ((correct > 0) && !rc ){
-                ISFS_debug("Corrected ECC ERROR\n");
-                rc = ISFSVOL_ECC_CORRECTED;
             }
 
             /* page 6 and 7 store the hmac */
