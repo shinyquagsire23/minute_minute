@@ -1284,14 +1284,14 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
                 
                 //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
                 nand_write_page_raw(page_base + page, nand_page_buf, nand_ecc_buf);
+            }
+            
+            // This might not be optional? Bug?
+            nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
+            //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
 
-                // This might not be optional? Bug?
-                nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
-                //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
-
-                if (memcmp(nand_page_buf, &file_buf[page*PAGE_STRIDE], PAGE_STRIDE)) {
-                    printf("Failed to program page: 0x%05lX\n", page_base + page);
-                }
+            if (memcmp(nand_page_buf, &file_buf[page*PAGE_STRIDE], PAGE_STRIDE)) {
+                printf("Failed to program page: 0x%05lX\n", page_base + page);
             }
         }
 
