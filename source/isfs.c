@@ -29,7 +29,7 @@
 
 #include "isfshax.h"
 
-#define ISFS_DEBUG
+// #define ISFS_DEBUG
 
 #ifdef ISFS_DEBUG
 #   define  ISFS_debug(f, arg...) printf("ISFS: " f, ##arg);
