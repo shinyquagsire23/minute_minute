@@ -358,7 +358,7 @@ void _dump_sync_seeprom_boot1_versions(void)
 
         ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
 
-        if (hdr->version == 0xFFFF || !hdr->version) {
+        if (hdr->version == 0xFFFFFFFF || !hdr->version) {
             printf("Refusing to sync NAND boot1 version 0x%04x (erased NAND page?)\n");
         }
         else if (seeprom_decrypted.boot1_params.version != hdr->version) {
@@ -383,7 +383,7 @@ void _dump_sync_seeprom_boot1_versions(void)
 
         ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
 
-        if (hdr->version == 0xFFFF || !hdr->version) {
+        if (hdr->version == 0xFFFFFFFF || !hdr->version) {
             printf("Refusing to sync NAND boot1 version 0x%04x (erased NAND page?)\n");
         }
         else if (seeprom_decrypted.boot1_copy_params.version != hdr->version) {
@@ -1093,6 +1093,7 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
     isfs_ctx *ctx = NULL;
     bool protect_isfshax = false;
     const char* name = NULL;
+    u32 boot1_page, boot1_copy_page;
     switch(bank) {
         case NAND_BANK_SLC: name = "SLC";
         isfs_init(ISFSVOL_SLC);
@@ -1107,6 +1108,9 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
                 printf("%u ", ctx->isfshax_slots[i]);
             printf("\n");
             protect_isfshax = true;
+            boot1_page = (seeprom_decrypted.boot1_params.sector & 0xFFF) * 0x40;
+            boot1_copy_page = (seeprom_decrypted.boot1_copy_params.sector & 0xFFF) * 0x40;
+            printf("boot1 pages: 0x%lX and 0x%lX\n", boot1_page, boot1_copy_page);
         }
         
         break;
@@ -1210,7 +1214,7 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
         }
 
         if(protect_isfshax){
-            if(page_base == 0)
+            if(page_base == boot1_page || page_base == boot1_copy_page)
                 continue; // leave boot1 alone
             int super_start_page = NAND_MAX_PAGE - ctx->super_count * ISFSSUPER_CLUSTERS * CLUSTER_PAGES;
             if(page_base >= super_start_page){
@@ -1285,7 +1289,7 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
                 //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
                 nand_write_page_raw(page_base + page, nand_page_buf, nand_ecc_buf);
             }
-            
+
             // This might not be optional? Bug?
             nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
             //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
