@@ -745,8 +745,8 @@ u32 _main(void *base)
     printf("Initializing SD card...\n");
 #ifdef MEASURE_TIME
     u32 sd_start = read32(LT_TIMER);
-#endif
     u32 sd_end = sd_start;
+#endif
 #ifndef FASTBOOT
     sdcard_init();
     printf("sdcard_init finished\n");
