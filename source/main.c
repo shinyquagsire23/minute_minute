@@ -58,6 +58,8 @@
 #include <malloc.h>
 #include <dirent.h>
 
+//#define MEASURE_TIME
+
 static struct {
     int mode;
     u32 vector;
@@ -600,8 +602,9 @@ u32 _main(void *base)
     bool no_gpu = false;
 #endif
     bool no_menu = no_gpu;
+#ifdef MEASURE_TIME
     u32 minute_start_time = read32(LT_TIMER);
-    u32 boot1_start_time = BOOT1_PASSALONG->start_time;
+#endif
 
     write32(LT_SRNPROT, 0x7BF);
     exi_init();
@@ -695,13 +698,16 @@ u32 _main(void *base)
             }
         }
     }
-
+#ifdef MEASURE_TIME
     u32 graphic_start = read32(LT_TIMER);
+#endif
     if(!no_gpu) {
         gpu_display_init();
         gfx_init();
     }
+#ifdef MEASURE_TIME
     u32 graphic_end = read32(LT_TIMER);
+#endif
 
     printf("minute loading\n");
 
@@ -737,8 +743,9 @@ u32 _main(void *base)
     latte_print_hardware_info();
 
     printf("Initializing SD card...\n");
-    
+#ifdef MEASURE_TIME
     u32 sd_start = read32(LT_TIMER);
+#endif
     u32 sd_end = sd_start;
 #ifndef FASTBOOT
     sdcard_init();
@@ -749,7 +756,9 @@ u32 _main(void *base)
     if(res) {
         printf("Error while mounting SD card (%d).\n", res);
     }
+#ifdef MEASURE_TIME
     sd_end = read32(LT_TIMER);
+#endif
 
     crypto_check_de_Fused();
 
@@ -852,12 +861,15 @@ u32 _main(void *base)
         minute_on_slc = true;
         minute_on_sd = false;
     }
-
+#ifdef MEASURE_TIME
     u32 ini_start = read32(LT_TIMER);
+#endif
 #ifndef FASTBOOT
     minini_init();
 #endif
+#ifdef MEASURE_TIME
     u32 ini_end = read32(LT_TIMER);
+#endif
 
     // idk?
     if (main_loaded_from_boot1) {
@@ -893,8 +905,9 @@ u32 _main(void *base)
         printf("Power button spam, showing menu...\n");
         autoboot = false;
     }
-
+#ifdef MEASURE_TIME
     u32 init_end = read32(LT_TIMER);
+#endif
 
 #ifdef FASTBOOT
     main_quickboot_patch_slc();
@@ -951,7 +964,9 @@ u32 _main(void *base)
 #endif // !FASTBOOT
 
 skip_menu:
+#ifdef MEASURE_TIME
     u32 deinit_start = read32(LT_TIMER);
+#endif 
 #ifdef FASTBOOT
     prsh_set_entry("minute_boot", (void*)1, 0);
 #else
@@ -999,9 +1014,9 @@ skip_menu:
         case 3: smc_reset_no_defuse(); break;
     }
 
+#ifdef MEASURE_TIME
     u32 end = read32(LT_TIMER);
     printf("total:         %u\n"
-            "boot1->minute: %u\n"
             "minute:        %u\n"
             " init:         %u\n"
             "  pre graphic  %u\n"
@@ -1013,10 +1028,11 @@ skip_menu:
             "  ini -> end   %u\n"
             " loading:      %u\n"
             " deinit        %u\n",
-            end-boot1_start_time, minute_start_time-boot1_start_time, end-minute_start_time,
+            end-boot1_start_time, end-minute_start_time,
             init_end-minute_start_time, graphic_start-minute_start_time, graphic_end-graphic_start, 
             sd_start-graphic_end, sd_end-sd_start, ini_start-sd_end, ini_end-ini_start, init_end-ini_end,
             deinit_start-init_end, end-deinit_start);
+#endif // MEASURE_TIME
 
     printf("Jumping to IOS... GO GO GO\n");
 
