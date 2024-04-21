@@ -138,6 +138,9 @@ static int _isfs_read_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_cou
 }
 
 static int _nand_read_page_rawfile(u32 pageno, void *data, void *ecc, FIL* file){
+#ifdef MINUTE_BOOT1
+    return -128;
+#else
     //ISFS_debug("ISFS: reading from file\n");
     u32 off = pageno * (PAGE_SIZE + PAGE_SPARE_SIZE);
     if(f_lseek(file, off) != FR_OK){
@@ -154,6 +157,7 @@ static int _nand_read_page_rawfile(u32 pageno, void *data, void *ecc, FIL* file)
         return -1;
     }
     return 0;
+#endif //MINUTE_BOOT1
 }
 
 int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data)
