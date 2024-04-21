@@ -54,6 +54,10 @@ void irq_shutdown(void)
 
 void irq_handler(void)
 {
+#ifdef MINUTE_BOOT1
+    // somehow needed on WUP-50 when loaded from UDPIH
+    udelay(10);
+#endif
     u32 all_enabled = read32(LT_INTMR_AHBALL_ARM);
     u32 all_flags = read32(LT_INTSR_AHBALL_ARM);
     u32 all_mask = all_enabled & all_flags;
