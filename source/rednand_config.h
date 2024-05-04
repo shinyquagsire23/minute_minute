@@ -12,5 +12,9 @@ typedef struct {
     bool disable_scfm;
     bool scfm_on_slccmpt;
     bool initilized;
+    //v2
+    bool slc_nocrypto; //not implemented yet
+    bool slccmpt_nocrypto; //not implemented yet
+    bool mlc_nocrypto;
 } PACKED rednand_config;
 
