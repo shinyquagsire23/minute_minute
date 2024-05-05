@@ -58,6 +58,8 @@
 #include <malloc.h>
 #include <dirent.h>
 
+//#define MEASURE_TIME
+
 static struct {
     int mode;
     u32 vector;
@@ -398,7 +400,7 @@ u32 _main(void *base)
         serial_send_u32(0x5D4D0001);
         printf("Mounting SLC...\n");
         irq_initialize();
-        isfs_init();
+        isfs_init(ISFSVOL_SLC);
         serial_send_u32(0x5D4D0003);
         isfshax_refresh();
         serial_send_u32(0x5D4D0004);
@@ -526,7 +528,6 @@ boot:
 #ifdef ISFSHAX_STAGE2
     memcpy(BOOT1_PASSALONG->magic_prsh, PASSALONG_MAGIC_PRSH_DECRYPTED, 8);
 
-    boot_info_t *bootinfo = init_prsh_get_bootinfo();
     if(bootinfo) {
         memcpy(&BOOT1_PASSALONG->boot_info, bootinfo, sizeof(boot_info_t));
     }
@@ -542,7 +543,6 @@ boot:
 #endif
 
     BOOT1_PASSALONG->boot_info.boot_state = pflags_val;
-
     serial_send_u32(0x6D6D00FF);
     return boot.vector;
 }
@@ -550,6 +550,7 @@ boot:
 
 void main_swapboot_patch(void);
 
+#ifndef FASTBOOT
 menu menu_main = {
     "minute", // title
     {
@@ -580,6 +581,7 @@ menu menu_main = {
     0,
     0
 };
+#endif // !FASTBOOT
 
 u32 _main(void *base)
 {
@@ -593,7 +595,16 @@ u32 _main(void *base)
     boot_info_t *boot_info;
     size_t boot_info_size;
     boot_info_t boot_info_copy;
-    int is_eco_mode = 0;
+#ifdef FASTBOOT
+    bool no_gpu = true;
+    printf("FASTBOOT MODE!\n");
+#else
+    bool no_gpu = false;
+#endif
+    bool no_menu = no_gpu;
+#ifdef MEASURE_TIME
+    u32 minute_start_time = read32(LT_TIMER);
+#endif
 
     write32(LT_SRNPROT, 0x7BF);
     exi_init();
@@ -666,14 +677,37 @@ u32 _main(void *base)
         write32(MAGIC_PLUG_ADDR, 0xBADBADBA);
     }
 
+    printf("boot_state: %X\n", boot_info_copy.boot_state);
+ 
     // TODO: technically if we're coming from IOS, we should probably read boot_info instead of defaults.
-    if(!(boot_info_copy.boot_state & PON_SMC_TIMER)) {
+    bool is_eco_mode = boot_info_copy.boot_state & PON_SMC_TIMER;
+    if(is_eco_mode) {
+        printf("ECO Mode!\n");
+        no_menu = no_gpu = true;
+    }
+
+    bool is_iosu_reload = boot_info_copy.boot_state & PFLAG_PON_RELOAD;
+    if(is_iosu_reload){
+        no_gpu = true;
+        if(prsh_exists_decrypted()){
+            res = prsh_get_entry("minute_boot", (void**)&autoboot, NULL );
+            if(!res && autoboot){
+                printf("IOSU Reload! autobooting %d...\n", autoboot);
+                // IOSU reload, gpu is already inited by IOSU
+                no_menu = true;
+            }
+        }
+    }
+#ifdef MEASURE_TIME
+    u32 graphic_start = read32(LT_TIMER);
+#endif
+    if(!no_gpu) {
         gpu_display_init();
         gfx_init();
     }
-    else {
-        is_eco_mode = 1;
-    }
+#ifdef MEASURE_TIME
+    u32 graphic_end = read32(LT_TIMER);
+#endif
 
     printf("minute loading\n");
 
@@ -709,6 +743,11 @@ u32 _main(void *base)
     latte_print_hardware_info();
 
     printf("Initializing SD card...\n");
+#ifdef MEASURE_TIME
+    u32 sd_start = read32(LT_TIMER);
+    u32 sd_end = sd_start;
+#endif
+#ifndef FASTBOOT
     sdcard_init();
     printf("sdcard_init finished\n");
 
@@ -717,8 +756,12 @@ u32 _main(void *base)
     if(res) {
         printf("Error while mounting SD card (%d).\n", res);
     }
+#ifdef MEASURE_TIME
+    sd_end = read32(LT_TIMER);
+#endif
 
     crypto_check_de_Fused();
+
 
     // Write out our dumped OTP, if valid
     if (read32(PRSHHAX_OTPDUMP_PTR) == PRSHHAX_OTP_MAGIC) {
@@ -781,6 +824,8 @@ u32 _main(void *base)
     // Hopefully we have proper keys by this point
     crypto_decrypt_seeprom();
 
+#endif // FASTBOOT
+
     if (prsh_is_encrypted)
     {
         printf("prsh: decrypting.\n");
@@ -816,27 +861,20 @@ u32 _main(void *base)
         minute_on_slc = true;
         minute_on_sd = false;
     }
-
+#ifdef MEASURE_TIME
+    u32 ini_start = read32(LT_TIMER);
+#endif
+#ifndef FASTBOOT
     minini_init();
+#endif
+#ifdef MEASURE_TIME
+    u32 ini_end = read32(LT_TIMER);
+#endif
 
     // idk?
     if (main_loaded_from_boot1) {
         write32(0xC, 0x20008000);
     }
-
-    printf("Initializing MLC...\n");
-    mlc_init();
-
-    silly_tests();
-
-    if(mlc_check_card() == SDMMC_NO_CARD) {
-        printf("Error while initializing MLC.\n");
-        //panic(0);
-    }
-    mlc_ack_card();
-
-    printf("Mounting SLC...\n");
-    isfs_init();
 
     if(sdcard_check_card() == SDMMC_NO_CARD){
         DIR* dir = opendir(slc_plugin_dir);
@@ -867,7 +905,13 @@ u32 _main(void *base)
         printf("Power button spam, showing menu...\n");
         autoboot = false;
     }
+#ifdef MEASURE_TIME
+    u32 init_end = read32(LT_TIMER);
+#endif
 
+#ifdef FASTBOOT
+    main_quickboot_patch_slc();
+#else
     // Prompt user to skip autoboot, time = 0 will skip this.
     if(autoboot)
     {
@@ -877,8 +921,8 @@ u32 _main(void *base)
             printf("Press the POWER button or EJECT button to skip autoboot.\n");
             for(u32 i = 0; i < 1000000; i += 100000)
             {
-                // Don't wait in ECO mode.
-                if (is_eco_mode) break;
+                // Don't wait in ECO mode or IOSU reload.
+                if (no_menu) break;
 
                 // Get input at .1s intervals.
                 u8 input = smc_get_events();
@@ -897,8 +941,6 @@ u32 _main(void *base)
     }
     else
     {
-        printf("Showing menu...\n");
-
         smc_get_events();
         //leave ODD Power on for HDDs
         if (has_no_otp_bin || 
@@ -907,30 +949,44 @@ u32 _main(void *base)
             smc_set_odd_power(false);
 
         // Shut down if in ECO mode w/o a valid autoboot.
-        if (is_eco_mode) {
+        if (no_menu) {
             boot.mode = 1;
             smc_set_notification_led(LEDRAW_RED);
             goto skip_menu;
         }
 
+        printf("Showing menu...\n");
         menu_init(&menu_main);
 
         smc_get_events();
         smc_set_odd_power(true);
     }
+#endif // !FASTBOOT
 
 skip_menu:
-    gpu_cleanup();
+#ifdef MEASURE_TIME
+    u32 deinit_start = read32(LT_TIMER);
+#endif 
+#ifdef FASTBOOT
+    prsh_set_entry("minute_boot", (void*)1, 0);
+#else
+    prsh_set_entry("minute_boot", (void*)(menu_main.selected + 1), 0);
+#endif
+
+    if(!no_gpu)
+        gpu_cleanup();
 
     printf("Unmounting SLC...\n");
     isfs_fini();
 
+#ifndef FASTBOOT
     printf("Shutting down MLC...\n");
     mlc_exit();
     
     printf("Shutting down SD card...\n");
     ELM_Unmount();
     sdcard_exit();
+#endif //!FASTBOOT
 
     printf("Shutting down interrupts...\n");
     irq_shutdown();
@@ -958,75 +1014,47 @@ skip_menu:
         case 3: smc_reset_no_defuse(); break;
     }
 
-    if (boot.needs_otp)
-    {
-        if (boot.is_patched)
-        {
-            printf("Searching for OTP store in patch...\n");
-            u32* search = (u32*)0x20;
-            for (int i = 0; i < 0x800000; i += 4) {
-                if (search[0] == 0x4F545053) {
-                    if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
-                        printf("OTP store at: %08x\n", (u32)search);
-                        memcpy((void*)search, &otp, sizeof(otp));
-                        break;
-                    }
-                }
-                search++;
-            }
-        }
-        else {
-            printf("Searching for OTP store in IOS...\n");
-            u32* search = (u32*)0x01000200;
-            for (int i = 0; i < 0x1000000; i += 4) {
-                if (search[0] == 0x4F545053) {
-                    if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
-                        printf("OTP store at: %08x\n", (u32)search);
-                        memcpy((void*)search, &otp, sizeof(otp));
-                        break;
-                    }
-                }
-                search++;
-            }
-        }
+#ifdef MEASURE_TIME
+    u32 end = read32(LT_TIMER);
+    printf("total:         %u\n"
+            "minute:        %u\n"
+            " init:         %u\n"
+            "  pre graphic  %u\n"
+            "  graphic      %u\n"
+            "  graph-> sd   %u\n"
+            "  sd           %u\n"
+            "  sd -> ini    %u\n"
+            "  ini          %u\n"
+            "  ini -> end   %u\n"
+            " loading:      %u\n"
+            " deinit        %u\n",
+            end-boot1_start_time, end-minute_start_time,
+            init_end-minute_start_time, graphic_start-minute_start_time, graphic_end-graphic_start, 
+            sd_start-graphic_end, sd_end-sd_start, ini_start-sd_end, ini_end-ini_start, init_end-ini_end,
+            deinit_start-init_end, end-deinit_start);
+#endif // MEASURE_TIME
 
-        if (read32(MAGIC_PLUG_ADDR) == MAGIC_PLUG && ancast_plugins_base)
-        {
-            printf("Searching for OTP store in plugins...\n");
-            u32* search = (u32*)ancast_plugins_base;
-            for (int i = 0; i < CARVEOUT_SZ; i += 4) {
-                if (search[0] == 0x4F545053) {
-                    if (search[2] == 0x4F545053 && search[1] == 0x544F5245 && search[3] == 0x544F5245) {
-                        printf("OTP store at: %08x\n", (u32)search);
-                        memcpy((void*)search, &otp, sizeof(otp));
-                        break;
-                    }
-                }
-                search++;
-            }
-        }
-    }
+    printf("Jumping to IOS... GO GO GO\n");
 
     // WiiU-Firmware-Emulator JIT bug
     void (*boot_vector)(void) = (void*)boot.vector;
     boot_vector();
-
-    printf("Jumping to IOS... GO GO GO\n");
 
     return boot.vector;
 }
 
 int boot_ini(const char* key, const char* value)
 {
-    if(!strcmp(key, "autoboot"))
-        autoboot = (u32)minini_get_uint(value, 0);
-    if(!strcmp(key, "autoboot_file"))
+    if(!strcmp(key, "autoboot") && !autoboot){
+        if(!autoboot) // don't overwrite if already set by prsh
+            autoboot = (u32)minini_get_uint(value, 0);
+    } else if(!strcmp(key, "autoboot_file"))
         strncpy(autoboot_file, value, sizeof(autoboot_file));
-    if(!strcmp(key, "autoboot_timeout"))
+    else if(!strcmp(key, "autoboot_timeout"))
         autoboot_timeout_s = (u32)minini_get_uint(value, 3);
-    if(!strcmp(key, "force_pause"))
+    else if(!strcmp(key, "force_pause"))
         main_force_pause = minini_get_bool(value, 0);
-    if(!strcmp(key, "allow_legacy_patches"))
+    else if(!strcmp(key, "allow_legacy_patches"))
         main_allow_legacy_patches = minini_get_bool(value, 0);
 
     return 0;
@@ -1038,7 +1066,8 @@ int main_autoboot(void)
         printf("Invalid autoboot option: %i\n", autoboot);
         return -1;
     }
-    menu_item entry = menu_main.option[autoboot-1];
+    menu_main.selected = autoboot-1;
+    menu_item entry = menu_main.option[menu_main.selected];
     printf("Autobooting %i: %s\n", autoboot, entry.text);
     entry.callback();
     return 0;
@@ -1109,7 +1138,11 @@ ppc_exit:
 void main_quickboot_patch_slc(void)
 {
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", slc_plugin_dir); // ios_orig.img
+    if(isfs_init(ISFSVOL_SLC)<0){
+        console_power_to_continue();
+        return;
+    }
+    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", slc_plugin_dir, false); // ios_orig.img
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
@@ -1126,7 +1159,11 @@ void main_quickboot_patch_slc(void)
 void main_quickboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir); // ios_orig.img
+    if(isfs_init(ISFSVOL_SLC)<0){
+        console_power_to_continue();
+        return;
+    }
+    boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir, false); // ios_orig.img
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
@@ -1142,7 +1179,7 @@ void main_quickboot_patch(void)
 void main_swapboot_patch(void)
 {
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir);
+    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir, false);
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
@@ -1171,10 +1208,18 @@ void main_quickboot_patch_rednand(void)
         }
     }
     if(rednand.slc.lba_length){
-        isfs_init(); // mount redslc
-        boot.vector = ancast_patch_load("redslc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir);
-    } else
-        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir); // ios_orig.img
+        if(isfs_init(ISFSVOL_REDSLC)<0){
+            console_power_to_continue();
+            return;
+        }
+        boot.vector = ancast_patch_load("redslc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir, true);
+    } else {
+        if(isfs_init(ISFSVOL_SLC)<0){
+            console_power_to_continue();
+            return;
+        }
+        boot.vector = ancast_patch_load("slc:/sys/title/00050010/1000400a/code/fw.img", "ios.patch", sd_plugin_dir, true);
+    }
     boot.is_patched = 1;
     boot.needs_otp = 1;
 
@@ -1202,7 +1247,7 @@ void main_swapboot_patch_rednand(void)
         }
     }
     gfx_clear(GFX_ALL, BLACK);
-    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir);
+    boot.vector = ancast_patch_load("ios_orig.img", "ios_orig.patch", sd_plugin_dir, true);
     boot.is_patched = 1;
     boot.needs_otp = 1;
 

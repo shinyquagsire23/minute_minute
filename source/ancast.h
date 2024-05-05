@@ -16,6 +16,8 @@
 #include "sha.h"
 #include "prsh.h"
 
+#define STROOPWAFEL_ABI_VERSION 0x65667301
+
 typedef struct {
     u16 unk1;
     u8 unk2;
@@ -33,6 +35,7 @@ typedef struct {
     u8 magic_device[8];
     u8 magic_prsh[8];
     boot_info_t boot_info;
+    u32 start_time;
 } boot1_passalong_info;
 
 u32 ancast_iop_load(const char* path);
@@ -40,9 +43,9 @@ u32 ancast_ppc_load(const char* path);
 
 u32 ancast_iop_load_from_raw_sector(int sector_idx);
 u32 ancast_iop_load_from_memory(void* ancast_mem);
-u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plugins_fpath);
+u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plugins_fpath, bool rednand);
 
-u32 ancast_plugins_load();
+int ancast_plugins_load(const char* plugins_fpath, bool rednand);
 
 extern uintptr_t ancast_plugins_base;
 

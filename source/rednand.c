@@ -3,11 +3,14 @@
 #include "nand.h"
 #include "sdmmc.h"
 #include "sdcard.h"
+#include "crypto.h"
+#include "isfs.h"
 
 #include "ff.h"
 #include "ini.h"
 
 #include <string.h>
+#include <malloc.h>
 
 #define REDSLC_MMC_BLOCKS ((NAND_MAX_PAGE * PAGE_SIZE) / SDMMC_DEFAULT_BLOCKLEN)
 
@@ -15,7 +18,12 @@ static const char rednand_ini_file[] = "sdmc:/minute/rednand.ini";
 
 static const char ini_error[] = "ERROR in rednand.ini: ";
 
+char *redotp_path = "sdmc:/redotp.bin";
+
+
 rednand_config rednand = { 0 };
+
+otp_t *redotp = NULL;
 
 static struct {
     bool slc;
@@ -27,6 +35,7 @@ static struct {
     bool disable_scfm;
     bool allow_sys_scfm;
     bool scfm_on_slccmpt;
+    bool mlc_nocrypto;
 } rednand_ini = { 0 };
 
 static int rednand_ini_handler(void* user, const char* section, const char* name, const char* value)
@@ -73,6 +82,25 @@ static int rednand_ini_handler(void* user, const char* section, const char* name
             return 1;
         }
         printf("%sInvalid scfm option: %s\n", ini_error, name);
+        return 0;
+    }
+
+    if(!strcmp("disable_encryption", section)){
+        // if(!strcmp("slc", name)){
+        //     rednand_ini.slc = bool_val;
+        //     rednand_ini.slc_set = true;
+        //     return 1;
+        // }
+        // if(!strcmp("slccmpt", name)){
+        //     rednand_ini.slccmpt = bool_val;
+        //     rednand_ini.slccmpt_set = true;
+        //     return 1;
+        // }
+        if(!strcmp("mlc", name)){
+            rednand_ini.mlc_nocrypto = bool_val;
+            return 1;
+        }
+        printf("%sInvalid partition for disabeling crypto: %s\n", ini_error, name);
         return 0;
     }
 
@@ -223,17 +251,63 @@ static int apply_ini_config(void){
         ret |= 4;
     }
 
-    printf("Rednand Config:\n slccmpt: %i\n slc: %i\n mlc: %i\n disable scfm: %i\n", rednand.slccmpt.lba_length, rednand.slc.lba_length, rednand.mlc.lba_length, rednand.disable_scfm);
+    rednand.mlc_nocrypto = rednand_ini.mlc_nocrypto;
+
+    if(redotp && !(rednand.slc.lba_length && rednand.slccmpt.lba_length && rednand.mlc.lba_length)){
+        // if the slc or slccmpt gets mounted with the wrong key, it can be corrupted
+        // TODO: add option to use key and IV from system OTP
+        // TODO: add override option
+        printf("redOTP requires all partitions to be redirected to prevent corruption!\n");
+        return -1;
+    }
+
+    printf("Rednand Config:\n slccmpt: %i\n slc: %i\n mlc: %i\n disable scfm: %i\n mlc_nocrypto: %i\n", rednand.slccmpt.lba_length, rednand.slc.lba_length, rednand.mlc.lba_length, rednand.disable_scfm, rednand.mlc_nocrypto);
 
     return ret;
 }
 
+static int rednand_load_opt(void){
+    if(redotp)
+        free(redotp);
+    printf("Trying to load %s... ", redotp_path);
+    FILE* otp_file = fopen(redotp_path, "rb");
+    if (!otp_file){
+        printf("NOT FOUND!\n");
+        return 0;
+    }
+    printf("FOUND!\n");
+    redotp = memalign(32, sizeof(*redotp));
+    if(!redotp){
+        printf("Error allocating memory for red_otp\n");
+        return -1;
+    }
+    int read = fread(redotp, sizeof(*redotp), 1, otp_file);
+    fclose(otp_file);
+    if(read != 1){
+        printf("Error loading %s\n", redotp_path);
+        free(redotp);
+        redotp = NULL;
+        return -2;
+    }
+    memcpy(redotp->seeprom_key, otp.seeprom_key, sizeof(otp.seeprom_key));
+    return 1;
+}
+
 void clear_rednand(void){
+    isfs_unmount(ISFSVOL_REDSLC);
+    isfs_unmount(ISFSVOL_REDSLCCMPT);
     memset(&rednand, 0, sizeof(rednand));
+    if(redotp)
+        free(redotp);
 }
 
 int init_rednand(void){
     clear_rednand();
+
+    int redotp_error = rednand_load_opt();
+    if(redotp_error < 0){
+        return -4;
+    }
 
     int ini_error = rednand_load_ini();
     if(ini_error < 0)

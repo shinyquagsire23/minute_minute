@@ -248,13 +248,6 @@ int ancast_load(ancast_ctx* ctx)
             if (i % 0x100000 == 0)
             {
                 printf("ancast: ...%08x -> %08x\n", i, (u32)ctx->load + i);
-                if (led_alternate) {
-                    smc_set_notification_led(LEDRAW_BLUE);
-                }
-                else {
-                    smc_set_notification_led(LEDRAW_PURPLE);
-                }
-                led_alternate = !led_alternate;
             }
 
             u32 to_read = 0x100000;
@@ -549,7 +542,7 @@ u32 ancast_iop_load_from_memory(void* ancast_mem)
 }
 
 extern int main_allow_legacy_patches;
-u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plugins_fpath)
+u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plugins_fpath, bool rednand)
 {
     u32* patch_base = (u32*)0x100;
 
@@ -631,7 +624,9 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plug
     // copy code out
     memcpy((void*)ALL_PURPOSE_TMP_BUF, elfldr_patch, elfldr_patch_len);
 
-    ancast_plugins_load(plugins_fpath);
+    if(ancast_plugins_load(plugins_fpath, rednand) < 0){
+        return 0;
+    }
     
     return vector;
 }
@@ -882,8 +877,9 @@ u32 ancast_plugin_data_load(uintptr_t base, const char* fn_data, uint32_t* p_dat
 }
 
 static u32 ancast_load_red_partitions(uintptr_t plugin_base){
-    if(!rednand.initilized)
-        return plugin_base;
+    if(!rednand.initilized){
+        return 0;
+    }
 
     uintptr_t plugin_next = ancast_plugin_data_copy(plugin_base, (uint8_t*)&rednand, sizeof(rednand));
     prsh_set_entry("rednand", (void*)(plugin_base+IPX_DATA_START), sizeof(rednand_config));
@@ -891,10 +887,12 @@ static u32 ancast_load_red_partitions(uintptr_t plugin_base){
     return plugin_next;
 }
 
-const uint8_t test_data[0x10] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
-const char* default_config = "; Test config file\n[test]\ntest=1\n";
+static u32 ancast_get_abi_version(uintptr_t base){
+    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)base;
+    return *(u32*)(base + ehdr->e_entry + 0x1C);
+}
 
-u32 ancast_plugins_load(const char* plugins_fpath)
+int ancast_plugins_load(const char* plugins_fpath, bool rednand)
 {
     u32 tmp = 0;
     ancast_plugins_search(plugins_fpath);
@@ -919,19 +917,40 @@ u32 ancast_plugins_load(const char* plugins_fpath)
         ancast_plugin_next = ancast_plugin_load(ancast_plugin_next, ancast_plugins_list[i], plugins_fpath);
     }
 
-    // Load DATA segments
-    config_plugin_base = ancast_plugin_next;
-    ancast_plugin_next = ancast_plugin_data_load(ancast_plugin_next, "config.ini", &tmp);
-    if (!tmp) {
-        config_plugin_base = ancast_plugin_next;
-        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, default_config, strlen(default_config)+1);
+    u32 abi_version = ancast_get_abi_version(ancast_plugins_base);
+    if(abi_version != STROOPWAFEL_ABI_VERSION) {
+        printf("Incompatible stroopwafel ABI version. minute abi: 0x%X, stroopwafel abi: 0x%X\n", STROOPWAFEL_ABI_VERSION, abi_version);
+        return -2;
     }
-    prsh_set_entry("stroopwafel_config", (void*)(config_plugin_base+IPX_DATA_START), strlen(config_plugin_base+IPX_DATA_START)+1);
-    ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, test_data, sizeof(test_data)); // TODO remove
-    ancast_plugin_next = ancast_load_red_partitions(ancast_plugin_next);
+
+    // Load DATA segments
+    if(rednand){
+        u32 res = ancast_load_red_partitions(ancast_plugin_next);
+        if(!res)
+            return -1;
+        ancast_plugin_next = res;
+    }
 
     if(minute_on_slc || (!minute_on_sd && sdcard_check_card() == SDMMC_NO_CARD))
         prsh_set_entry("minute_on_slc", NULL, 0);
+
+    if(crypto_otp_is_de_Fused || (rednand && redotp)){
+        config_plugin_base = ancast_plugin_next;
+        otp_t *o = redotp?redotp:&otp;
+        bool good = false;
+        for(int i = 0; i<sizeof(o->nand_hmac); i ++){
+            if(o->nand_hmac[i]){
+                good = true;
+                break;
+            }
+        }
+        if(!good){
+            printf("Invalid OTP!!!\n");
+            return -3;
+        }
+        ancast_plugin_next = ancast_plugin_data_copy(ancast_plugin_next, (u8*)o, sizeof(*o));
+        prsh_set_entry("otp", (void*)(config_plugin_base+IPX_DATA_START), sizeof(*o));
+    }
 
     return 0;
 }

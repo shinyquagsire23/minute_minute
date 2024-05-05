@@ -13,8 +13,8 @@ include $(MAKEFILE_ROOT_DIR)/elf_rules
 # INCLUDES is a list of directories containing header files
 # SPECS is the directory containing the important build and link files
 #---------------------------------------------------------------------------------
-export TARGET		:=	isfshax_stage2
-export BUILD		?=	debug_isfshax
+export TARGET		:=	fast_minute
+export BUILD		?=	debug_fastboot
 
 R_SOURCES			:=	
 SOURCES				:=	source source/fatfs externals/inih
@@ -33,16 +33,16 @@ CFLAGS			:=	-g -std=c11 -Os \
 					-fomit-frame-pointer -fdata-sections -ffunction-sections \
 					$(ARCH) -nostartfiles
 
-CFLAGS			+=	$(INCLUDE) -D_GNU_SOURCE -DMINUTE_BOOT1 -DISFSHAX_STAGE2 -DMINUTE_HEADLESS -DCAN_HAZ_IRQ -DNAND_WRITE_ENABLED -fno-builtin-printf -Wno-nonnull -Werror=implicit
+CFLAGS			+=	$(INCLUDE) -D_GNU_SOURCE -DCAN_HAZ_IRQ -fno-builtin-printf -Wno-nonnull -Werror=implicit -DFASTBOOT -DMINUTE_HEADLESS
 
 CXXFLAGS		:=	$(CFLAGS) -fno-rtti -fno-exceptions
 
-ASFLAGS			:=	-g $(ARCH) -DISFSHAX_STAGE2 -DMINUTE_HEADLESS -DNAND_WRITE_ENABLED
+ASFLAGS			:=	-g $(ARCH)
 LDFLAGS			 =	-g --specs=../stub.specs $(ARCH) -Wl,--gc-sections,-Map,$(TARGET).map \
 					-L$(DEVKITARM)/lib/gcc/arm-none-eabi/$(GCC_VERSION)/be -L$(DEVKITARM)/arm-none-eabi/lib/be \
 					-z max-page-size=4096 -nostartfiles
 
-LIBS			:=	#$(DEVKITARM)/lib/gcc/arm-none-eabi/$(GCC_VERSION)/be/libgcc.a $(DEVKITARM)/lib/gcc/arm-none-eabi/$(GCC_VERSION)/be/crti.o $(DEVKITARM)/lib/gcc/arm-none-eabi/$(GCC_VERSION)/be/crtn.o $(DEVKITARM)/lib/gcc/arm-none-eabi/$(GCC_VERSION)/be/libgcov.a
+LIBS			:=	
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -103,7 +103,7 @@ all: $(BUILD)
 
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
-	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile.isfshax
+	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile.fastboot
 
 #---------------------------------------------------------------------------------
 clean:
@@ -120,10 +120,18 @@ DEPENDS		:=	$(OFILES:.o=.d)
 #---------------------------------------------------------------------------------
 # main targets
 #---------------------------------------------------------------------------------
+ELFLOADER = $(ROOTDIR)/elfloader/elfloader.bin
+
+$(ROOTDIR)/fw_fastboot.img: $(OUTPUT)-strip.elf $(ELFLOADER)
+	@python3 $(ROOTDIR)/castify.py $(ELFLOADER) $< $@ false
+
 $(OUTPUT)-strip.elf: $(OUTPUT).elf
 	$(STRIP) $< -o $@
 
 $(OUTPUT).elf: $(OFILES)
+
+$(ELFLOADER):
+	@$(MAKE) -C $(ROOTDIR)/elfloader
 
 
 -include $(DEPENDS)

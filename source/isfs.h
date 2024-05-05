@@ -13,6 +13,7 @@
 
 #include "types.h"
 #include "nand.h"
+#include "ff.h"
 #include <sys/iosupport.h>
 
 #define ISFSVOL_SLC             0
@@ -42,21 +43,6 @@
 #define FAT_CLUSTER_BAD         0xFFFD // bad block (marked at factory)
 #define FAT_CLUSTER_EMPTY       0xFFFE // empty (unused / available) space
 
-typedef struct {
-    int volume;
-    const char name[0x10];
-    const u32 bank;
-    const u32 super_count;
-    int index;
-    u8* super;
-    u32 generation;
-    u32 version;
-    bool mounted;
-    bool isfshax;
-    u32 aes[0x10/sizeof(u32)];
-    u8 hmac[0x14];
-    devoptab_t devoptab;
-} isfs_ctx;
 
 typedef struct {
     char name[12];
@@ -70,6 +56,26 @@ typedef struct {
     u16 gid;
     u32 x3;
 } PACKED isfs_fst;
+
+#include "isfshax.h"
+
+typedef struct {
+    int volume;
+    const char name[0x10];
+    const u32 bank;
+    const u32 super_count;
+    int index;
+    u8* super;
+    u32 generation;
+    u32 version;
+    bool mounted;
+    bool isfshax;
+    u8 isfshax_slots[ISFSHAX_REDUNDANCY];
+    u32 aes[0x10/sizeof(u32)];
+    u8 hmac[0x14];
+    devoptab_t devoptab;
+    FIL* file;
+} isfs_ctx;
 
 typedef struct {
     int volume;
@@ -109,7 +115,8 @@ typedef struct isfs_hdr {
 } PACKED isfs_hdr;
 _Static_assert(sizeof(isfs_hdr) == 0xC, "isfs_hdr size must be 0xC!");
 
-int isfs_init(void);
+int isfs_init(unsigned int volume);
+int isfs_unmount(int volume);
 int isfs_fini(void);
 int isfs_load_keys(isfs_ctx* ctx);
 
@@ -126,9 +133,13 @@ char* _isfs_do_volume(const char* path, isfs_ctx** ctx);
 isfs_ctx* isfs_get_volume(int volume);
 int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data);
 int isfs_read_super(isfs_ctx *ctx, void *super, int index);
+bool isfs_is_isfshax_super(isfs_ctx* ctx, u8 index);
+int isfs_load_super(isfs_ctx* ctx);
 #ifdef NAND_WRITE_ENABLED
 int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data);
 int isfs_write_super(isfs_ctx *ctx, void *super, int index);
+int isfs_commit_super(isfs_ctx* ctx);
+int isfs_super_mark_slot(isfs_ctx *ctx, u32 index, u16 marker);
 #endif
 
 u16* _isfs_get_fat(isfs_ctx* ctx);

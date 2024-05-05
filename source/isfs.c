@@ -29,7 +29,7 @@
 
 #include "isfshax.h"
 
-//#define ISFS_DEBUG
+// #define ISFS_DEBUG
 
 #ifdef ISFS_DEBUG
 #   define  ISFS_debug(f, arg...) printf("ISFS: " f, ##arg);
@@ -137,6 +137,29 @@ static int _isfs_read_sd(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_cou
     return 0;
 }
 
+static int _nand_read_page_rawfile(u32 pageno, void *data, void *ecc, FIL* file){
+#ifdef MINUTE_BOOT1
+    return -128;
+#else
+    //ISFS_debug("ISFS: reading from file\n");
+    u32 off = pageno * (PAGE_SIZE + PAGE_SPARE_SIZE);
+    if(f_lseek(file, off) != FR_OK){
+        ISFS_debug("ISFS: Error seeking file\n");
+        return -1;
+    }
+    UINT br;
+    if(f_read(file, data, PAGE_SIZE, &br) != FR_OK || br != PAGE_SIZE){
+        ISFS_debug("ISFS: Error reading data from file\n");
+        return -1;
+    }
+    if(f_read(file, ecc, PAGE_SPARE_SIZE, &br) != FR_OK || br != PAGE_SPARE_SIZE){
+        ISFS_debug("ISFS: Error reading ecc from file\n");
+        return -1;
+    }
+    return 0;
+#endif //MINUTE_BOOT1
+}
+
 int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, u32 flags, void *hmac_seed, void *data)
 {
     if(ctx->bank & 0x80000000) {
@@ -148,7 +171,8 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
     u32 i, p;
 
     /* enable slc or slccmpt bank */
-    nand_initialize(ctx->bank);
+    if(!ctx->file)
+        nand_initialize(ctx->bank);
 
     /* read all requested clusters */
     for (i = 0; i < cluster_count; i++)
@@ -163,23 +187,28 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
             // make sure ECC fails, if read did nothing
             memset(ecc_buf, 0, ECC_BUFFER_ALLOC);
             /* attempt to read the page (and correct ecc errors) */
-            int nand_error = nand_read_page(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
+            int nand_error;
+            if(ctx->file){
+                nand_error = _nand_read_page_rawfile(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf, ctx->file);
+            } else {
+                nand_error = nand_read_page(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
+                int correct = nand_correct(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
+                /* uncorrectable ecc error or other issues */
+                if (correct < 0) {
+                    ISFS_debug("Uncorrectable ECC ERROR\n");
+                    rc = ISFSVOL_ERROR_READ;
+                }
+
+                /* ECC errors, a refresh might be needed */
+                if ((correct > 0) && !rc ){
+                    ISFS_debug("Corrected ECC ERROR\n");
+                    rc = ISFSVOL_ECC_CORRECTED;
+                }
+            }
+                
             if(nand_error){
                 ISFS_debug("NAND ERROR on read\n");
                 rc = ISFSVOL_ERROR_READ;
-            }
-
-            int correct = nand_correct(cluster_start + p, &cluster_data[p * PAGE_SIZE], ecc_buf);
-            /* uncorrectable ecc error or other issues */
-            if (correct < 0) {
-                ISFS_debug("Uncorrectable ECC ERROR\n");
-                rc = ISFSVOL_ERROR_READ;
-            }
-
-            /* ECC errors, a refresh might be needed */
-            if ((correct > 0) && !rc ){
-                ISFS_debug("Corrected ECC ERROR\n");
-                rc = ISFSVOL_ECC_CORRECTED;
             }
 
             /* page 6 and 7 store the hmac */
@@ -397,14 +426,20 @@ static isfs_fst* _isfs_get_fst(isfs_ctx* ctx)
 
 int isfs_load_keys(isfs_ctx* ctx)
 {
+    otp_t *o = &otp;
+    if(ctx->bank & 0x80000000 && redotp){
+        printf("ISFS: using redotp\n");
+        o = redotp;
+    }
+
     switch(ctx->version) {
         case 0:
-            memcpy(ctx->aes, otp.wii_nand_key, sizeof(ctx->aes));
-            memcpy(ctx->hmac, otp.wii_nand_hmac, sizeof(ctx->hmac));
+            memcpy(ctx->aes, o->wii_nand_key, sizeof(ctx->aes));
+            memcpy(ctx->hmac, o->wii_nand_hmac, sizeof(ctx->hmac));
             break;
         case 1:
-            memcpy(ctx->aes, otp.nand_key, sizeof(ctx->aes));
-            memcpy(ctx->hmac, otp.nand_hmac, sizeof(ctx->hmac));
+            memcpy(ctx->aes, o->nand_key, sizeof(ctx->aes));
+            memcpy(ctx->hmac, o->nand_hmac, sizeof(ctx->hmac));
             break;
         default:
             printf("ISFS: Unknown super block version %u!\n", ctx->version);
@@ -602,14 +637,17 @@ static int _isfs_load_super_range(isfs_ctx* ctx, u32 min_generation, u32 max_gen
     return (ctx->index >= 0) ? 0 : -1;
 }
 
-static int _isfs_load_super(isfs_ctx* ctx){
+int isfs_load_super(isfs_ctx* ctx){
     u32 max_generation = 0xffffffff;
+    ctx->isfshax = false;
     int res = _isfs_load_super_range(ctx, ISFSHAX_GENERATION_FIRST, 0xffffffff);
     if(res>=0){
         if(read32((u32)ctx->super + ISFSHAX_INFO_OFFSET) == ISFSHAX_MAGIC){
             // Iisfshax was found, only look for non isfshax generations to mount
             max_generation = ISFSHAX_GENERATION_FIRST;
             ctx->isfshax = true;
+            isfshax_super *hax_super = (isfshax_super*)ctx->super;
+            memcpy(ctx->isfshax_slots, hax_super->isfshax.slots, ISFSHAX_REDUNDANCY);
             printf("ISFShax detected\n");
         }
     }
@@ -617,15 +655,26 @@ static int _isfs_load_super(isfs_ctx* ctx){
 }
 
 #ifdef NAND_WRITE_ENABLED
-static int isfs_super_mark_bad_slot(isfs_ctx *ctx, u32 index)
+int isfs_super_mark_slot(isfs_ctx *ctx, u32 index, u16 marker)
 {
     u32 offs, cluster = CLUSTER_COUNT - (ctx->super_count - index) * ISFSSUPER_CLUSTERS;
     u16* fat = _isfs_get_fat(ctx);
 
     for (offs = 0; offs < ISFSSUPER_CLUSTERS; offs++)
-        fat[cluster + offs] = FAT_CLUSTER_BAD;
+        fat[cluster + offs] = marker;
 
     return 0;
+}
+
+bool isfs_is_isfshax_super(isfs_ctx* ctx, u8 index){
+    if(!ctx->isfshax)
+        return false;
+    for(int i = 0; i<ISFSHAX_REDUNDANCY; i++){
+        if(ctx->isfshax_slots[i] == index){
+            return true;
+        }
+    }
+    return false;
 }
 
 
@@ -637,13 +686,17 @@ int isfs_commit_super(isfs_ctx* ctx)
     {
         u32 index = (ctx->index + i) % ctx->super_count;
 
+        // should also be protected by the badblock list.
+        if(isfs_is_isfshax_super(ctx, (u8)index))
+            continue;
+
         if (_isfs_super_check_slot(ctx, index) < 0)
             continue;
 
         if (isfs_write_super(ctx, ctx->super, index) >= 0)
             return 0;
 
-        isfs_super_mark_bad_slot(ctx, index);
+        isfs_super_mark_slot(ctx, index, FAT_CLUSTER_BAD);
         _isfs_get_hdr(ctx)->generation++;
     }
 
@@ -869,29 +922,54 @@ int isfs_dirclose(isfs_dir* dir)
 }
 
 bool isfs_slc_has_isfshax_installed(void){
+    isfs_init(ISFSVOL_SLC);
     return isfs[ISFSVOL_SLC].isfshax;
 }
 
-int isfs_init(void)
+int isfs_init(unsigned int volume)
 {
-    for(int i = 0; i < _isfs_num_volumes(); i++)
-    {
-        isfs_ctx* ctx = &isfs[i];
-        if(ctx->mounted)
-            continue;
-        if(!ctx->super) ctx->super = memalign(NAND_DATA_ALIGN, 0x80 * PAGE_SIZE);
-        if(!ctx->super) return -1;
+    if(volume>_isfs_num_volumes())
+        return -3;
+    isfs_ctx* ctx = &isfs[volume];
+    if(ctx->mounted)
+        return 1;
+    printf("Mounting %s...\n", ctx->name);
+    if(!ctx->super) ctx->super = memalign(NAND_DATA_ALIGN, 0x80 * PAGE_SIZE);
+    if(!ctx->super) return -2;
 
-        int res = _isfs_load_super(ctx);
-        printf("Mount %s: %d\n", ctx->name, res);
-        if(res) continue;
-        ctx->mounted = true;
-
-        int _isfsdev_init(isfs_ctx* ctx);
-        _isfsdev_init(ctx);
+    int res = isfs_load_super(ctx);
+    if(res){
+        free(ctx->super);
+        printf("Failed to mount %s! Wrong OTP?\n", ctx->name);
+        return -1;
     }
+    ctx->mounted = true;
+
+    int _isfsdev_init(isfs_ctx* ctx);
+    _isfsdev_init(ctx);
 
     initialized = true;
+
+    return 0;
+}
+
+int isfs_unmount(int volume){
+    if(volume>_isfs_num_volumes())
+        return -3;
+
+    isfs_ctx* ctx = &isfs[volume];
+
+    if(!ctx->mounted)
+        return 1;
+
+    if(ctx->super) {
+        free(ctx->super);
+        ctx->super = NULL;
+    }
+
+    RemoveDevice(ctx->name);
+    ctx->mounted = false;
+    ctx->isfshax = false;
 
     return 0;
 }
@@ -902,16 +980,7 @@ int isfs_fini(void)
 
     for(int i = 0; i < _isfs_num_volumes(); i++)
     {
-        isfs_ctx* ctx = &isfs[i];
-
-        if(ctx->super) {
-            free(ctx->super);
-            ctx->super = NULL;
-        }
-
-        RemoveDevice(ctx->name);
-        ctx->mounted = false;
-        ctx->isfshax = false;
+        isfs_unmount(i);
     }
 
     initialized = false;

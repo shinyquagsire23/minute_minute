@@ -56,8 +56,6 @@ void rtc_get_panic_reason(char* buffer)
 
 void rtc_set_panic_reason(const char* buffer)
 {
-    const u32* buf32 = (const u32*)buffer;
-
     write32(EXI0_CSR, 0x108);
     write32(EXI0_DATA, 0xA0000100);
     write32(EXI0_CR, 0x35);
@@ -66,7 +64,7 @@ void rtc_set_panic_reason(const char* buffer)
     for(int i = 0; i < 64 / sizeof(u32); i++)
     {
         write32(EXI0_CSR, 0x108);
-        write32(EXI0_DATA, read32_unaligned(&buf32[i]));
+        write32(EXI0_DATA, read32_unaligned(&buffer[i * sizeof(u32)]));
         write32(EXI0_CR, 0x35);
         while(!(read32(EXI0_CSR) & 8));
     }

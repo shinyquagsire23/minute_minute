@@ -134,7 +134,7 @@ typedef struct
         char ascii_tag[12];
         u32 jtag_status;
     };
-} __attribute__((packed)) otp_t;
+} __attribute__((packed)) ALIGNED(4) otp_t;
 
 _Static_assert(sizeof(otp_t) == 0x400, "OTP size must be 0x400!");
 

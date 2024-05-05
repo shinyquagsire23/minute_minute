@@ -40,6 +40,7 @@
 #include "crypto.h"
 
 #ifndef MINUTE_BOOT1
+#ifndef FASTBOOT
 
 // TODO: how many sectors is 8gb MLC WFS?
 #define TOTAL_SECTORS (0x3A20000)
@@ -161,6 +162,9 @@ void dump_factory_log()
 {
     FILE* f_log = NULL;
     int ret = 0;
+
+    if(mlc_init())
+        goto close_ret;
 
     gfx_clear(GFX_ALL, BLACK);
 
@@ -354,7 +358,7 @@ void _dump_sync_seeprom_boot1_versions(void)
 
         ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
 
-        if (hdr->version == 0xFFFF || !hdr->version) {
+        if (hdr->version == 0xFFFFFFFF || !hdr->version) {
             printf("Refusing to sync NAND boot1 version 0x%04x (erased NAND page?)\n");
         }
         else if (seeprom_decrypted.boot1_params.version != hdr->version) {
@@ -379,7 +383,7 @@ void _dump_sync_seeprom_boot1_versions(void)
 
         ancast_header* hdr = (ancast_header*)(nand_page_buf + 0x1A0);
 
-        if (hdr->version == 0xFFFF || !hdr->version) {
+        if (hdr->version == 0xFFFFFFFF || !hdr->version) {
             printf("Refusing to sync NAND boot1 version 0x%04x (erased NAND page?)\n");
         }
         else if (seeprom_decrypted.boot1_copy_params.version != hdr->version) {
@@ -773,6 +777,9 @@ int _dump_mlc(u32 base)
         return -1;
     }
 
+    if(mlc_init())
+        return -1;
+
     int res = 0, mres = 0, sres = 0;
     if(base == 0) return -2;
 
@@ -851,6 +858,9 @@ int _dump_restore_mlc(u32 base)
         return -1;
     }
 
+    if(mlc_init())
+        return -2;
+
     int res = 0, mres = 0, sres = 0;
     if(base == 0) return -2;
 
@@ -892,7 +902,7 @@ int _dump_restore_mlc(u32 base)
         return -3;
     }
     if(console_abort_confirmation_power_no_eject_yes()) 
-        return;
+        return -4;
     printf("MLC: Continuing restore...\n");
 
     // Do one less iteration than we need, due to having to special case the start and end.
@@ -1039,6 +1049,29 @@ static bool check_all32(u8* arr, u32 length, u8 value){
     return false;
 }
 
+static u8* dump_get_new_super(FIL *f, isfs_ctx *ctx, bool *same_slots){
+    isfs_ctx file_ctx = *ctx;
+    file_ctx.file = f;
+    file_ctx.super = memalign(NAND_DATA_ALIGN, ISFSSUPER_SIZE);
+    int res = isfs_load_super(&file_ctx);
+    if(res){
+        free(file_ctx.super);
+        return NULL;
+    }
+    *same_slots = false;
+    if(file_ctx.isfshax){
+        *same_slots = !memcmp(file_ctx.isfshax_slots, ctx->isfshax_slots, ISFSHAX_REDUNDANCY);
+    }
+    for(int i=0; i<ISFSHAX_REDUNDANCY; i++){
+        isfs_super_mark_slot(&file_ctx, file_ctx.isfshax_slots[i], FAT_CLUSTER_RESERVED);
+    }
+    for(int i=0; i<ISFSHAX_REDUNDANCY; i++){
+        isfs_super_mark_slot(&file_ctx, file_ctx.isfshax_slots[i], FAT_CLUSTER_BAD);
+    }
+
+    return file_ctx.super;
+}
+
 int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
 {
     int ret = 0;
@@ -1057,9 +1090,30 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
         return -1;
     }
 
+    isfs_ctx *ctx = NULL;
+    bool protect_isfshax = false;
     const char* name = NULL;
+    u32 boot1_page, boot1_copy_page;
     switch(bank) {
-        case NAND_BANK_SLC: name = "SLC"; break;
+        case NAND_BANK_SLC: name = "SLC";
+        isfs_init(ISFSVOL_SLC);
+        if(!isfs_slc_has_isfshax_installed() && !crypto_otp_is_de_Fused){
+            printf("SLC Restore not allowed!\nNeither ISFShax nor defuse is detected\nSLC restore could brick the consolse.\n");
+            return -5;
+        } 
+        if(!crypto_otp_is_de_Fused){
+            printf("Defuse not detected. boot1 and ISFShax superblocks will be protected during restore\nISFShax Superblocks: ");
+            ctx = isfs_get_volume(ISFSVOL_SLC);
+            for(int i = 0; i<ISFSHAX_REDUNDANCY; i++)
+                printf("%u ", ctx->isfshax_slots[i]);
+            printf("\n");
+            protect_isfshax = true;
+            boot1_page = (seeprom_decrypted.boot1_params.sector & 0xFFF) * 0x40;
+            boot1_copy_page = (seeprom_decrypted.boot1_copy_params.sector & 0xFFF) * 0x40;
+            printf("boot1 pages: 0x%lX and 0x%lX\n", boot1_page, boot1_copy_page);
+        }
+        
+        break;
         case NAND_BANK_SLCCMPT: name = "SLCCMPT"; break;
         default: return -2;
     }
@@ -1091,12 +1145,6 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
         printf("Failed to read %s (%d).\n", path, fres);
         return -4;
     }
-    fres = f_rewind(&file);
-    if(fres != FR_OK) {
-        f_close(&file);
-        printf("Failed to rewind %s (%d).\n", path, fres);
-        return -3;
-    }
 
     u64 nand_file_size_expected = (boot1_only ? BOOT1_MAX_PAGE : NAND_MAX_PAGE) * PAGE_STRIDE;
     u64 nand_file_size = f_size(&file);
@@ -1109,8 +1157,43 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
         return -3;
     }
 
-    printf("Unmounting ISFSs\n");
-    isfs_fini();
+    u32 total_pages = boot1_only ?(boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE;
+
+    if(!protect_isfshax){
+        printf("Unmounting ISFSs\n");
+        isfs_fini();
+    } else {
+        bool same_slots;
+        u8 *new_super = dump_get_new_super(&file, ctx, &same_slots);
+        if(!new_super){
+            printf("Error finding supberblock in %s\n", name);
+            return -6;
+        }
+        if(same_slots){
+            printf("isfshax superblocks line up\n");
+        } else {
+            printf("isfshax superblocks don't line up\n");
+            total_pages -= ctx->super_count * ISFSSUPER_CLUSTERS * CLUSTER_PAGES;
+            printf("Clean out superblocks\n");
+            for(u32 slot=0; slot<ctx->super_count; slot++){
+                if(isfs_is_isfshax_super(ctx, slot))
+                    continue;
+                u32 page = NAND_MAX_PAGE - (ctx->super_count - slot) * CLUSTER_PAGES * ISFSSUPER_CLUSTERS;
+                nand_erase_block(page);
+            }
+            printf("Commit latest superblock\n");
+            free(ctx->super);
+            ctx->super = new_super;
+            isfs_commit_super(ctx);
+        }
+    }
+
+    fres = f_rewind(&file);
+    if(fres != FR_OK) {
+        f_close(&file);
+        printf("Failed to rewind %s (%d).\n", path, fres);
+        return -3;
+    }
 
     printf("Initializing %s...\n", name);
     nand_initialize(bank);
@@ -1121,13 +1204,24 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
     u32 erase_test_failed_blocks = 0;
     u32 program_failed = 0;
 
-    const u32 total_pages = boot1_only ?(boot1_is_half ? BOOT1_MAX_PAGE/2 : BOOT1_MAX_PAGE) : NAND_MAX_PAGE;
+
     for(u32 page_base=0; page_base < total_pages; page_base += BLOCK_PAGES){
         fres = f_read(&file, file_buf, FILE_BUF_SIZE, &btx);
         if(fres != FR_OK || btx != min(FILE_BUF_SIZE, (total_pages-page_base) * PAGE_STRIDE)) {
             f_close(&file);
             printf("Failed to read %s (%d).\n", path, fres);
             return -4;
+        }
+
+        if(protect_isfshax){
+            if(page_base == boot1_page || page_base == boot1_copy_page)
+                continue; // leave boot1 alone
+            int super_start_page = NAND_MAX_PAGE - ctx->super_count * ISFSSUPER_CLUSTERS * CLUSTER_PAGES;
+            if(page_base >= super_start_page){
+                u32 super_slot = page_base / (CLUSTER_PAGES * ISFSSUPER_CLUSTERS);
+                if(isfs_is_isfshax_super(ctx, super_slot))
+                    continue;
+            }
         }
 
         if(nand_test){
@@ -1152,6 +1246,7 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
                 //nand_correct(page_base + page, nand_page_buf, nand_
             }
         }
+
         nand_erase_block(page_base);
 
         if(nand_test){
@@ -1193,14 +1288,14 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
                 
                 //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
                 nand_write_page_raw(page_base + page, nand_page_buf, nand_ecc_buf);
+            }
 
-                // This might not be optional? Bug?
-                nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
-                //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
+            // This might not be optional? Bug?
+            nand_read_page(page_base + page, nand_page_buf, nand_ecc_buf);
+            //nand_correct(page_base + page, nand_page_buf, nand_ecc_buf);
 
-                if (memcmp(nand_page_buf, &file_buf[page*PAGE_STRIDE], PAGE_STRIDE)) {
-                    printf("Failed to program page: 0x%05lX\n", page_base + page);
-                }
+            if (memcmp(nand_page_buf, &file_buf[page*PAGE_STRIDE], PAGE_STRIDE)) {
+                printf("Failed to program page: 0x%05lX\n", page_base + page);
             }
         }
 
@@ -1226,9 +1321,6 @@ int _dump_restore_slc_raw(u32 bank, int boot1_only, bool nand_test)
     printf("%u pages failed to program\n", program_failed);
 
     _dump_sync_seeprom_boot1_versions();
-
-    printf("Mounting ISFSs\n");
-    isfs_init();
 
     return ret;
 
@@ -1835,6 +1927,9 @@ void dump_erase_mlc(void){
     if (console_abort_confirmation_power_no_eject_yes()) 
         goto erase_exit;
 
+    if(mlc_init())
+        goto erase_exit;
+
     printf("Erasing...\n");
 
     int res = mlc_erase();
@@ -1856,6 +1951,11 @@ void dump_restore_rednand(void)
     int res = rednand_load_mbr();
     if(res < 0 || !rednand.mlc.lba_length){
         printf("Failed to find redNAND MLC partition\n");
+        goto restore_exit;
+    }
+
+    if(!isfs_slc_has_isfshax_installed() && !crypto_otp_is_de_Fused){
+        printf("MLC restore not allowed!\nNeither ISFShax nor defuse is detected\nMLC restore would brick the consolse.");
         goto restore_exit;
     }
 
@@ -2062,14 +2162,13 @@ static void _dump_delete_scfm(void){
     gfx_clear(GFX_ALL, BLACK);
 
     if(!isfs_slc_has_isfshax_installed() && !crypto_otp_is_de_Fused){
-        printf("STOP!!! Neither ISFShax nor defuse is detected\nContinuing will likely brick the consolse. You are probably doing something wrong.\nOnly continue if you really know what you are doing!");
-        if (console_abort_confirmation_power_no_eject_yes()) 
-            return;
-        printf("REALLY?\n");
-        if (console_abort_confirmation_power_no_eject_yes()) 
-            return;
-        printf("Are you really sure?\n");
-        if (console_abort_confirmation_power_no_eject_yes()) 
+        printf("SCFM delete not allowed!\nNeither ISFShax nor defuse is detected\nSCFM delete would brick the consolse.");
+        console_power_to_continue();
+        return;
+    }
+
+    if(isfs_init(ISFSVOL_SLC)<0){
+            console_power_to_continue();
             return;
     }
 
@@ -2078,6 +2177,10 @@ static void _dump_delete_scfm(void){
 
 static void _dump_delete_scfm_slccmpt(void){
     gfx_clear(GFX_ALL, BLACK);
+    if(isfs_init(ISFSVOL_SLCCMPT)<0){
+        console_power_to_continue();
+        return;
+    }
     _dump_delete("slccmpt:/scfm.img");
 }
 
@@ -2094,7 +2197,10 @@ static void _dump_delete_scfm_rednand(void){
         return;
     }
 
-    isfs_init(); // mount redslc
+    if(isfs_init(ISFSVOL_REDSLC)<0){
+        console_power_to_continue();
+        return;
+    }
     _dump_delete("redslc:/scfm.img");
 }
 
@@ -2196,6 +2302,10 @@ static void _copy_dir(const char* dir, const char* dest){
 
 void dump_logs_slc(void){
     gfx_clear(GFX_ALL, BLACK);
+    if(isfs_init(ISFSVOL_SLC)<0){
+        console_power_to_continue();
+        return;
+    }
     _copy_dir("slc:/sys/logs", "sdmc:/logs");
     console_power_or_eject_to_return();
 }
@@ -2213,9 +2323,13 @@ void dump_logs_redslc(void){
         return;
     }
 
-    isfs_init(); // mount redslc
+    if(isfs_init(ISFSVOL_REDSLC)<0){
+        console_power_to_continue();
+        return;
+    }
     _copy_dir("redslc:/sys/logs", "sdmc:/redlogs");
     console_power_or_eject_to_return();
 }
 
+#endif // FASTBOOT
 #endif // MINUTE_BOOT1
