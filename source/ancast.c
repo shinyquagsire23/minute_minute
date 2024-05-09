@@ -395,7 +395,7 @@ u32 ancast_iop_load(const char* path)
     res = ancast_load(&ctx);
     if(res) return 0;
 
-#ifndef MINUTE_BOOT1
+#if !defined(MINUTE_BOOT1) || defined(ISFSHAX_STAGE2)
     if(!(ctx.header.unk1 & 0b1)) {
         aes_reset();
         aes_set_key(otp.fw_ancast_key);
