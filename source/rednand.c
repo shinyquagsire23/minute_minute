@@ -36,6 +36,7 @@ static struct {
     bool allow_sys_scfm;
     bool scfm_on_slccmpt;
     bool mlc_nocrypto;
+    bool sys_mount_mlc;
 } rednand_ini = { 0 };
 
 static int rednand_ini_handler(void* user, const char* section, const char* name, const char* value)
@@ -97,10 +98,29 @@ static int rednand_ini_handler(void* user, const char* section, const char* name
         //     return 1;
         // }
         if(!strcmp("mlc", name)){
-            rednand_ini.mlc_nocrypto = bool_val;
+            rednand_ini.sys_mount_mlc = bool_val;
             return 1;
         }
         printf("%sInvalid partition for disabeling crypto: %s\n", ini_error, name);
+        return 0;
+    }
+
+    if(!strcmp("sys_mount", section)){
+        // if(!strcmp("slc", name)){
+        //     rednand_ini.slc = bool_val;
+        //     rednand_ini.slc_set = true;
+        //     return 1;
+        // }
+        // if(!strcmp("slccmpt", name)){
+        //     rednand_ini.slccmpt = bool_val;
+        //     rednand_ini.slccmpt_set = true;
+        //     return 1;
+        // }
+        if(!strcmp("mlc", name)){
+            rednand_ini.mlc_nocrypto = bool_val;
+            return 1;
+        }
+        printf("%sInvalid partition for sys mount: %s\n", ini_error, name);
         return 0;
     }
 
@@ -252,6 +272,12 @@ static int apply_ini_config(void){
     }
 
     rednand.mlc_nocrypto = rednand_ini.mlc_nocrypto;
+
+    if(rednand_ini.sys_mount_mlc && (!rednand_ini.disable_scfm || !rednand.mlc.lba_length || rednand.slc.lba_length)){
+        printf("Mounting sysMLC is only possible with redMLC enabled, redNAND SCFM and SLC redirection disabled\n");
+        return -1;
+    }
+    rednand.sys_mount_mlc = rednand_ini.sys_mount_mlc;
 
     if(redotp && !(rednand.slc.lba_length && rednand.slccmpt.lba_length && rednand.mlc.lba_length)){
         // if the slc or slccmpt gets mounted with the wrong key, it can be corrupted
