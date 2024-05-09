@@ -98,7 +98,7 @@ static int rednand_ini_handler(void* user, const char* section, const char* name
         //     return 1;
         // }
         if(!strcmp("mlc", name)){
-            rednand_ini.sys_mount_mlc = bool_val;
+            rednand_ini.mlc_nocrypto = bool_val;
             return 1;
         }
         printf("%sInvalid partition for disabeling crypto: %s\n", ini_error, name);
@@ -117,7 +117,7 @@ static int rednand_ini_handler(void* user, const char* section, const char* name
         //     return 1;
         // }
         if(!strcmp("mlc", name)){
-            rednand_ini.mlc_nocrypto = bool_val;
+            rednand_ini.sys_mount_mlc = bool_val;
             return 1;
         }
         printf("%sInvalid partition for sys mount: %s\n", ini_error, name);
