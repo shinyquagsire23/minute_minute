@@ -52,6 +52,16 @@ typedef struct {
     void* memory_load;
 } ancast_ctx;
 
+bool ancast_search_patch(void *from, void *to, void *search, size_t search_len, size_t patch_off, void* patch, size_t patch_len){
+    for(void *p = from; p<=search-search_len; p+=4){
+        if(!memcmp(p, search, search_len)){
+            memcpy(p, patch, patch_len);
+            return true;
+        }
+    }
+    return false;
+}
+
 int ancast_fini(ancast_ctx* ctx);
 
 int ancast_init(ancast_ctx* ctx, const char* path)

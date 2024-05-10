@@ -47,6 +47,8 @@ u32 ancast_patch_load(const char* fn_ios, const char* fn_patch, const char* plug
 
 int ancast_plugins_load(const char* plugins_fpath, bool rednand);
 
+bool ancast_search_patch(void *from, void *to, void *search, size_t search_len, size_t patch_off, void* patch, size_t patch_len);
+
 extern uintptr_t ancast_plugins_base;
 
 // Used for patches on IOS boot, and the passalong magic otherwise.
