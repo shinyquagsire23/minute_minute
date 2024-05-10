@@ -549,6 +549,7 @@ boot:
 #else // MINUTE_BOOT1
 
 void main_swapboot_patch(void);
+void main_quickboot_isfshax(void);
 
 #ifndef FASTBOOT
 menu menu_main = {
@@ -558,26 +559,27 @@ menu menu_main = {
     },
     1, // number of subtitles
     {
-            {"Patch (slc) and boot IOS (slc)", &main_quickboot_patch_slc},
-            {"Patch (sd) and boot IOS redNAND", &main_quickboot_patch_rednand},
-            {"Patch (sd) and boot IOS (slc)", &main_quickboot_patch}, // options
-            {"Patch (sd) and boot sdmc:/ios_orig.img", &main_swapboot_patch}, // options
-            {"Patch (sd) and boot sdmc:/ios_orig.img redNAND", &main_swapboot_patch_rednand},
-            {"Boot 'ios.img'", &main_quickboot_fw},
-            {"Boot IOP firmware file", &main_boot_fw},
-            {"Boot PowerPC ELF file", &main_boot_ppc},
-            {"Backup and Restore", &dump_menu_show},
-            {"Interactive debug console", &main_interactive_console},
-            {"PRSH tweaks", &prsh_menu},
-            {"Display crash log", &main_get_crash},
-            {"Clear crash log", &main_reset_crash},
-            {"Restart minute", &main_reload},
-            {"Hardware reset", &main_reset},
-            {"Power off", &main_shutdown},
-            {"Credits", &main_credits},
-            //{"ISFS test", &isfs_test},
+        {"Patch (slc) and boot IOS (slc)", &main_quickboot_patch_slc},
+        {"Patch (sd) and boot IOS redNAND", &main_quickboot_patch_rednand},
+        {"Patch (sd) and boot IOS (slc)", &main_quickboot_patch}, // options
+        {"Patch (sd) and boot sdmc:/ios_orig.img", &main_swapboot_patch}, // options
+        {"Patch (sd) and boot sdmc:/ios_orig.img redNAND", &main_swapboot_patch_rednand},
+        {"Patch ISFShax and boot IOS (slc)", &main_quickboot_isfshax},
+        {"Boot 'ios.img'", &main_quickboot_fw},
+        {"Boot IOP firmware file", &main_boot_fw},
+        {"Boot PowerPC ELF file", &main_boot_ppc},
+        {"Backup and Restore", &dump_menu_show},
+        {"Interactive debug console", &main_interactive_console},
+        {"PRSH tweaks", &prsh_menu},
+        {"Display crash log", &main_get_crash},
+        {"Clear crash log", &main_reset_crash},
+        {"Restart minute", &main_reload},
+        {"Hardware reset", &main_reset},
+        {"Power off", &main_shutdown},
+        {"Credits", &main_credits},
+        //{"ISFS test", &isfs_test},
     },
-    17, // number of options
+    18, // number of options
     0,
     0
 };
@@ -1152,6 +1154,42 @@ void main_quickboot_patch_slc(void)
     } else {
         printf("Failed to load IOS with patches!\n");
         console_power_to_continue();
+    }
+}
+
+//14MB
+#define IOSU_SIZE (14*1024*1024)
+
+void main_quickboot_isfshax(void){
+    gfx_clear(GFX_ALL, BLACK);
+    if(isfs_init(ISFSVOL_SLC)<0){
+        console_power_to_continue();
+        return;
+    }
+    boot.vector = ancast_iop_load("slc:/sys/title/00050010/1000400a/code/fw.img");
+    size_t end = boot.vector + IOSU_SIZE;
+
+    // should start at 0x10722718
+    static const u8 isfshax_patch_pattern[] = { 0x0a, 0x00, 0x01, 0x03, 0xe2, 0x03, 0x30, 0x44, 0xe3, 0x53, 0x00, 0x44, 
+                                                0x0a, 0x00, 0x00, 0xe0, 0xe3, 0xa0, 0x10, 0x00, 0xe3, 0xe0, 0x50, 0x00, 
+                                                0xe5, 0x8d, 0x10, 0x14, 0xea, 0x00, 0x00, 0x3c };
+    static const u8 isfshax_patch[] = { 0xe3, 0xe0, 0x59, 0x02 }; // mvn r5, #0x8000
+
+    if(!boot.vector) {
+        printf("Failed to load IOS with patches!\n");
+        console_power_to_continue();
+    }
+
+    if(!ancast_search_patch(boot.vector, end, isfshax_patch_pattern, sizeof(isfshax_patch_pattern), 0x1072272C-0x10722718, isfshax_patch, sizeof(isfshax_patch))){
+        printf("Failed to apply ISFShax patch\n");
+        boot.vector = 0;
+        console_power_to_continue();
+        return;
+    }
+
+    if(boot.vector) {
+        boot.mode = 0;
+        menu_reset();
     }
 }
 

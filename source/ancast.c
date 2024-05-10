@@ -52,14 +52,16 @@ typedef struct {
     void* memory_load;
 } ancast_ctx;
 
-bool ancast_search_patch(void *from, void *to, void *search, size_t search_len, size_t patch_off, void* patch, size_t patch_len){
-    for(void *p = from; p<=search-search_len; p+=4){
-        if(!memcmp(p, search, search_len)){
-            memcpy(p, patch, patch_len);
-            return true;
+bool ancast_search_patch(size_t from, size_t to, const void *search, size_t search_len, size_t patch_off, const void* patch, size_t patch_len){
+    bool ret = false;
+    for(size_t p = from; p<=to-search_len; p+=4){
+        if(!memcmp((void*)p, search, search_len)){
+            printf("Applying patch %p at %p\n", patch, p + patch_off);
+            memcpy((void*)p + patch_off, patch, patch_len);
+            ret = true;
         }
     }
-    return false;
+    return ret;
 }
 
 int ancast_fini(ancast_ctx* ctx);
