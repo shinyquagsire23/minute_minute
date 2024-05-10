@@ -59,6 +59,7 @@ bool ancast_search_patch(size_t from, size_t to, const void *search, size_t sear
             printf("Applying patch %p at %p\n", patch, p + patch_off);
             memcpy((void*)p + patch_off, patch, patch_len);
             ret = true;
+            return true;
         }
     }
     return ret;
