@@ -708,7 +708,6 @@ u32 _main(void *base)
 
     printf("boot_state: %X\n", boot_info_copy.boot_state);
  
-    // TODO: technically if we're coming from IOS, we should probably read boot_info instead of defaults.
     bool is_eco_mode = boot_info_copy.boot_state & PON_SMC_TIMER;
     if(is_eco_mode) {
         printf("ECO Mode!\n");
@@ -1197,20 +1196,6 @@ void main_quickboot_isfshax(void){
         console_power_to_continue();
         return;
     }
-
-    // u32 vector = ancast_iop_load("slc:/sys/title/00050010/1000400a/code/fw.img");
-    // if(!vector){
-    //     printf("Failed to load IOS\n");
-    //     console_power_to_continue();
-    //     return;
-    // }
-    // if(!isfshax_patch_apply(vector)){
-    //     printf("Failed to apply isfshax patches to IOS\n");
-    //     console_power_to_continue();
-    //     return;
-    // }
-
-    //boot.vector = vector;
 
     boot.mode = 0;
     menu_reset();
