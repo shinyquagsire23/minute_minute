@@ -52,6 +52,7 @@
 #include "interactive_console.h"
 #include "isfshax.h"
 #include "rednand.h"
+#include "isfshax_patch.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -103,6 +104,81 @@ static bool read_ancast(const char *path){
     fclose(f);
 
     return *(u32*)ALL_PURPOSE_TMP_BUF == ANCAST_MAGIC; 
+}
+
+static bool load_fw_from_sd_fat(void){
+        FRESULT res = FR_OK;
+        static FATFS fatfs = {0};
+        static devoptab_t devoptab = {0};
+        FIL f = {0};
+        unsigned int read;
+
+        serial_send_u32(0x5D5E0004);
+
+        res = f_mount(&fatfs, "sdmc:", 1);
+        if (res != FR_OK) {
+            sdcard_init(); // TODO whyyyyy
+            res = f_mount(&fatfs, "sdmc:", 1);
+            if (res != FR_OK) {
+                return false;
+            }
+        }
+        res = f_open(&f, "sdmc:/fw.img", FA_OPEN_EXISTING | FA_READ);
+        if (res != FR_OK) {
+            return false;
+        }
+        res = f_read(&f, (void*)ALL_PURPOSE_TMP_BUF, 0x800000, &read);
+        f_close(&f);
+        if (res != FR_OK) {
+            return false;
+        }
+
+        serial_send_u32(0x5D5E0008);
+
+        return *(u32*)ALL_PURPOSE_TMP_BUF == ANCAST_MAGIC;
+}
+
+static u32 load_fw_from_sd(bool retry_forever){
+    u32 vector = 0;
+    for(int i = 0; !vector && (i<5 || retry_forever); i++)   
+    {
+        if(i==1)
+            smc_set_notification_led(LEDRAW_ORANGE_PULSE);
+        serial_send_u32(0x5D5D0001);
+        printf("Initializing SD card...\n");
+        sdcard_init();
+        serial_send_u32(0x6D6D0001);
+
+        int loaded_from_fat = load_fw_from_sd_fat();
+        if (loaded_from_fat) {
+            vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
+        }
+        else {
+            vector = ancast_iop_load_from_raw_sector(0x80);
+        }
+        
+        serial_send_u32(0x5D5D0004);
+    }
+    printf("Shutting down SD card...\n");
+    sdcard_exit();
+    return vector;
+}
+
+static u32 boot1_patch_isfshax(void){
+    serial_send_u32(0x7D4D0001);
+    bool ok = read_ancast("slc:/sys/title/00050010/1000400a/code/fw.img");
+    if(!ok)
+        return 0;
+    serial_send_u32(0x7D4D0002);
+    u32 vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
+    if(!vector)
+        return vector;
+    serial_send_u32(0x7D4D0003);
+    if(!isfshax_patch_apply(vector))
+        return 0;
+    serial_send_u32(0x7D4D0004);
+    return vector;
+
 }
 
 boot_info_t *init_prsh_get_bootinfo(void) {
@@ -394,6 +470,8 @@ u32 _main(void *base)
         smc_set_notification_led(LEDRAW_PURPLE);
     }
 
+    bool slc_mounted = false;
+
 #ifdef ISFSHAX_STAGE2
     //Skip ISFS boot by pressing power
     if (!(smc_get_events() & SMC_POWER_BUTTON)) {
@@ -401,6 +479,7 @@ u32 _main(void *base)
         printf("Mounting SLC...\n");
         irq_initialize();
         isfs_init(ISFSVOL_SLC);
+        slc_mounted = true;
         serial_send_u32(0x5D4D0003);
         isfshax_refresh();
         serial_send_u32(0x5D4D0004);
@@ -408,88 +487,33 @@ u32 _main(void *base)
         if(ok)
             boot.vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
         serial_send_u32(0x5D4D0005);
-        printf("Unmounting SLC...\n");
-        isfs_fini();
-        irq_shutdown();
-        serial_send_u32(0x5D4D0008);
         if(boot.vector){
             boot.mode = 0;
             menu_reset();
             minute_on_slc = true;
-            goto boot;
+            serial_send_u32(0x5D4D006);
         }
-        serial_send_u32(0x5D4D00FF);
     }
-#endif //ISFSHAX_STAGE2
-
-retry_sd:
-    serial_send_u32(0x5D5D0001);
-    printf("Initializing SD card...\n");
-    sdcard_init();
-    serial_send_u32(0x6D6D0001);
-
-    int loaded_from_fat = 0;
-
-    {
-        FRESULT res = FR_OK;
-        static FATFS fatfs = {0};
-        static devoptab_t devoptab = {0};
-        FIL f = {0};
-        unsigned int read;
-
-        serial_send_u32(0x5D5E0004);
-
-        res = f_mount(&fatfs, "sdmc:", 1);
-        if (res != FR_OK) {
-            sdcard_init(); // TODO whyyyyy
-            res = f_mount(&fatfs, "sdmc:", 1);
-            if (res != FR_OK) {
-                goto fat_fail;
-            }
-        }
-        res = f_open(&f, "sdmc:/fw.img", FA_OPEN_EXISTING | FA_READ);
-        if (res != FR_OK) {
-            goto fat_fail;
-        }
-        res = f_read(&f, (void*)ALL_PURPOSE_TMP_BUF, 0x800000, &read);
-        if (res != FR_OK) {
-            goto fat_fail;
-        }
-        f_close(&f);
-
-        if (*(u32*)ALL_PURPOSE_TMP_BUF == ANCAST_MAGIC) {
-            loaded_from_fat = 1;
-        }
-        serial_send_u32(0x5D5E0008);
-    }
-
-fat_fail:
-    //boot.vector = ancast_iop_load("fw.img");
-    if (loaded_from_fat) {
-        boot.vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
-    }
-    else {
-        boot.vector = ancast_iop_load_from_raw_sector(0x80);
-    }
+    #endif //ISFSHAX_STAGE2 
     
-    serial_send_u32(0x5D5D0004);
-    if(boot.vector) {
+    if(!boot.vector)
+        boot.vector = load_fw_from_sd(!slc_mounted);
+
+#ifdef ISFSHAX_STAGE2
+    if(slc_mounted){
+        if(!boot.vector) {
+            boot.vector = boot1_patch_isfshax();
+        }
+        isfs_fini();
+        irq_shutdown();
+        serial_send_u32(0x5D4D0008);
+    }
+#endif
+
+    if(boot.vector){
         boot.mode = 0;
         menu_reset();
-    } else {
-        smc_set_notification_led(LEDRAW_ORANGE_PULSE);
-        /*while (1) {
-            serial_send_u32(0xF00FAAAA);
-            serial_send(sd_read_buffer[0]);
-            serial_send(sd_read_buffer[1]);
-            serial_send(sd_read_buffer[2]);
-            serial_send(sd_read_buffer[3]);
-        }*/
-        goto retry_sd;
     }
-    printf("Shutting down SD card...\n");
-    sdcard_exit();
-
 boot:
     serial_send_u32(0x6D6D0001);
     // Reset LED to purple if SD card is successful.
@@ -1157,40 +1181,27 @@ void main_quickboot_patch_slc(void)
     }
 }
 
-//14MB
-#define IOSU_SIZE (14*1024*1024)
-
 void main_quickboot_isfshax(void){
     gfx_clear(GFX_ALL, BLACK);
     if(isfs_init(ISFSVOL_SLC)<0){
         console_power_to_continue();
         return;
     }
-    boot.vector = ancast_iop_load("slc:/sys/title/00050010/1000400a/code/fw.img");
-    size_t end = boot.vector + IOSU_SIZE;
 
-    // should start at 0x10722718
-    static const u8 isfshax_patch_pattern[] = { 0x0a, 0x00, 0x01, 0x03, 0xe2, 0x03, 0x30, 0x44, 0xe3, 0x53, 0x00, 0x44, 
-                                                0x0a, 0x00, 0x00, 0xe0, 0xe3, 0xa0, 0x10, 0x00, 0xe3, 0xe0, 0x50, 0x00, 
-                                                0xe5, 0x8d, 0x10, 0x14, 0xea, 0x00, 0x00, 0x3c };
-    static const u8 isfshax_patch[] = { 0xe3, 0xe0, 0x59, 0x02 }; // mvn r5, #0x8000
-
-    if(!boot.vector) {
-        printf("Failed to load IOS with patches!\n");
+    u32 vector = ancast_iop_load("slc:/sys/title/00050010/1000400a/code/fw.img");
+    if(!vector){
+        printf("Failed to load IOS\n");
         console_power_to_continue();
+        return;
     }
-
-    if(!ancast_search_patch(boot.vector, end, isfshax_patch_pattern, sizeof(isfshax_patch_pattern), 0x1072272C-0x10722718, isfshax_patch, sizeof(isfshax_patch))){
-        printf("Failed to apply ISFShax patch\n");
-        boot.vector = 0;
+    if(!isfshax_patch_apply(vector)){
+        printf("Failed to apply isfshax patches to IOS\n");
         console_power_to_continue();
         return;
     }
 
-    if(boot.vector) {
-        boot.mode = 0;
-        menu_reset();
-    }
+    boot.mode = 0;
+    menu_reset();
 }
 
 

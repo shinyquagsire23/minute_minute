@@ -1,0 +1,17 @@
+#include "ancast.h"
+#include "serial.h"
+
+//14MiB
+#define IOSU_SIZE (14*1024*1024)
+
+bool isfshax_patch_apply(u32 fw_img_start){
+    size_t end = fw_img_start + IOSU_SIZE;
+
+    // should start at 0x10722718
+    static const u8 isfshax_patch_pattern[] = { 0x0a, 0x00, 0x01, 0x03, 0xe2, 0x03, 0x30, 0x44, 0xe3, 0x53, 0x00, 0x44, 
+                                                0x0a, 0x00, 0x00, 0xe0, 0xe3, 0xa0, 0x10, 0x00, 0xe3, 0xe0, 0x50, 0x00, 
+                                                0xe5, 0x8d, 0x10, 0x14, 0xea, 0x00, 0x00, 0x3c };
+    static const u8 isfshax_patch[] = { 0xe3, 0xe0, 0x59, 0x02 }; // mvn r5, #0x8000
+
+    return ancast_search_patch(fw_img_start, end, isfshax_patch_pattern, sizeof(isfshax_patch_pattern), 0x1072272C-0x10722718, isfshax_patch, sizeof(isfshax_patch));
+}
