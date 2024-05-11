@@ -499,13 +499,8 @@ u32 _main(void *base)
 #ifdef ISFSHAX_STAGE2
     if(slc_mounted){
         if(!boot.vector) {
-            boot.vector = boot1_patch_isfshax();
             serial_send_u32(0x5D4D0007);
-            serial_send_u32(bootinfo);
-            if(bootinfo){
-                prsh_copy_default_bootinfo(bootinfo);
-                prsh_recompute_checksum();
-            }
+            boot.vector = boot1_patch_isfshax();
         }
         isfs_fini();
         irq_shutdown();
