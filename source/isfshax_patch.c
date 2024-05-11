@@ -28,20 +28,23 @@ bool isfshax_patch_apply(u32 fw_img_start){
     static const u8 isfshax_patch[] = { 0xe3, 0xe0, 0x59, 0x02 }; // mvn r5, #0x8000
 
     bool success = isfshax_search_patch(fw_img_start, end, isfshax_patch_pattern, sizeof(isfshax_patch_pattern), 0x1072272C-0x10722718, isfshax_patch, sizeof(isfshax_patch));
+    serial_send_u32(0x8D4D100 + success);
     if(!success)
         return false;
 
     static const char system_update_url[] = "https://nus.wup.shop.nintendo.net/nus/services/NetUpdateSOAP";
     static const u32 n = 0;
-    isfshax_search_patch(fw_img_start, end, system_update_url, sizeof(system_update_url), 0, &n, sizeof(n));
+    success = isfshax_search_patch(fw_img_start, end, system_update_url, sizeof(system_update_url), 0, &n, sizeof(n));
+    serial_send_u32(0x8D4D200 + success);
 
     static const char system_update_command[] = "GetSystemUpdate";
-    isfshax_search_patch(fw_img_start, end, system_update_command, sizeof(system_update_command), 0, &n, sizeof(n));
+    success = isfshax_search_patch(fw_img_start, end, system_update_command, sizeof(system_update_command), 0, &n, sizeof(n));
+    serial_send_u32(0x8D4D300 + success);
 
     static const u8 scfmFormat[] = { 0xe9, 0x2d, 0x40, 0x30, 0xe3, 0xa0, 0x50, 0x00, 0xe2, 0x4d, 0xd0, 0x08, 0xe3, 0xa0, 0x40, 0x00, 0xe8, 0x8d, 0x00, 0x30, 0xeb, 0xff, 0xff, 0x93, 0xe2, 0x8d, 0xd0, 0x08, 0xe8, 0xbd, 0x80, 0x30 };
     static const u32 illegal_instruction = 0xFFFFFFFF;
-    isfshax_search_patch(fw_img_start, end, scfmFormat, sizeof(scfmFormat), 0, &illegal_instruction, sizeof(illegal_instruction));
-
+    success = isfshax_search_patch(fw_img_start, end, scfmFormat, sizeof(scfmFormat), 0, &illegal_instruction, sizeof(illegal_instruction));
+    serial_send_u32(0x8D4D400 + success);
 
     return true; // still boot even if the other patches fail
 }
