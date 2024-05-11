@@ -89,8 +89,22 @@ extern char sd_read_buffer[0x200];
 
 void silly_tests();
 
-#ifdef MINUTE_BOOT1
 extern otp_t otp;
+
+static u32 boot1_patch_isfshax(void){
+    serial_send_u32(0x7D4D0001);
+    u32 vector = ancast_iop_load("slc:/sys/title/00050010/1000400a/code/fw.img");
+    if(!vector)
+        return vector;
+    serial_send_u32(0x7D4D0003);
+    if(!isfshax_patch_apply(vector))
+        return 0;
+    serial_send_u32(0x7D4D0004);
+    return vector;
+
+}
+
+#ifdef MINUTE_BOOT1
 
 static bool read_ancast(const char *path){
     FILE *f = fopen(path, "rb");
@@ -162,23 +176,6 @@ static u32 load_fw_from_sd(bool retry_forever){
     printf("Shutting down SD card...\n");
     sdcard_exit();
     return vector;
-}
-
-static u32 boot1_patch_isfshax(void){
-    serial_send_u32(0x7D4D0001);
-    bool ok = read_ancast("slc:/sys/title/00050010/1000400a/code/fw.img");
-    if(!ok)
-        return 0;
-    serial_send_u32(0x7D4D0002);
-    u32 vector = ancast_iop_load_from_memory((void*)ALL_PURPOSE_TMP_BUF);
-    if(!vector)
-        return vector;
-    serial_send_u32(0x7D4D0003);
-    if(!isfshax_patch_apply(vector))
-        return 0;
-    serial_send_u32(0x7D4D0004);
-    return vector;
-
 }
 
 boot_info_t *init_prsh_get_bootinfo(void) {
@@ -503,6 +500,12 @@ u32 _main(void *base)
     if(slc_mounted){
         if(!boot.vector) {
             boot.vector = boot1_patch_isfshax();
+            serial_send_u32(0x5D4D0007);
+            serial_send_u32(bootinfo);
+            if(bootinfo){
+                prsh_copy_default_bootinfo(bootinfo);
+                prsh_recompute_checksum();
+            }
         }
         isfs_fini();
         irq_shutdown();
@@ -1188,17 +1191,26 @@ void main_quickboot_isfshax(void){
         return;
     }
 
-    u32 vector = ancast_iop_load("slc:/sys/title/00050010/1000400a/code/fw.img");
-    if(!vector){
-        printf("Failed to load IOS\n");
+    boot.vector = boot1_patch_isfshax();
+    if(!boot.vector){
+        printf("Failed to load IOS with ISFShax patch\n");
         console_power_to_continue();
         return;
     }
-    if(!isfshax_patch_apply(vector)){
-        printf("Failed to apply isfshax patches to IOS\n");
-        console_power_to_continue();
-        return;
-    }
+
+    // u32 vector = ancast_iop_load("slc:/sys/title/00050010/1000400a/code/fw.img");
+    // if(!vector){
+    //     printf("Failed to load IOS\n");
+    //     console_power_to_continue();
+    //     return;
+    // }
+    // if(!isfshax_patch_apply(vector)){
+    //     printf("Failed to apply isfshax patches to IOS\n");
+    //     console_power_to_continue();
+    //     return;
+    // }
+
+    //boot.vector = vector;
 
     boot.mode = 0;
     menu_reset();

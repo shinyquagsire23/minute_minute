@@ -241,7 +241,7 @@ int ancast_load(ancast_ctx* ctx)
         u32 total_size = ctx->header_size + ctx->header.body_size;
         memcpy(ctx->load, ctx->memory_load, total_size);
     }
-#ifndef MINUTE_BOOT1
+#if !defined(MINUTE_BOOT1) || defined(ISFSHAX_STAGE2)
     else if (ctx->file)
     {
         printf("ancast: reading 0x%x bytes from %s\n", ctx->header_size + ctx->header.body_size, ctx->path);
