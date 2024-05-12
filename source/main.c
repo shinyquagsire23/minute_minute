@@ -328,6 +328,7 @@ u32 _main(void *base)
     if(bootinfo)
         pflags_val = bootinfo->boot_state;
 #endif
+    serial_send_u32(pflags_val);
 
     // Show a little flourish to indicate we have code exec
     if (pflags_val & PON_SMC_TIMER)
@@ -471,7 +472,7 @@ u32 _main(void *base)
 
 #ifdef ISFSHAX_STAGE2
     //Skip ISFS boot by pressing power
-    if (!(smc_get_events() & SMC_POWER_BUTTON)) {
+    if (!(smc_get_events() & SMC_POWER_BUTTON && !(pflags_val & (CMPT_RETSTAT0|CMPT_RETSTAT1)))) {
         serial_send_u32(0x5D4D0001);
         printf("Mounting SLC...\n");
         irq_initialize();
