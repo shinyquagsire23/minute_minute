@@ -16,5 +16,9 @@ typedef struct {
     bool slc_nocrypto; //not implemented yet
     bool slccmpt_nocrypto; //not implemented yet
     bool mlc_nocrypto;
+    //v3
+    bool sys_mount_slc; //not implemented yet
+    bool sys_mount_slccmpt; //not implemented yet
+    bool sys_mount_mlc;
 } PACKED rednand_config;
 
