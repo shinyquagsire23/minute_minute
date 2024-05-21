@@ -877,6 +877,8 @@ u32 _main(void *base)
     }
 
     if(sdcard_check_card() == SDMMC_NO_CARD){
+        printf("No SD card inserted!\n");
+        isfs_init(ISFSVOL_SLC);
         DIR* dir = opendir(slc_plugin_dir);
         if (dir) {
             closedir(dir);
