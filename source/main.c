@@ -1042,8 +1042,7 @@ skip_menu:
 
 #ifdef MEASURE_TIME
     u32 end = read32(LT_TIMER);
-    printf("total:         %u\n"
-            "minute:        %u\n"
+    printf( "minute:        %u\n"
             " init:         %u\n"
             "  pre graphic  %u\n"
             "  graphic      %u\n"
@@ -1054,7 +1053,7 @@ skip_menu:
             "  ini -> end   %u\n"
             " loading:      %u\n"
             " deinit        %u\n",
-            end-boot1_start_time, end-minute_start_time,
+            end-minute_start_time,
             init_end-minute_start_time, graphic_start-minute_start_time, graphic_end-graphic_start, 
             sd_start-graphic_end, sd_end-sd_start, ini_start-sd_end, ini_end-ini_start, init_end-ini_end,
             deinit_start-init_end, end-deinit_start);
