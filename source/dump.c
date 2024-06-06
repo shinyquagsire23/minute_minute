@@ -1042,27 +1042,31 @@ int _dump_slc_raw(u32 bank, int boot1_only)
     #undef TOTAL_ITERATIONS
 }
 
-_dump_print_superblocks(int volume){
+void _dump_print_superblocks(int volume){
     printf("Initializing...\n");
     isfs_init(volume);
     gfx_clear(GFX_ALL, BLACK);
     isfs_ctx *slc = isfs_get_volume(volume);
     isfshax_super *superblock = memalign(NAND_DATA_ALIGN, ISFSSUPER_SIZE);
-    for(int slot=0; i<slc->super_count; i++){
+    for(int slot=0; slot<slc->super_count; slot++){
+        if(slot == 32){
+            console_power_to_continue();
+            gfx_clear(GFX_ALL, BLACK);
+        }
         int res = isfs_read_super(slc, superblock, slot);
         if(res < 0){
             printf("Slot %d: READ ERROR %d\n", slot, res);
             continue;
         }
-        printf("Slot %d: generation: 0x%08x, magic: 0x%08x (%4s)", slot, 
-                superblock->generation, *(int*)superblock->magic, superblock->magic);
+        int magic[2] = { *(int*)superblock->magic };
+        printf("Slot %d: generation: 0x%08X, magic: 0x%08X (%4s)\n", slot, 
+                superblock->generation, magic[0], magic);
         if(superblock->generation>=ISFSHAX_GENERATION_FIRST){
-            printf(" isfshax: gen: 0x%08x, genbase: 0x%08x, index: 0x%08x, magic: 0x%08x, slots: [%d, %d, %d, %d]", 
+            printf(" isfshax: gen: 0x%08X, genbase: 0x%08X, index: 0x%08X, magic: 0x%08X, slots: [%d, %d, %d, %d]\n", 
             superblock->isfshax.generation, superblock->isfshax.generationbase,
             superblock->isfshax.index, superblock->isfshax.magic, superblock->isfshax.slots[0],
             superblock->isfshax.slots[1],superblock->isfshax.slots[2],superblock->isfshax.slots[3]);
         }
-        printf("\n");
     }
     console_power_to_continue();
 }

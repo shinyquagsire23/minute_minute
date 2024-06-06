@@ -93,7 +93,7 @@ int isfshax_refresh(void)
     }
 
     for (offs = 1; (offs <= ISFSHAX_REDUNDANCY) && (written < count); offs++) {
-        u32 index = (curindex + offs) & (ISFSHAX_REDUNDANCY - 1);
+        u32 index = (curindex + offs) % ISFSHAX_REDUNDANCY;
         u32 slot = superblock.isfshax.slots[index] & ~ISFSHAX_BAD_SLOT;
 
         /* skip slots that became bad after a superblock rewrite */
