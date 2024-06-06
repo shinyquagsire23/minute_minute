@@ -97,9 +97,10 @@ menu menu_dump = {
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
+            {"Print SLC superblocks", &dump_print_slc_superblocks},
             {"Return to Main Menu", &menu_close},
     },
-    27, // number of options
+    28, // number of options
     0,
     0
 };
@@ -1039,6 +1040,35 @@ int _dump_slc_raw(u32 bank, int boot1_only)
 
     #undef PAGES_PER_ITERATION
     #undef TOTAL_ITERATIONS
+}
+
+_dump_print_superblocks(int volume){
+    printf("Initializing...\n");
+    isfs_init(volume);
+    gfx_clear(GFX_ALL, BLACK);
+    isfs_ctx *slc = isfs_get_volume(volume);
+    isfshax_super *superblock = memalign(NAND_DATA_ALIGN, ISFSSUPER_SIZE);
+    for(int slot=0; i<slc->super_count; i++){
+        int res = isfs_read_super(slc, superblock, slot);
+        if(res < 0){
+            printf("Slot %d: READ ERROR %d\n", slot, res);
+            continue;
+        }
+        printf("Slot %d: generation: 0x%08x, magic: 0x%08x (%4s)", slot, 
+                superblock->generation, *(int*)superblock->magic, superblock->magic);
+        if(superblock->generation>=ISFSHAX_GENERATION_FIRST){
+            printf(" isfshax: gen: 0x%08x, genbase: 0x%08x, index: 0x%08x, magic: 0x%08x, slots: [%d, %d, %d, %d]", 
+            superblock->isfshax.generation, superblock->isfshax.generationbase,
+            superblock->isfshax.index, superblock->isfshax.magic, superblock->isfshax.slots[0],
+            superblock->isfshax.slots[1],superblock->isfshax.slots[2],superblock->isfshax.slots[3]);
+        }
+        printf("\n");
+    }
+    console_power_to_continue();
+}
+
+void dump_print_slc_superblocks(void){
+    _dump_print_superblocks(ISFSVOL_SLC);
 }
 
 static bool check_all32(u8* arr, u32 length, u8 value){

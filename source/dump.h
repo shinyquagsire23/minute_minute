@@ -56,4 +56,6 @@ static void _dump_delete_scfm(void);
 static void _dump_delete_scfm_slccmpt(void);
 static void _dump_delete_scfm_rednand(void);
 
+void dump_print_slc_superblocks(void);
+
 #endif
