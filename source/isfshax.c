@@ -140,6 +140,6 @@ int isfshax_refresh(void)
     if (!written)
         return -3;
 
-    return 0;
+    return 1;
 }
 #endif //NAND_WRITE_ENABLED

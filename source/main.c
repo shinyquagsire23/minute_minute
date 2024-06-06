@@ -479,7 +479,8 @@ u32 _main(void *base)
         isfs_init(ISFSVOL_SLC);
         slc_mounted = true;
         serial_send_u32(0x5D4D0003);
-        isfshax_refresh();
+        int res = isfshax_refresh();
+        prsh_add_entry("isfshax_refresh", (void*)res, 0, NULL);
         serial_send_u32(0x5D4D0004);
         bool ok = read_ancast("slc:/sys/hax/fw.img");
         if(ok)
@@ -858,6 +859,13 @@ u32 _main(void *base)
 
     prsh_reset();
     prsh_init();
+
+    int isfshax_refresh = 0;
+    prsh_get_entry("isfshax_refresh", (void**)&isfshax_refresh, NULL );
+    if(isfshax_refresh){
+        printf("WARNING: ISFShax refresh reported: %d\n", isfshax_refresh);
+        console_power_to_continue();
+    }
 
     // If we're coming from boot1 and PRSH is encrypted, the new boot_info is what we should use.
     // Otherwise, if we're not coming from boot1, copy to boot_info_copy
