@@ -304,7 +304,6 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
     static u8 blockpg[BLOCK_PAGES][PAGE_SIZE] ALIGNED(NAND_DATA_ALIGN), blocksp[BLOCK_PAGES][PAGE_SPARE_SIZE];
     static u8 pgbuf[PAGE_SIZE] ALIGNED(NAND_DATA_ALIGN);
     u8 hmac[20] = {0};
-    int rc = ISFSVOL_OK;
     u32 b, p;
 
     /* enable slc or slccmpt bank */
@@ -328,6 +327,8 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
         aes_empty_iv();
     }
 
+    bool ecc_corrected = false;
+
     u32 startpage = start_cluster * CLUSTER_PAGES;
     u32 endpage = (start_cluster + cluster_count) * CLUSTER_PAGES;
 
@@ -335,7 +336,7 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
     u32 endblock = (start_cluster + cluster_count + BLOCK_CLUSTERS - 1) / BLOCK_CLUSTERS;
 
     /* process data in nand blocks */
-    for (b = startblock; (b < endblock) && (rc >= 0); b++)
+    for (b = startblock; b < endblock; b++)
     {
         u32 firstblockpage = b * BLOCK_PAGES;
 
@@ -381,16 +382,19 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
         if (nand_erase_block(b * BLOCK_PAGES) < 0)
             return ISFSVOL_ERROR_ERASE;
 
+        int write_error = 0;
         ISFS_debug("Writing\n");
         /* write block */
         for (p = 0; p < BLOCK_PAGES; p++)
             if (nand_write_page(firstblockpage + p, blockpg[p], blocksp[p]) < 0){
                 printf("ISFS: Error writing page\n");
-                rc = ISFSVOL_ERROR_WRITE;
+                write_error = ISFSVOL_ERROR_WRITE;
             }
+        if(write_error)
+            return write_error;
 
         /* check if pages should be verified after writing */
-        if (rc || !(flags & ISFSVOL_FLAG_READBACK))
+        if (!(flags & ISFSVOL_FLAG_READBACK))
             continue;
 
         ISFS_debug("Reading back\n");
@@ -402,8 +406,11 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
                 printf("ISFS: Error reading back\n");
                 return ISFSVOL_ERROR_READ;
             }
-            if(nand_correct(firstblockpage + p, pgbuf, ecc_buf) < 0)
+            int res = nand_correct(firstblockpage + p, pgbuf, ecc_buf);
+            if(res<0)
                 return ISFSVOL_ERROR_READ;
+            if(res>0)
+                ecc_corrected = true;
 
             /* page content doesn't match */
             if (memcmp(blockpg[p], pgbuf, PAGE_SIZE)){
@@ -417,7 +424,9 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
         }
     }
 
-    return rc;
+    if(ecc_corrected)
+        return ISFSVOL_ECC_CORRECTED;
+    return ISFSVOL_OK;
 }
 #endif
 
