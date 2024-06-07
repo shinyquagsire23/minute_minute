@@ -167,12 +167,17 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
     }
 
     u8 saved_hmacs[2][20] = {0}, hmac[20] = {0};
-    int rc = ISFSVOL_OK;
     u32 i, p;
 
     /* enable slc or slccmpt bank */
     if(!ctx->file)
         nand_initialize(ctx->bank);
+
+    bool ecc_correctable = false;
+    bool ecc_uncorrectable = false;
+    bool hmac_error = false;
+    bool hmac_partial = false;
+    bool nand_error = false;
 
     /* read all requested clusters */
     for (i = 0; i < cluster_count; i++)
@@ -196,19 +201,19 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
                 /* uncorrectable ecc error or other issues */
                 if (correct < 0) {
                     ISFS_debug("Uncorrectable ECC ERROR\n");
-                    rc = ISFSVOL_ERROR_READ;
+                    ecc_uncorrectable = true;
                 }
 
                 /* ECC errors, a refresh might be needed */
-                if ((correct > 0) && !rc ){
+                if (correct > 0){
                     ISFS_debug("Corrected ECC ERROR\n");
-                    rc = ISFSVOL_ECC_CORRECTED;
+                    ecc_correctable = true;
                 }
             }
                 
             if(nand_error){
                 ISFS_debug("NAND ERROR on read\n");
-                rc = ISFSVOL_ERROR_READ;
+                nand_error = true;
             }
 
             /* page 6 and 7 store the hmac */
@@ -224,36 +229,46 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
         /* decrypt cluster */
         if (flags & ISFSVOL_FLAG_ENCRYPTED)
             _isfs_decrypt_cluster(ctx, cluster_data);
-    }
 
-    /* verify hmac */
-    if (flags & ISFSVOL_FLAG_HMAC)
-    {
-        hmac_ctx calc_hmac;
-        int matched = 0;
+        /* verify hmac */
+        if (flags & ISFSVOL_FLAG_HMAC)
+        {
+            hmac_ctx calc_hmac;
+            int matched = 0;
 
-        /* compute clusters hmac */
-        hmac_init(&calc_hmac, ctx->hmac, 20);
-        hmac_update(&calc_hmac, (const u8 *)hmac_seed, SHA_BLOCK_SIZE);
-        hmac_update(&calc_hmac, (const u8 *)data, cluster_count * CLUSTER_SIZE);
-        hmac_final(&calc_hmac, hmac);
+            /* compute clusters hmac */
+            hmac_init(&calc_hmac, ctx->hmac, 20);
+            hmac_update(&calc_hmac, (const u8 *)hmac_seed, SHA_BLOCK_SIZE);
+            hmac_update(&calc_hmac, (const u8 *)data, cluster_count * CLUSTER_SIZE);
+            hmac_final(&calc_hmac, hmac);
 
-        /* ensure at least one of the saved hmacs matches */
-        matched += !memcmp(saved_hmacs[0], hmac, sizeof(hmac));
-        matched += !memcmp(saved_hmacs[1], hmac, sizeof(hmac));
+            /* ensure at least one of the saved hmacs matches */
+            matched += !memcmp(saved_hmacs[0], hmac, sizeof(hmac));
+            matched += !memcmp(saved_hmacs[1], hmac, sizeof(hmac));
 
-        if (matched == 2)
-            rc = ISFSVOL_OK;
-        else if (matched == 1) {
-            ISFS_debug("HMAC partital match\n");
-            rc = ISFSVOL_HMAC_PARTIAL;
-        }
-        else {
-            ISFS_debug("HMAC error\n");
-            rc = ISFSVOL_ERROR_HMAC;
+            if (matched == 1) {
+                ISFS_debug("HMAC partital match\n");
+                hmac_partial = true;
+            }
+            else if(!matched){
+                ISFS_debug("HMAC error\n");
+                hmac_error = true;
+            }
         }
     }
 
+    if(nand_error)
+        return ISFSVOL_ERROR_READ; 
+    if(hmac_error)
+        return ISFSVOL_ERROR_HMAC;
+    if(ecc_uncorrectable)
+        return ISFSVOL_ERROR_ECC;
+
+    int rc = ISFSVOL_OK;
+    if(ecc_correctable)
+        rc |= ISFSVOL_ECC_CORRECTED;
+    if(hmac_partial)
+        rc |= ISFSVOL_HMAC_PARTIAL;
     return rc;
 }
 

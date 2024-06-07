@@ -35,6 +35,7 @@
 #define ISFSVOL_ERROR_ERASE     -0x30
 #define ISFSVOL_ERROR_HMAC      -0x40
 #define ISFSVOL_ERROR_READBACK  -0x50
+#define ISFSVOL_ERROR_ECC       -0x60
 
 #define ISFSAES_BLOCK_SIZE 0x10
 
