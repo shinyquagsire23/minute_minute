@@ -13,7 +13,7 @@
 
 #include "types.h"
 #include "nand.h"
-#include "ff.h"
+#include "fatfs/ff.h"
 #include <sys/iosupport.h>
 
 #define ISFSVOL_SLC             0

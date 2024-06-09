@@ -230,39 +230,39 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
         if (flags & ISFSVOL_FLAG_ENCRYPTED)
             _isfs_decrypt_cluster(ctx, cluster_data);
 
-        /* verify hmac */
-        if (flags & ISFSVOL_FLAG_HMAC)
-        {
-            hmac_ctx calc_hmac;
-            int matched = 0;
-
-            /* compute clusters hmac */
-            hmac_init(&calc_hmac, ctx->hmac, 20);
-            hmac_update(&calc_hmac, (const u8 *)hmac_seed, SHA_BLOCK_SIZE);
-            hmac_update(&calc_hmac, (const u8 *)data, cluster_count * CLUSTER_SIZE);
-            hmac_final(&calc_hmac, hmac);
-
-            /* ensure at least one of the saved hmacs matches */
-            matched += !memcmp(saved_hmacs[0], hmac, sizeof(hmac));
-            matched += !memcmp(saved_hmacs[1], hmac, sizeof(hmac));
-
-            if (matched == 1) {
-                ISFS_debug("HMAC partital match\n");
-                hmac_partial = true;
-            }
-            else if(!matched){
-                ISFS_debug("HMAC error\n");
-                hmac_error = true;
-            }
-        }
     }
 
     if(nand_error)
         return ISFSVOL_ERROR_READ; 
-    if(hmac_error)
-        return ISFSVOL_ERROR_HMAC;
+
     if(ecc_uncorrectable)
         return ISFSVOL_ERROR_ECC;
+
+    /* verify hmac */
+    if (flags & ISFSVOL_FLAG_HMAC)
+    {
+        hmac_ctx calc_hmac;
+        int matched = 0;
+
+        /* compute clusters hmac */
+        hmac_init(&calc_hmac, ctx->hmac, 20);
+        hmac_update(&calc_hmac, (const u8 *)hmac_seed, SHA_BLOCK_SIZE);
+        hmac_update(&calc_hmac, (const u8 *)data, cluster_count * CLUSTER_SIZE);
+        hmac_final(&calc_hmac, hmac);
+
+        /* ensure at least one of the saved hmacs matches */
+        matched += !memcmp(saved_hmacs[0], hmac, sizeof(hmac));
+        matched += !memcmp(saved_hmacs[1], hmac, sizeof(hmac));
+
+        if (matched == 1) {
+            ISFS_debug("HMAC partital match\n");
+            hmac_partial = true;
+        }
+        else if(!matched){
+            ISFS_debug("HMAC error\n");
+            return ISFSVOL_ERROR_HMAC;
+        }
+    }
 
     int rc = ISFSVOL_OK;
     if(ecc_correctable)
