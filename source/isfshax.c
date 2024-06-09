@@ -50,96 +50,154 @@ boot1_superblock = (const isfshax_super *)(0x01f80000);
 
 static isfshax_super superblock;
 
+
+static bool isfshax_needs_rewrite(int res, bool slot_ecc_correctable){
+    if(!res)
+        return false;
+    // don't rewrite if the slot is known for having a correctable error
+    if(res == ISFSVOL_ECC_CORRECTED && slot_ecc_correctable)
+        return false;
+    return true;
+}
+
+static int isfshax_rewrite_super(isfs_ctx *slc, u32 index, u32 generation, isfshax_super *superblock){
+    superblock->isfshax.generation = generation;
+    superblock->generation = generation;
+    superblock->isfshax.index = index;
+
+    int res;
+    for(int retrys=3; retrys; retrys--){
+        isfshax_slot *slot = &superblock->isfshax.slots[index];
+        res = isfs_write_super(slc, superblock, slot->slot);
+        if(!res)
+            return 0;
+        if(res == ISFSVOL_ECC_CORRECTED){
+            if(slot->ecc_correctable)
+                return res;
+            if(retrys<3){
+                slot->ecc_correctable = true;
+                retrys++;
+            }
+        }        
+    }
+    return res;
+}
+
+
 #ifdef NAND_WRITE_ENABLED
+/**
+ * @brief check superblocks and rewrite ones becomming bad
+ * 
+ * Never overwrites the current superblock
+ * 
+ * @return int 
+ */
+
 int isfshax_refresh(void)
 {
     isfs_ctx *slc = isfs_get_volume(ISFSVOL_SLC);
     slc->version = 1;
     isfs_load_keys(slc);
-    u32 curindex, offs, count = 1, written = 0;
-    u32 generation;
 
-    /* detect if the superblock contains ecc errors and boot1
-     * attempted to recommit the superblock */
-    if (boot1_superblock->generation == boot1_superblock->isfshax.generation)
-        return 0;
 
-    printf("searching good ISFShax superblock\n");
+    int num_rewrite = 0;
+    bool needs_rewrite[ISFSHAX_REDUNDANCY];
+    bool is_good[ISFSHAX_REDUNDANCY];
+    int good_count = 0;
+    bool good_no_rewrite = false;
 
-    /* load the newest valid isfshax superblock slot */
-    curindex = boot1_superblock->isfshax.index;
-    for (offs = 0; offs < ISFSHAX_REDUNDANCY; offs++) {
-        u32 index = (curindex + offs) & (ISFSHAX_REDUNDANCY - 1);
-        u32 slot = boot1_superblock->isfshax.slots[index] & ~ISFSHAX_BAD_SLOT;
+    u32 curindex = boot1_superblock->isfshax.index;
+    u8 curslot = boot1_superblock->isfshax.slots[curindex].slot;
+    bool curecc = !!(boot1_superblock->isfshax.slots[curindex].ecc_correctable);
 
-        if (isfs_read_super(slc, &superblock, slot) >= 0) {
-            curindex = index;
-            break;
+    
+    u32 newest_gen = boot1_superblock->isfshax.generation;
+    u32 newest_gen_index = curindex;
+    u32 oldest_gen = boot1_superblock->isfshax.generation;
+    u32 oldest_gen_index = (curindex + 1) % ISFSHAX_REDUNDANCY;
+    u32 rewrite_index = (curindex + 1) % ISFSHAX_REDUNDANCY;
+    //u32 rewrite_gen = max(ISFSHAX_GENERATION_FIRST, newest_gen-1)
+    bool rewrite_needed = false;
+
+    bool used_gens[ISFSHAX_REDUNDANCY-1] = {};
+
+    int bad_slot_count = 0;
+
+    for(int i=1; i<ISFSHAX_REDUNDANCY; i++){
+        u32 index = (curindex + i) % ISFSHAX_REDUNDANCY;
+        if(boot1_superblock->isfshax.slots[index].bad){
+            bad_slot_count++;
+            continue;        
         }
-    }
-    if (offs == ISFSHAX_REDUNDANCY){
-        printf("no good isfshax superblock\n");
-        return -2;
-    }
-
-    printf("rewriting ISFShax superblocks\n");
-
-    /* if the last valid generation is reached, rewrite/erase all
-     * isfshax superblocks with a lower generation number */
-    generation = superblock.generation + 1;
-    if (generation >= (superblock.isfshax.generationbase + ISFSHAX_GENERATION_RANGE)) {
-        generation = superblock.isfshax.generationbase;
-        count = ISFSHAX_REDUNDANCY;
-    }
-
-    for (offs = 1; (offs <= ISFSHAX_REDUNDANCY) && (written < count); offs++) {
-        u32 index = (curindex + offs) % ISFSHAX_REDUNDANCY;
-        u32 slot = superblock.isfshax.slots[index] & ~ISFSHAX_BAD_SLOT;
-
-        /* skip slots that became bad after a superblock rewrite */
-        if (superblock.isfshax.slots[index] & ISFSHAX_BAD_SLOT)
-            continue;
-
-        /* if the slot currently in use is being rewritten, ensure
-         * at least another slot was already successfully written */
-        if ((index == curindex) && !written)
-            continue;
-
-        /* update superblock informations */
-        superblock.isfshax.index = index;
-        superblock.isfshax.generation = generation;
-        superblock.generation = generation;
-
-        /* rewrite and verify the superblock */
-        if (isfs_write_super(slc, &superblock, slot) >= 0)
-        {
-            generation++;
-            written++;
+        u32 slot = boot1_superblock->isfshax.slots[index].slot;
+        int res = isfs_read_super(slc, &superblock, slot);
+        if(!rewrite_needed && isfshax_needs_rewrite(res, boot1_superblock->isfshax.slots[index].ecc_correctable)){
+            rewrite_index = index;
+            rewrite_needed = true;                
+        } else if(res>=0) {
+            int gen_idx = newest_gen - superblock.isfshax.generation -1;
+            if(gen_idx>=0 && gen_idx < ISFSHAX_REDUNDANCY)
+                used_gens[gen_idx] = true;
+        }
+        if(res<0){
             continue;
         }
 
-        /* block became bad during write operation, mark
-         * the block as bad and go to next generation range */
-        superblock.isfshax.slots[index] |= ISFSHAX_BAD_SLOT;
-        superblock.isfshax.generationbase += ISFSHAX_GENERATION_RANGE;
-        generation = superblock.isfshax.generationbase;
-
-        /* the current superblock became bad. ensure the other
-         * isfshax superblock are updated with the new generation range
-         * and bad slot information. */
-        if (index == curindex)
-        {
-            offs = 1;
-            written = 0;
+        if(oldest_gen > superblock.isfshax.generation){
+            oldest_gen = superblock.isfshax.generation;
+            oldest_gen_index = index;
+        }
+        if(newest_gen < superblock.isfshax.generation){
+            newest_gen = superblock.isfshax.generation;
+            newest_gen_index = index;
         }
     }
 
-    printf("written ISFShax superblocks: %d\n", written);
-    /* all isfshax superblocks became bad, or the nand writing code stopped
-     * working correctly. either way the user should probably be informed. */
-    if (!written)
-        return -3;
+    if(newest_gen > boot1_superblock->isfshax.generation)
+        return ISFSHAX_ERROR_CURRENT_GEN_NOT_LATEST;
+    
+    int res = isfs_read_super(slc, &superblock, curslot);
+    if(res<0)
+        return ISFSHAX_ERROR_CURRENT_SLOT_BAD;
 
-    return 1;
+    bool update_generation = false;
+    if(isfshax_needs_rewrite(res, boot1_superblock->isfshax.slots[curindex].ecc_correctable)){
+        update_generation = true;
+        rewrite_needed = true;
+    }
+
+    if(!rewrite_needed){
+        return bad_slot_count;
+    }
+
+    u32 write_gen = newest_gen + 1;
+    if(!update_generation){
+        int back = 0;
+        while(used_gens[back--]);
+        u32 free_gen = newest_gen - back;
+        if(free_gen>=ISFSHAX_GENERATION_FIRST)
+            write_gen=free_gen;
+    }
+
+    res = isfshax_rewrite_super(slc, rewrite_index, write_gen, &superblock);
+    if(res>=0)
+        return ISFSHAX_REWRITE_HAPPENED + bad_slot_count;
+
+    if(oldest_gen_index == curindex)
+        return ISFSHAX_LOST_REDUNDENCY;
+
+    superblock.isfshax.slots[rewrite_index].bad = true;
+    write_gen = newest_gen + 1;
+    bad_slot_count++;
+
+    res = isfshax_rewrite_super(slc, oldest_gen, write_gen, &superblock);
+    if(res<0){
+        bad_slot_count++;
+        if(bad_slot_count<=ISFSHAX_REDUNDANCY-1)
+            return ISFSHAX_LOST_REDUNDENCY;
+        return ISFSHAX_ERROR_REWRITE_FAILED;
+    }
+
+    return ISFSHAX_REWRITE_SLOT_BECAME_BAD + bad_slot_count;
 }
 #endif //NAND_WRITE_ENABLED
