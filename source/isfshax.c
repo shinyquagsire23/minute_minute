@@ -113,11 +113,10 @@ int isfshax_refresh(void)
     
     u32 newest_gen = boot1_superblock->isfshax.generation;
     u32 newest_gen_index = curindex;
-    u32 oldest_gen = boot1_superblock->isfshax.generation;
-    u32 oldest_gen_index = (curindex + 1) % ISFSHAX_REDUNDANCY;
     u32 rewrite_index = (curindex + 1) % ISFSHAX_REDUNDANCY;
     //u32 rewrite_gen = max(ISFSHAX_GENERATION_FIRST, newest_gen-1)
     bool rewrite_needed = false;
+    bool read_bad_slots[ISFSHAX_REDUNDANCY] = {};
 
     bool used_gens[ISFSHAX_REDUNDANCY-1] = {};
 
@@ -140,13 +139,12 @@ int isfshax_refresh(void)
                 used_gens[gen_idx] = true;
         }
         if(res<0){
+            // prioritize rewriting uncorrectable blocks over correctable
+            rewrite_index = index;
+            read_bad_slots[index] = true;
             continue;
         }
 
-        if(oldest_gen > superblock.isfshax.generation){
-            oldest_gen = superblock.isfshax.generation;
-            oldest_gen_index = index;
-        }
         if(newest_gen < superblock.isfshax.generation){
             newest_gen = superblock.isfshax.generation;
             newest_gen_index = index;
@@ -179,25 +177,21 @@ int isfshax_refresh(void)
             write_gen=free_gen;
     }
 
-    res = isfshax_rewrite_super(slc, rewrite_index, write_gen, &superblock);
-    if(res>=0)
-        return ISFSHAX_REWRITE_HAPPENED + bad_slot_count;
+    for(int i=0; i<ISFSHAX_REDUNDANCY; i++){
+        if(rewrite_index==curindex)
+            continue;
+        res = isfshax_rewrite_super(slc, rewrite_index, write_gen, &superblock);
+        if(res>=0)
+            return (i?ISFSHAX_REWRITE_SLOT_BECAME_BAD:ISFSHAX_REWRITE_HAPPENED) + bad_slot_count;
 
-    if(oldest_gen_index == curindex)
-        return ISFSHAX_LOST_REDUNDENCY;
+        superblock.isfshax.slots[rewrite_index].bad = true;
+        write_gen = newest_gen + ISFSHAX_REDUNDANCY + i;
+        if(!read_bad_slots[rewrite_index])
+            bad_slot_count++;
 
-    superblock.isfshax.slots[rewrite_index].bad = true;
-    write_gen = newest_gen + 1;
-    bad_slot_count++;
-
-    res = isfshax_rewrite_super(slc, oldest_gen, write_gen, &superblock);
-    if(res<0){
-        bad_slot_count++;
-        if(bad_slot_count<=ISFSHAX_REDUNDANCY-1)
-            return ISFSHAX_LOST_REDUNDENCY;
-        return ISFSHAX_ERROR_REWRITE_FAILED;
+        rewrite_index = (rewrite_index+1) % ISFSHAX_REDUNDANCY;
     }
 
-    return ISFSHAX_REWRITE_SLOT_BECAME_BAD + bad_slot_count;
+    return ISFSHAX_LOST_REDUNDENCY;
 }
 #endif //NAND_WRITE_ENABLED

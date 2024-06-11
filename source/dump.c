@@ -1062,10 +1062,10 @@ void _dump_print_superblocks(int volume){
         printf("Slot %d: generation: 0x%08X, magic: 0x%08X (%4s)\n", slot, 
                 superblock->generation, magic[0], magic);
         if(superblock->generation>=ISFSHAX_GENERATION_FIRST){
-            printf(" isfshax: gen: 0x%08X, genbase: 0x%08X, index: 0x%08X, magic: 0x%08X, slots: [%d, %d, %d, %d]\n", 
+            printf(" isfshax: gen: 0x%08X, genbase: 0x%08X, index: 0x%08X, magic: 0x%08X, slots: [0x%x, 0x%x, 0x%x, 0x%x]\n", 
             superblock->isfshax.generation, superblock->isfshax.generationbase,
-            superblock->isfshax.index, superblock->isfshax.magic, superblock->isfshax.slots[0],
-            superblock->isfshax.slots[1],superblock->isfshax.slots[2],superblock->isfshax.slots[3]);
+            superblock->isfshax.index, superblock->isfshax.magic, *(u8*)(superblock->isfshax.slots),
+            *(u8*)(superblock->isfshax.slots+1),*(u8*)(superblock->isfshax.slots+2),*(u8*)(superblock->isfshax.slots+3));
         }
     }
     console_power_to_continue();
