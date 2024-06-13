@@ -192,6 +192,60 @@ int isfshax_refresh(void)
         rewrite_index = (rewrite_index+1) % ISFSHAX_REDUNDANCY;
     }
 
-    return ISFSHAX_LOST_REDUNDENCY;
+    return ISFSHAX_ERROR_NO_REDUNDENCY;
 }
 #endif //NAND_WRITE_ENABLED
+
+
+void print_isfshax_refresh_error(void){
+    int isfshax_refresh = 0;
+    prsh_get_entry("isfshax_refresh", (void**)&isfshax_refresh, NULL );
+    if(!isfshax_refresh)
+        return 0;
+    if(isfshax_refresh<0){
+        printf("\n\nCRITICAL!!!\n");
+        switch (isfshax_refresh)
+        {
+        case ISFSHAX_ERROR_NO_REDUNDENCY:
+                printf("All ISFShax backup superblocks became bad!\n");
+                printf("Install ISFShax again ASAP!\n");
+                break;
+        case ISFSHAX_ERROR_CURRENT_GEN_NOT_LATEST:
+                printf("Boot1 rejected last superblock, but it seems good.\n");
+                printf("This shouldn't happen, report it as a bug\n");
+                break;
+        case ISFSHAX_ERROR_CURRENT_SLOT_BAD:
+                printf("Current ISFShax superblock failed check!\n")
+                printf("This shouldn't happen, report it as a bug\n");
+                break;
+        default:
+            printf("Unknown ISFShax refresh error: %d\n", isfshax_refresh);
+        }
+    } else {
+        int badblocks = isfshax_refresh & 0xF;
+        int event = isfshax_refresh & ~0xF;
+        if(badblocks)
+            printf("WARNING: %d ISFShax superblock became bad\n");
+        switch (event)
+        {
+        case 0:
+            if(badblocks<2)
+                return; //accept 1 bad block
+        case ISFSHAX_REWRITE_SLOT_BECAME_BAD:
+            printf("WARNING: A ISFShax superblock was successfully rewritten\n");
+            break;
+        case ISFSHAX_REWRITE_SLOT_BECAME_BAD:
+            printf("WARNING: ISFShax superblock failed during refresh!\n");
+        default:
+            break;
+        }
+
+        if(ISFSHAX_REWRITE_SLOT_BECAME_BAD)
+
+        if(ISFSHAX_REWRITE_HAPPENED)
+    }
+
+    printf("ISFShax refresh reported: %d\n", isfshax_refresh);
+    console_power_to_continue();
+    
+}
