@@ -180,6 +180,8 @@ int isfshax_refresh(void)
     for(int i=0; i<ISFSHAX_REDUNDANCY; i++){
         if(rewrite_index==curindex)
             continue;
+        if(write_gen > ISFSHAX_GENERATION_FIRST + ISFSHAX_GENERATION_RANGE)
+            return ISFSHAX_ERROR_EXCEEDED_GENERATION;
         res = isfshax_rewrite_super(slc, rewrite_index, write_gen, &superblock);
         if(res>=0)
             return (i?ISFSHAX_REWRITE_SLOT_BECAME_BAD:ISFSHAX_REWRITE_HAPPENED) + bad_slot_count;
@@ -197,11 +199,9 @@ int isfshax_refresh(void)
 #endif //NAND_WRITE_ENABLED
 
 
-void print_isfshax_refresh_error(void){
-    int isfshax_refresh = 0;
-    prsh_get_entry("isfshax_refresh", (void**)&isfshax_refresh, NULL );
+void print_isfshax_refresh_error(int isfshax_refresh){
     if(!isfshax_refresh)
-        return 0;
+        return;
     if(isfshax_refresh<0){
         printf("\n\nCRITICAL!!!\n");
         switch (isfshax_refresh)
@@ -215,7 +215,11 @@ void print_isfshax_refresh_error(void){
                 printf("This shouldn't happen, report it as a bug\n");
                 break;
         case ISFSHAX_ERROR_CURRENT_SLOT_BAD:
-                printf("Current ISFShax superblock failed check!\n")
+                printf("Current ISFShax superblock failed check!\n");
+                printf("This shouldn't happen, report it as a bug\n");
+                break;
+        case ISFSHAX_ERROR_EXCEEDED_GENERATION:
+                printf("ISFShax generation range exeeded\n");
                 printf("This shouldn't happen, report it as a bug\n");
                 break;
         default:
@@ -225,27 +229,19 @@ void print_isfshax_refresh_error(void){
         int badblocks = isfshax_refresh & 0xF;
         int event = isfshax_refresh & ~0xF;
         if(badblocks)
-            printf("WARNING: %d ISFShax superblock became bad\n");
+            printf("WARNING: %d ISFShax superblock are bad\n");
         switch (event)
         {
-        case 0:
-            if(badblocks<2)
-                return; //accept 1 bad block
-        case ISFSHAX_REWRITE_SLOT_BECAME_BAD:
+        case ISFSHAX_REWRITE_HAPPENED:
             printf("WARNING: A ISFShax superblock was successfully rewritten\n");
             break;
         case ISFSHAX_REWRITE_SLOT_BECAME_BAD:
             printf("WARNING: ISFShax superblock failed during refresh!\n");
-        default:
             break;
+        case 0:
+        default:
         }
-
-        if(ISFSHAX_REWRITE_SLOT_BECAME_BAD)
-
-        if(ISFSHAX_REWRITE_HAPPENED)
     }
 
     printf("ISFShax refresh reported: %d\n", isfshax_refresh);
-    console_power_to_continue();
-    
 }

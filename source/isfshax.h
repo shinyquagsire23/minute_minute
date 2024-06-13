@@ -22,6 +22,7 @@
 #define ISFSHAX_ERROR_CURRENT_GEN_NOT_LATEST -100
 #define ISFSHAX_ERROR_CURRENT_SLOT_BAD -200
 #define ISFSHAX_ERROR_NO_REDUNDENCY -300
+#define ISFSHAX_ERROR_EXCEEDED_GENERATION -0x400
 #define ISFSHAX_REWRITE_HAPPENED 0x10
 #define ISFSHAX_REWRITE_SLOT_BECAME_BAD 0x20
 
@@ -59,4 +60,4 @@ _Static_assert(sizeof(isfshax_super) == ISFSSUPER_SIZE, "isfshax_super must be 0
 int isfshax_refresh(void);
 #endif
 
-void print_isfshax_refresh_error(void);
+void print_isfshax_refresh_error(int state);

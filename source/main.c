@@ -860,7 +860,12 @@ u32 _main(void *base)
     prsh_reset();
     prsh_init();
 
-    print_isfshax_refresh_error();
+    int isfshax_refresh = 0;
+    prsh_get_entry("isfshax_refresh", (void**)&isfshax_refresh, NULL);
+    if(isfshax_refresh){
+        print_isfshax_refresh_error(isfshax_refresh);
+        console_power_to_continue();
+    }
 
     // If we're coming from boot1 and PRSH is encrypted, the new boot_info is what we should use.
     // Otherwise, if we're not coming from boot1, copy to boot_info_copy
