@@ -40,6 +40,8 @@
 #define ISFSVOL_SLC 0
 #define SLC_SUPER_COUNT 64
 
+#ifdef NAND_WRITE_ENABLED
+
 /* boot1 superblock loading address.
  * this can be used to read the current generation
  * and the list of isfshax superblock slots, but it
@@ -83,8 +85,6 @@ static int isfshax_rewrite_super(isfs_ctx *slc, u32 index, u32 generation, isfsh
     return res;
 }
 
-
-#ifdef NAND_WRITE_ENABLED
 /**
  * @brief check superblocks and rewrite ones becomming bad
  * 
