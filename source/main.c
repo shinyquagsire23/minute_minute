@@ -1002,11 +1002,6 @@ u32 _main(void *base)
 skip_menu:
 #ifdef MEASURE_TIME
     u32 deinit_start = read32(LT_TIMER);
-#endif 
-#ifdef FASTBOOT
-    prsh_set_entry("minute_boot", (void*)1, 0);
-#else
-    prsh_set_entry("minute_boot", (void*)(menu_main.selected + 1), 0);
 #endif
 
     if(!no_gpu)
@@ -1039,6 +1034,11 @@ skip_menu:
             }
 
             if(boot.vector) {
+#ifdef FASTBOOT
+                prsh_set_entry("minute_boot", (void*)1, 0);
+#else
+                prsh_set_entry("minute_boot", (void*)(menu_main.selected + 1), 0);
+#endif
                 printf("Vectoring to 0x%08lX...\n", boot.vector);
             } else {
                 printf("No vector address, hanging!\n");

@@ -2157,7 +2157,8 @@ void dump_otp_via_prshhax(void)
         printf("However, if you reflashed boot1, you might have to guess which boot1\n");
         printf("version was originally on NAND and will match the SEEPROM version.\n");
     }
-    
+
+    prsh_print();
     prsh_encrypt();
     write32(0x0, 0xEA000010); // b 0x48
     memcpy(payload_dst, boot1_prshhax_payload, ((u32)boot1_prshhax_payload_end-(u32)boot1_prshhax_payload));
