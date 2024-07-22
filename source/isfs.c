@@ -167,12 +167,17 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
     }
 
     u8 saved_hmacs[2][20] = {0}, hmac[20] = {0};
-    int rc = ISFSVOL_OK;
     u32 i, p;
 
     /* enable slc or slccmpt bank */
     if(!ctx->file)
         nand_initialize(ctx->bank);
+
+    bool ecc_correctable = false;
+    bool ecc_uncorrectable = false;
+    bool hmac_error = false;
+    bool hmac_partial = false;
+    bool nand_error = false;
 
     /* read all requested clusters */
     for (i = 0; i < cluster_count; i++)
@@ -196,19 +201,19 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
                 /* uncorrectable ecc error or other issues */
                 if (correct < 0) {
                     ISFS_debug("Uncorrectable ECC ERROR\n");
-                    rc = ISFSVOL_ERROR_READ;
+                    ecc_uncorrectable = true;
                 }
 
                 /* ECC errors, a refresh might be needed */
-                if ((correct > 0) && !rc ){
+                if (correct > 0){
                     ISFS_debug("Corrected ECC ERROR\n");
-                    rc = ISFSVOL_ECC_CORRECTED;
+                    ecc_correctable = true;
                 }
             }
                 
             if(nand_error){
                 ISFS_debug("NAND ERROR on read\n");
-                rc = ISFSVOL_ERROR_READ;
+                nand_error = true;
             }
 
             /* page 6 and 7 store the hmac */
@@ -224,7 +229,14 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
         /* decrypt cluster */
         if (flags & ISFSVOL_FLAG_ENCRYPTED)
             _isfs_decrypt_cluster(ctx, cluster_data);
+
     }
+
+    if(nand_error)
+        return ISFSVOL_ERROR_READ; 
+
+    if(ecc_uncorrectable)
+        return ISFSVOL_ERROR_ECC;
 
     /* verify hmac */
     if (flags & ISFSVOL_FLAG_HMAC)
@@ -242,18 +254,21 @@ int isfs_read_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count, 
         matched += !memcmp(saved_hmacs[0], hmac, sizeof(hmac));
         matched += !memcmp(saved_hmacs[1], hmac, sizeof(hmac));
 
-        if (matched == 2)
-            rc = ISFSVOL_OK;
-        else if (matched == 1) {
+        if (matched == 1) {
             ISFS_debug("HMAC partital match\n");
-            rc = ISFSVOL_HMAC_PARTIAL;
+            hmac_partial = true;
         }
-        else {
+        else if(!matched){
             ISFS_debug("HMAC error\n");
-            rc = ISFSVOL_ERROR_HMAC;
+            return ISFSVOL_ERROR_HMAC;
         }
     }
 
+    int rc = ISFSVOL_OK;
+    if(ecc_correctable)
+        rc |= ISFSVOL_ECC_CORRECTED;
+    if(hmac_partial)
+        rc |= ISFSVOL_HMAC_PARTIAL;
     return rc;
 }
 
@@ -289,7 +304,6 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
     static u8 blockpg[BLOCK_PAGES][PAGE_SIZE] ALIGNED(NAND_DATA_ALIGN), blocksp[BLOCK_PAGES][PAGE_SPARE_SIZE];
     static u8 pgbuf[PAGE_SIZE] ALIGNED(NAND_DATA_ALIGN);
     u8 hmac[20] = {0};
-    int rc = ISFSVOL_OK;
     u32 b, p;
 
     /* enable slc or slccmpt bank */
@@ -313,6 +327,8 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
         aes_empty_iv();
     }
 
+    bool ecc_corrected = false;
+
     u32 startpage = start_cluster * CLUSTER_PAGES;
     u32 endpage = (start_cluster + cluster_count) * CLUSTER_PAGES;
 
@@ -320,7 +336,7 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
     u32 endblock = (start_cluster + cluster_count + BLOCK_CLUSTERS - 1) / BLOCK_CLUSTERS;
 
     /* process data in nand blocks */
-    for (b = startblock; (b < endblock) && (rc >= 0); b++)
+    for (b = startblock; b < endblock; b++)
     {
         u32 firstblockpage = b * BLOCK_PAGES;
 
@@ -366,16 +382,19 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
         if (nand_erase_block(b * BLOCK_PAGES) < 0)
             return ISFSVOL_ERROR_ERASE;
 
+        int write_error = 0;
         ISFS_debug("Writing\n");
         /* write block */
         for (p = 0; p < BLOCK_PAGES; p++)
             if (nand_write_page(firstblockpage + p, blockpg[p], blocksp[p]) < 0){
                 printf("ISFS: Error writing page\n");
-                rc = ISFSVOL_ERROR_WRITE;
+                write_error = ISFSVOL_ERROR_WRITE;
             }
+        if(write_error)
+            return write_error;
 
         /* check if pages should be verified after writing */
-        if (rc || !(flags & ISFSVOL_FLAG_READBACK))
+        if (!(flags & ISFSVOL_FLAG_READBACK))
             continue;
 
         ISFS_debug("Reading back\n");
@@ -387,8 +406,11 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
                 printf("ISFS: Error reading back\n");
                 return ISFSVOL_ERROR_READ;
             }
-            if(nand_correct(firstblockpage + p, pgbuf, ecc_buf) < 0)
+            int res = nand_correct(firstblockpage + p, pgbuf, ecc_buf);
+            if(res<0)
                 return ISFSVOL_ERROR_READ;
+            if(res>0)
+                ecc_corrected = true;
 
             /* page content doesn't match */
             if (memcmp(blockpg[p], pgbuf, PAGE_SIZE)){
@@ -402,7 +424,9 @@ int isfs_write_volume(const isfs_ctx* ctx, u32 start_cluster, u32 cluster_count,
         }
     }
 
-    return rc;
+    if(ecc_corrected)
+        return ISFSVOL_ECC_CORRECTED;
+    return ISFSVOL_OK;
 }
 #endif
 
@@ -591,7 +615,7 @@ int isfs_find_super(isfs_ctx* ctx, u32 min_generation, u32 max_generation, u32 *
     {
         u32 cluster = CLUSTER_COUNT - (ctx->super_count - i) * ISFSSUPER_CLUSTERS;
 
-        if(isfs_read_volume(ctx, cluster, 1, 0, NULL, slc_cluster_buf))
+        if(isfs_read_volume(ctx, cluster, 1, 0, NULL, slc_cluster_buf)<0)
             continue;
 
         int cur_version = _isfs_get_super_version(slc_cluster_buf);

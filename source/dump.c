@@ -97,9 +97,10 @@ menu menu_dump = {
             {"Sync SEEPROM boot1 versions with NAND", &dump_sync_seeprom_boot1_versions},
             {"Set SEEPROM SATA device type", &dump_set_sata_type},
             {"Test SLC and Restore SLC.RAW", &dump_restore_test_slc_raw},
+            {"Print SLC superblocks", &dump_print_slc_superblocks},
             {"Return to Main Menu", &menu_close},
     },
-    27, // number of options
+    28, // number of options
     0,
     0
 };
@@ -1039,6 +1040,39 @@ int _dump_slc_raw(u32 bank, int boot1_only)
 
     #undef PAGES_PER_ITERATION
     #undef TOTAL_ITERATIONS
+}
+
+void _dump_print_superblocks(int volume){
+    printf("Initializing...\n");
+    isfs_init(volume);
+    gfx_clear(GFX_ALL, BLACK);
+    isfs_ctx *slc = isfs_get_volume(volume);
+    isfshax_super *superblock = memalign(NAND_DATA_ALIGN, ISFSSUPER_SIZE);
+    for(int slot=0; slot<slc->super_count; slot++){
+        if(slot == 32){
+            console_power_to_continue();
+            gfx_clear(GFX_ALL, BLACK);
+        }
+        int res = isfs_read_super(slc, superblock, slot);
+        if(res < 0){
+            printf("Slot %d: READ ERROR %d\n", slot, res);
+            continue;
+        }
+        int magic[2] = { *(int*)superblock->magic };
+        printf("Slot %d: generation: 0x%08X, magic: 0x%08X (%4s)\n", slot, 
+                superblock->generation, magic[0], magic);
+        if(superblock->generation>=ISFSHAX_GENERATION_FIRST){
+            printf(" isfshax: gen: 0x%08X, genbase: 0x%08X, index: 0x%08X, magic: 0x%08X, slots: [0x%x, 0x%x, 0x%x, 0x%x]\n", 
+            superblock->isfshax.generation, superblock->isfshax.generationbase,
+            superblock->isfshax.index, superblock->isfshax.magic, *(u8*)(superblock->isfshax.slots),
+            *(u8*)(superblock->isfshax.slots+1),*(u8*)(superblock->isfshax.slots+2),*(u8*)(superblock->isfshax.slots+3));
+        }
+    }
+    console_power_to_continue();
+}
+
+void dump_print_slc_superblocks(void){
+    _dump_print_superblocks(ISFSVOL_SLC);
 }
 
 static bool check_all32(u8* arr, u32 length, u8 value){
@@ -2123,7 +2157,8 @@ void dump_otp_via_prshhax(void)
         printf("However, if you reflashed boot1, you might have to guess which boot1\n");
         printf("version was originally on NAND and will match the SEEPROM version.\n");
     }
-    
+
+    prsh_print();
     prsh_encrypt();
     write32(0x0, 0xEA000010); // b 0x48
     memcpy(payload_dst, boot1_prshhax_payload, ((u32)boot1_prshhax_payload_end-(u32)boot1_prshhax_payload));

@@ -228,7 +228,7 @@ int ancast_load(ancast_ctx* ctx)
         u32 total_size = ctx->header_size + ctx->header.body_size;
         memcpy(ctx->load, ctx->memory_load, total_size);
     }
-#ifndef MINUTE_BOOT1
+#if !defined(MINUTE_BOOT1) || defined(ISFSHAX_STAGE2)
     else if (ctx->file)
     {
         printf("ancast: reading 0x%x bytes from %s\n", ctx->header_size + ctx->header.body_size, ctx->path);
@@ -395,7 +395,7 @@ u32 ancast_iop_load(const char* path)
     res = ancast_load(&ctx);
     if(res) return 0;
 
-#ifndef MINUTE_BOOT1
+#if !defined(MINUTE_BOOT1) || defined(ISFSHAX_STAGE2)
     if(!(ctx.header.unk1 & 0b1)) {
         aes_reset();
         aes_set_key(otp.fw_ancast_key);
@@ -512,7 +512,7 @@ u32 ancast_iop_load_from_memory(void* ancast_mem)
     res = ancast_load(&ctx);
     if(res) return 0;
 
-#ifndef MINUTE_BOOT1
+#if !defined(MINUTE_BOOT1) || defined(ISFSHAX_STAGE2)
     if(!(ctx.header.unk1 & 0b1)) {
         aes_reset();
         aes_set_key(otp.fw_ancast_key);

@@ -19,12 +19,23 @@
 #define ISFSHAX_GENERATION_FIRST    0xffff7fff
 #define ISFSHAX_GENERATION_RANGE    0x100
 
-#define ISFSHAX_BAD_SLOT            0x80
+#define ISFSHAX_ERROR_CURRENT_GEN_NOT_LATEST -100
+#define ISFSHAX_ERROR_CURRENT_SLOT_BAD -200
+#define ISFSHAX_ERROR_NO_REDUNDENCY -300
+#define ISFSHAX_ERROR_EXCEEDED_GENERATION -0x400
+#define ISFSHAX_REWRITE_HAPPENED 0x10
+#define ISFSHAX_REWRITE_SLOT_BECAME_BAD 0x20
+
+typedef struct isfshax_slot{
+    bool bad : 1;
+    bool ecc_correctable : 1;
+    u8 slot : 6; 
+} PACKED isfshax_slot;
 
 typedef struct isfshax_info
 {
     u32 magic;
-    u8 slots[ISFSHAX_REDUNDANCY];
+    isfshax_slot slots[ISFSHAX_REDUNDANCY];
     u32 generation;
     u32 generationbase;
     u32 index;
@@ -48,3 +59,5 @@ _Static_assert(sizeof(isfshax_super) == ISFSSUPER_SIZE, "isfshax_super must be 0
 #ifdef NAND_WRITE_ENABLED
 int isfshax_refresh(void);
 #endif
+
+void print_isfshax_refresh_error(int state);
