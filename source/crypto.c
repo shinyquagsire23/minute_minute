@@ -27,6 +27,8 @@
 #define     AES_CMD_ENCRYPT 0x9000
 #define     AES_CMD_COPY    0x8000
 
+u8 partial_overwrite_data[0x40] ALIGNED(16);
+
 otp_t otp;
 seeprom_t seeprom;
 seeprom_t seeprom_decrypted;
@@ -116,8 +118,29 @@ int crypto_check_de_Fused()
     return crypto_otp_is_de_Fused;
 }
 
+static void aes_partial_overwrite(u8* src, u8* dst) {
+	aes_empty_iv();
+	
+	for (int i = 0; i < 4; i++) {
+		// Encrypt single block with AES
+		aes_encrypt(src, &dst[0x10 * i], 1, 0);
+		
+		// Push 32 bits of the key
+		write32(AES_KEY, 0);
+	}
+}
+
 void crypto_initialize(void)
 {
+	// Perform partial overwrite attack before using the AES engine.
+	static u8 block_in[0x10] ALIGNED(16);
+	memset(block_in, 0, sizeof(block_in));
+	aes_partial_overwrite(block_in, partial_overwrite_data);
+	// If first two blocks are identical, key got wiped in the engine so throw it away.
+	if (memcmp(&partial_overwrite_data[0], &partial_overwrite_data[0x10], 0x10) == 0) {
+		memset(partial_overwrite_data, 0, sizeof(partial_overwrite_data));
+	}
+	
     crypto_read_otp();
     crypto_read_seeprom();
 

@@ -50,6 +50,8 @@ void dump_logs_redslc(void);
 
 void dump_otp_via_prshhax(void);
 
+void dump_partial_overwrite(void);
+
 void dump_sync_seeprom_boot1_versions(void);
 
 
