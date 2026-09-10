@@ -45,6 +45,7 @@
 extern seeprom_t seeprom;
 extern otp_t otp;
 extern bool main_loaded_from_ptb;
+extern u8 partial_overwrite_data[0x40];
 
 extern void boot1_prshhax_payload(void);
 extern void boot1_prshhax_payload_end(void);
@@ -78,6 +79,7 @@ menu menu_dump = {
             {"Dump SEEPROM & OTP", &dump_seeprom_otp},
             {"Dump Espresso OTP & bootrom", &dump_espresso},
             {"Dump OTP via PRSHhax", &dump_otp_via_prshhax},
+            {"Dump partial overwrite data", &dump_partial_overwrite},
             {"Dump SLC.RAW", &dump_slc_raw},
             {"Dump SLCCMPT.RAW", &dump_slccmpt_raw},
             {"Dump BOOT1_SLC.RAW", &dump_boot1_raw},
@@ -2572,6 +2574,81 @@ void dump_logs_redslc(void){
     }
     _copy_dir("redslc:/sys/logs", "sdmc:/redlogs");
     console_power_or_eject_to_return();
+}
+
+static bool _is_all_zero(u8* buffer, size_t len) {
+	for (size_t i = 0; i < len; i++) if (buffer[i] != 0) return false;
+	return true;
+}
+
+void dump_partial_overwrite(void) {
+	FILE* f = NULL;
+	
+	gfx_clear(GFX_ALL, BLACK);
+	// If all zeroes, then AES engine had been cleared.
+	if (_is_all_zero(partial_overwrite_data, sizeof(partial_overwrite_data))) {
+		printf("AES engine was already cleared when minute started.\n");
+		printf("Do you want to zero out diag boot1 version in seeprom?\n");
+		if (!console_abort_confirmation_power_no_eject_yes()) {
+			u16 ver = 0, readback_verify = 0xFF;
+			seeprom_write(&ver, 0x99, 1);
+			udelay(10);
+			seeprom_read(&readback_verify, 0x99, 1);
+			if (ver == readback_verify) {
+				printf("Done\n");
+			} else {
+				printf("Failed, expected=%d,readback=%d\n", ver, readback_verify);
+			}
+		}
+		
+		console_power_or_eject_to_return();
+		return;
+	}
+	
+	u32* pod32 = (u32*)partial_overwrite_data;
+	// dump to screen
+	printf(
+		"First3dwords0dEncData: %08x%08x%08x%08x\n"
+		"First2dwords0dEncData: %08x%08x%08x%08x\n"
+		"First1dwords0dEncData: %08x%08x%08x%08x\n"
+		"FullKeyEncData: %08x%08x%08x%08x\n",
+		pod32[0xc], pod32[0xd], pod32[0xe], pod32[0xf],
+		pod32[0x8], pod32[0x9], pod32[0xa], pod32[0xb],
+		pod32[0x4], pod32[0x5], pod32[0x6], pod32[0x7],
+		pod32[0x0], pod32[0x1], pod32[0x2], pod32[0x3]
+	);
+	// create text file buffer
+	char podText[1024];
+	snprintf(podText, sizeof(podText), 
+		"First3dwords0dEncData: %08x%08x%08x%08x\r\n"
+		"First2dwords0dEncData: %08x%08x%08x%08x\r\n"
+		"First1dwords0dEncData: %08x%08x%08x%08x\r\n"
+		"FullKeyEncData: %08x%08x%08x%08x\r\n",
+		pod32[0xc], pod32[0xd], pod32[0xe], pod32[0xf],
+		pod32[0x8], pod32[0x9], pod32[0xa], pod32[0xb],
+		pod32[0x4], pod32[0x5], pod32[0x6], pod32[0x7],
+		pod32[0x0], pod32[0x1], pod32[0x2], pod32[0x3]
+	);
+		
+	
+	sdcard_ack_card();
+	if (sdcard_check_card() != SDMMC_INSERTED) {
+		printf("SD card is not initialized.\n");
+		console_power_or_eject_to_return();
+		return;
+	}
+	
+	f = fopen("sdmc:/partial-overwrite.txt", "wb");
+	if (f == NULL) {
+		printf("Failed to open sdmc:/partial-overwrite.txt\n");
+		console_power_or_eject_to_return();
+		return;
+	}
+	
+	fwrite(podText, 1, strlen(podText), f);
+	printf("Dumped to sdmc:/partial-overwrite.txt\n");
+	fclose(f);
+	console_power_or_eject_to_return();
 }
 
 #endif // FASTBOOT
